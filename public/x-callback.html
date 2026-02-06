@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Ppopgi — X Authorization Callback</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b1220; color:#e5e7eb; margin:0; }
+      .wrap { max-width: 720px; margin: 48px auto; padding: 0 16px; }
+      .card { background:#0f172a; border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:20px; }
+      .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+      .pill { padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); font-size:12px; }
+      .muted { color:#9ca3af; font-size:13px; }
+      .btn { cursor:pointer; border:0; border-radius:12px; padding:10px 14px; font-weight:800; background:#22c55e; color:#052e16; }
+      .btn:disabled { opacity:.5; cursor:not-allowed; }
+      code, pre { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:12px; display:block; overflow:auto; }
+      a { color:#60a5fa; }
+      .ok { color:#22c55e; font-weight:900; }
+      .bad { color:#fb7185; font-weight:900; }
+      input { width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.2); color:#e5e7eb; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      label { display:block; margin:10px 0 6px; font-size:12px; font-weight:900; letter-spacing:.06em; text-transform:uppercase; color:#9ca3af; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1 style="margin:0 0 8px 0;">Ppopgi — X OAuth Callback</h1>
+      <div class="muted">This page completes the X authorization. It does <b>not</b> store secrets.</div>
+
+      <div class="card" style="margin-top:16px;">
+        <div id="status" class="row"></div>
+
+        <div style="margin-top:14px;">
+          <label>Authorization code</label>
+          <input id="code" readonly />
+        </div>
+
+        <div style="margin-top:14px;">
+          <label>State</label>
+          <input id="state" readonly />
+        </div>
+
+        <div style="margin-top:14px;">
+          <label>PKCE code_verifier (from localStorage)</label>
+          <input id="verifier" readonly />
+          <div class="muted" style="margin-top:6px;">
+            This is stored locally by your “start auth” page. If empty, you didn’t generate PKCE on this device/browser.
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:14px;">
+          <button id="copy" class="btn" disabled>Copy code + verifier</button>
+          <span class="pill">Keep this tab open until your bot stores the refresh token</span>
+        </div>
+
+        <div class="muted" style="margin-top:14px;">
+          Next step: paste these into your secure Worker endpoint (or your local script) to exchange for tokens.
+        </div>
+
+        <pre id="hint" style="margin-top:12px; display:none;"></pre>
+      </div>
+
+      <div class="muted" style="margin-top:16px;">
+        Tip: for security, keep the token exchange off the frontend. Do it in your Cloudflare Worker and store refresh token in KV.
+      </div>
+    </div>
+
+    <script>
+      const qs = new URLSearchParams(location.search);
+      const code = qs.get("code") || "";
+      const state = qs.get("state") || "";
+      const error = qs.get("error");
+      const errorDesc = qs.get("error_description");
+
+      const verifier = localStorage.getItem("ppopgi_x_code_verifier") || "";
+
+      const statusEl = document.getElementById("status");
+      const codeEl = document.getElementById("code");
+      const stateEl = document.getElementById("state");
+      const verifierEl = document.getElementById("verifier");
+      const copyBtn = document.getElementById("copy");
+      const hintEl = document.getElementById("hint");
+
+      codeEl.value = code;
+      stateEl.value = state;
+      verifierEl.value = verifier;
+
+      function setStatus(ok, msg) {
+        statusEl.innerHTML = `<span class="${ok ? "ok" : "bad"}">${ok ? "✓" : "✕"}</span><span>${msg}</span>`;
+      }
+
+      if (error) {
+        setStatus(false, `Authorization failed: ${error}${errorDesc ? " — " + errorDesc : ""}`);
+      } else if (!code) {
+        setStatus(false, "Missing ?code=... in URL. Try authorizing again.");
+      } else {
+        setStatus(true, "Authorization code received.");
+        copyBtn.disabled = false;
+
+        hintEl.style.display = "block";
+        hintEl.textContent =
+`You can now exchange code -> tokens in your Worker:
+- code: ${code}
+- code_verifier: ${verifier || "(missing)"}`
+      }
+
+      copyBtn.addEventListener("click", async () => {
+        const txt = JSON.stringify({ code, state, code_verifier: verifier }, null, 2);
+        try {
+          await navigator.clipboard.writeText(txt);
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => (copyBtn.textContent = "Copy code + verifier"), 1200);
+        } catch {
+          alert("Clipboard failed. You can manually copy from fields.");
+        }
+      });
+    </script>
+  </body>
+</html>
