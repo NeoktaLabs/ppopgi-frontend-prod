@@ -1,0 +1,45 @@
+/* src/layouts/MainLayout.css */
+.layout-shell {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  color: #4A0F2B; /* Brand ink color */
+  font-family: 'Inter', sans-serif;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* The fixed background layer */
+.layout-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity 0.5s ease;
+}
+
+/* The global overlay gradient (glass effect) */
+.layout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+      radial-gradient(900px 520px at 15% 10%, rgba(246,182,200,0.14), transparent 60%),
+      radial-gradient(900px 520px at 85% 5%, rgba(169,212,255,0.12), transparent 60%),
+      rgba(255,255,255,0.02);
+}
+
+/* The scrollable content area */
+.layout-content {
+  flex: 1;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 18px 16px;
+  position: relative;
+  z-index: 1;
+}

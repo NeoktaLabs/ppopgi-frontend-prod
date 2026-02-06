@@ -1,0 +1,139 @@
+/* src/components/SignInModal.css */
+
+/* 1. Overlay & Animation */
+.sim-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(20, 20, 28, 0.4);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+
+  /* ✅ CHANGE: align from top, not center */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+
+  /* ✅ Space below TopNav */
+  padding-top: 120px;
+  padding-bottom: 40px;
+  padding-left: 16px;
+  padding-right: 16px;
+
+  overflow-y: auto;
+
+  animation: sim-fade-in 0.2s ease-out;
+}
+
+@keyframes sim-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 2. Card Styling */
+.sim-card {
+  width: 100%;
+  max-width: 420px; /* Slightly wider helps wallet list */
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow:
+    0 20px 60px -10px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(0,0,0,0.05);
+
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  animation: sim-scale-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes sim-scale-up {
+  from { transform: translateY(8px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* 3. Header */
+.sim-header {
+  padding: 24px 24px 0 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sim-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 1000;
+  color: #1e293b;
+  letter-spacing: -0.5px;
+}
+
+.sim-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.sim-close-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #94a3b8;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  transition: all 0.2s;
+}
+.sim-close-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* 4. Body & Embed */
+.sim-body {
+  padding: 20px;
+}
+
+/* ✅ IMPORTANT: allow embed growth without breaking layout */
+.sim-embed-wrapper {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* 5. Footer */
+.sim-footer {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.sim-note {
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.sim-disconnect-btn {
+  margin-top: 12px;
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ef4444;
+  cursor: pointer;
+  text-decoration: underline;
+  opacity: 0.8;
+}
+.sim-disconnect-btn:hover {
+  opacity: 1;
+}
+
+/* --- Mobile tweaks --- */
+@media (max-width: 520px) {
+  .sim-overlay {
+    padding-top: 100px; /* slightly tighter on small screens */
+  }
+}

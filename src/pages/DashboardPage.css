@@ -1,0 +1,305 @@
+/* src/pages/DashboardPage.css */
+
+.db-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  color: #1e293b;
+}
+
+/* --- HERO --- */
+.db-hero {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-bottom: 40px;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.db-hero-content {
+  display: flex; align-items: center; gap: 20px;
+}
+
+.db-avatar-circle {
+  width: 64px; height: 64px;
+  background: #f1f5f9;
+  border-radius: 50%;
+  font-size: 32px;
+  display: grid; place-items: center;
+}
+
+.db-hero-label {
+  font-size: 13px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.5px;
+}
+
+.db-hero-addr {
+  font-size: 20px; font-weight: 800; color: #1e293b;
+  font-family: monospace;
+  display: flex; align-items: center; gap: 8px;
+  transition: opacity 0.2s; cursor: pointer;
+}
+.db-hero-addr:hover { opacity: 0.7; }
+.db-copy-icon { font-size: 14px; opacity: 0.5; }
+
+/* Stats */
+.db-hero-stats {
+  display: flex; gap: 32px;
+}
+
+.db-stat { text-align: center; }
+.db-stat-num { font-size: 28px; font-weight: 900; line-height: 1; color: #1e293b; }
+.db-stat-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; margin-top: 4px; }
+
+.db-stat.highlight .db-stat-num { color: #db2777; }
+
+
+/* --- STATUS BANNER --- */
+.db-msg-banner {
+  padding: 12px 20px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-weight: 700;
+  text-align: center;
+  font-size: 14px;
+  animation: db-slide-down 0.3s ease-out;
+}
+@keyframes db-slide-down { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+.db-msg-banner.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.db-msg-banner.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+
+
+/* --- CLAIM SECTION --- */
+.db-section { margin-bottom: 40px; }
+.db-section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+
+/* ✅ FIXED: White color for visibility on dark backgrounds */
+.db-section-title { 
+  font-size: 20px; 
+  font-weight: 1000; 
+  letter-spacing: -0.5px;
+  color: #ffffff; 
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.db-pill {
+  padding: 4px 10px; background: #fee2e2; color: #991b1b;
+  border-radius: 99px; font-size: 11px; font-weight: 800; text-transform: uppercase;
+}
+.db-pill.pulse { animation: db-pulse 2s infinite; }
+@keyframes db-pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+.db-empty-claims {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Claim Card Wrapper */
+.db-claim-wrapper {
+  background: #fff0f5; 
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px dashed #f9a8d4;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  /* ✅ NEW: ensure the card + claim box are centered and aligned */
+  align-items: center;
+}
+
+/* ✅ NEW: force child blocks to fill wrapper width so they align perfectly */
+.db-claim-wrapper > * {
+  width: 100%;
+}
+
+.db-claim-box {
+  background: white; padding: 16px; border-radius: 12px;
+  text-align: center; border: 1px solid rgba(0,0,0,0.05);
+}
+
+.db-claim-header { margin-bottom: 8px; }
+.db-claim-badge { 
+  font-size: 11px; font-weight: 900; text-transform: uppercase; padding: 4px 8px; border-radius: 6px;
+}
+.db-claim-badge.win { background: #dcfce7; color: #166534; }
+.db-claim-badge.refund { background: #fee2e2; color: #991b1b; }
+
+.db-claim-text {
+  font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 12px;
+}
+
+.db-refund-layout { display: flex; flex-direction: column; gap: 4px; }
+.db-refund-val { font-size: 20px; font-weight: 900; color: #1e293b; }
+.db-refund-sub { font-size: 12px; color: #64748b; }
+.db-refund-sub b { color: #0f172a; }
+
+.db-win-layout { display: flex; flex-direction: column; gap: 2px; }
+.db-win-label { font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; }
+.db-win-val { font-size: 20px; font-weight: 1000; color: #14532d; }
+
+.db-btn {
+  width: 100%; padding: 10px; border-radius: 8px; border: none;
+  font-weight: 800; cursor: pointer; text-transform: uppercase; font-size: 12px;
+  transition: transform 0.1s;
+}
+.db-btn:active { transform: scale(0.98); }
+.db-btn.primary { background: #1e293b; color: white; }
+.db-btn.secondary { background: white; border: 2px solid #e2e8f0; color: #334155; }
+.db-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
+/* --- TABS --- */
+.db-tabs-container {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 10;
+}
+
+.db-tabs {
+  background: white;
+  padding: 6px;
+  border-radius: 16px;
+  display: inline-flex;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.db-tab {
+  background: transparent;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-weight: 800;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.db-tab:hover:not(.active) {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.db-tab.active {
+  background: #1e293b;
+  color: white;
+  box-shadow: 0 4px 10px rgba(30, 41, 59, 0.2);
+}
+
+
+/* --- GRID --- */
+.db-grid-area { min-height: 200px; }
+.db-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+.db-empty {
+  grid-column: 1 / -1;
+  padding: 60px;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 16px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+
+/* --- HISTORY CARD BADGES --- */
+.db-history-card-wrapper {
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  width: 100%; 
+  position: relative;
+}
+
+.db-history-badge {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  border-radius: 12px;
+  margin-top: -12px; 
+  z-index: 5;
+  width: auto;
+  max-width: 90%;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.db-history-badge.refunded {
+  background: #f8fafc; color: #64748b; border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+
+.db-history-badge.won {
+  background: #dcfce7; color: #15803d; border: 1px solid #86efac;
+  box-shadow: 0 4px 6px -1px rgba(22, 163, 74, 0.1);
+}
+
+.db-history-badge.lost {
+  background: #475569;
+  color: #f1f5f9;
+  border: 1px solid #334155;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .db-hero { 
+    flex-direction: column; 
+    text-align: center; 
+    gap: 32px; 
+    align-items: center;
+  }
+  
+  .db-hero-content { 
+    flex-direction: column; 
+    align-items: center; 
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .db-hero-addr { 
+    font-size: 14px; 
+    justify-content: center; 
+  }
+  
+  .db-hero-stats {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .db-tabs-container {
+    overflow-x: auto;
+    padding-bottom: 5px;
+    display: block;
+  }
+  .db-tabs {
+    display: flex;
+    width: max-content;
+  }
+}

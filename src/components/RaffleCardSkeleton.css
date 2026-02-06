@@ -1,0 +1,90 @@
+/* src/components/RaffleCardSkeleton.css */
+
+/* The Shimmer Animation */
+@keyframes rc-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.rc-skeleton {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  height: 480px; /* Approx height of a full card */
+  border-radius: 12px;
+  padding: 20px 16px;
+  overflow: hidden;
+  
+  /* Base color matching your app theme (light glass/pink tint) */
+  background-color: rgba(255, 255, 255, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 0px rgba(0,0,0,0.05);
+  
+  /* Notches (visual only) */
+  mask-image: radial-gradient(circle at left 50%, transparent 20px, black 21px),
+              radial-gradient(circle at right 50%, transparent 20px, black 21px);
+  mask-position: left center, right center;
+  mask-repeat: no-repeat;
+  mask-size: 50% 100%;
+  mask-composite: intersect; /* For some browsers */
+  -webkit-mask-composite: source-in; 
+}
+
+/* Manually creating notches if mask doesn't work perfectly in all contexts, 
+   but simpler to just use the same divs as the real card */
+.rc-sk-notch {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2); /* Faint outline */
+  transform: translateY(-50%);
+  z-index: 2;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+.rc-sk-notch.left { left: -24px; }
+.rc-sk-notch.right { right: -24px; }
+
+/* The "Bone" - A grey block that shimmers */
+.rc-bone {
+  background: linear-gradient(
+    90deg, 
+    rgba(0,0,0,0.06) 25%, 
+    rgba(0,0,0,0.12) 37%, 
+    rgba(0,0,0,0.06) 63%
+  );
+  background-size: 200% 100%;
+  animation: rc-shimmer 1.5s infinite linear;
+  border-radius: 6px;
+}
+
+/* Specific Bones */
+.rc-sk-header {
+  display: flex; justify-content: space-between; margin-bottom: 20px;
+}
+.rc-sk-chip { width: 80px; height: 24px; border-radius: 99px; }
+.rc-sk-actions { width: 60px; height: 24px; }
+
+.rc-sk-host { width: 100px; height: 12px; margin: 0 auto 12px auto; }
+.rc-sk-title { width: 80%; height: 24px; margin: 0 auto 8px auto; }
+.rc-sk-title-2 { width: 60%; height: 24px; margin: 0 auto 20px auto; }
+
+.rc-sk-prize-lbl { width: 80px; height: 10px; margin: 0 auto 8px auto; }
+.rc-sk-prize-val { width: 140px; height: 40px; margin: 0 auto 20px auto; }
+
+.rc-sk-tear { width: 100%; height: 2px; margin: 20px 0; opacity: 0.1; background: #000; }
+
+.rc-sk-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;
+}
+.rc-sk-stat { height: 40px; width: 100%; }
+
+.rc-sk-bar { width: 100%; height: 10px; margin-bottom: 8px; }
+
+.rc-sk-footer {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 40px;
+  background: rgba(0,0,0,0.03);
+  border-top: 1px dashed rgba(0,0,0,0.1);
+}

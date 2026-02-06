@@ -1,0 +1,192 @@
+/* src/pages/ExplorePage.css */
+
+.xp-wrapper {
+  margin-top: 18px; 
+  padding: 24px; 
+  border-radius: 24px; 
+  position: relative; 
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04)),
+              radial-gradient(900px 240px at 10% 0%, rgba(255,141,187,0.10), transparent 55%),
+              radial-gradient(900px 240px at 90% 0%, rgba(203,183,246,0.10), transparent 55%);
+  backdrop-filter: blur(3px); 
+  border: 2px solid rgba(255,255,255,0.55);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.16); 
+  color: #4A0F2B;
+}
+
+.xp-inner-stroke {
+  position: absolute; 
+  inset: 6px; 
+  border-radius: 20px; 
+  pointer-events: none;
+  border: 1px solid rgba(242,166,198,0.55);
+}
+
+.xp-accent {
+  position: absolute; 
+  top: 12px; 
+  bottom: 12px; 
+  left: 12px; 
+  width: 6px; 
+  border-radius: 999px;
+  background: linear-gradient(180deg, #FF8DBB, #CBB7F6, #FFD89A);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.12);
+}
+
+/* Header */
+.xp-header { 
+  padding-left: 18px; 
+  display: flex; 
+  justify-content: space-between; 
+  flex-wrap: wrap; 
+  gap: 12px; 
+}
+
+.xp-title-pill {
+  display: inline-flex; 
+  align-items: center; 
+  gap: 10px; 
+  padding: 10px 14px;
+  border-radius: 99px; 
+  font-weight: 1000; 
+  font-size: 16px; 
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(0,0,0,0.10); 
+  color: #4A0F2B; 
+  box-shadow: 0 10px 18px rgba(0,0,0,0.10);
+}
+.xp-dot { 
+  width: 12px; 
+  height: 12px; 
+  border-radius: 999px; 
+  background: linear-gradient(135deg, #FF8DBB, #CBB7F6); 
+}
+.xp-meta-tag {
+  padding: 10px 12px; 
+  border-radius: 99px; 
+  background: rgba(255,255,255,0.70);
+  border: 1px solid rgba(0,0,0,0.10); 
+  font-weight: 950; 
+  font-size: 13px;
+}
+
+/* Controls Panel */
+.xp-controls { 
+  margin-top: 14px; 
+  padding-left: 18px; 
+}
+.xp-panel {
+  border-radius: 18px; 
+  padding: 18px; 
+  background: rgba(255,255,255,0.56);
+  border: 1px solid rgba(0,0,0,0.06); 
+  box-shadow: 0 10px 18px rgba(0,0,0,0.08);
+}
+
+.xp-panel-top { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  text-transform: uppercase; 
+  font-weight: 1000; 
+  font-size: 12px; 
+  opacity: 0.9; 
+}
+
+.xp-toggles { 
+  margin-top: 14px; 
+  display: flex; 
+  gap: 10px; 
+  flex-wrap: wrap; 
+}
+.xp-pill-btn {
+  border: 1px solid rgba(0,0,0,0.10); 
+  background: rgba(255,255,255,0.78);
+  border-radius: 99px; 
+  padding: 10px 16px; 
+  cursor: pointer; 
+  color: #4A0F2B;
+  font-weight: 950; 
+  font-size: 13px; 
+  transition: all 0.2s;
+}
+.xp-pill-btn.active { 
+  background: rgba(255,255,255,0.92); 
+  border-color: rgba(0,0,0,0.18); 
+  box-shadow: 0 5px 10px rgba(0,0,0,0.05); 
+  color: #000;
+}
+.xp-pill-btn:disabled { 
+  opacity: 0.5; 
+  cursor: not-allowed; 
+}
+
+.xp-filter-grid { 
+  margin-top: 14px; 
+  display: grid; 
+  grid-template-columns: 1.5fr 1fr 1fr; 
+  gap: 16px; 
+}
+@media (max-width: 768px) { 
+  .xp-filter-grid { grid-template-columns: 1fr; } 
+}
+
+.xp-label { 
+  font-size: 12px; 
+  font-weight: 950; 
+  opacity: 0.9; 
+  margin-bottom: 6px; 
+}
+.xp-input {
+  width: 100%; 
+  border: 1px solid rgba(0,0,0,0.10); 
+  background: rgba(255,255,255,0.86);
+  border-radius: 14px; 
+  padding: 12px; 
+  outline: none; 
+  font-weight: 850; 
+  color: #14141c;
+}
+
+.xp-mini-btn {
+  border-radius: 14px; 
+  padding: 8px 14px; 
+  font-weight: 950; 
+  cursor: pointer; 
+  border: 1px solid rgba(0,0,0,0.1);
+  font-size: 12px;
+}
+.xp-mini-btn.primary { 
+  background: #191923; 
+  color: white; 
+}
+
+/* ✅ RESPONSIVE GRID RESULTS */
+.xp-results { 
+  margin-top: 24px; 
+  padding-left: 18px; 
+  display: grid; 
+  /* Auto-fill columns, min 290px wide */
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); 
+  gap: 20px; 
+  
+  justify-items: center; 
+}
+
+.xp-empty {
+  grid-column: 1 / -1; /* Stretch across all columns */
+  border-radius: 18px; 
+  padding: 18px; 
+  background: rgba(255,255,255,0.56);
+  border: 1px solid rgba(0,0,0,0.06); 
+  font-weight: 900; 
+  opacity: 0.95;
+  text-align: center;
+}
+
+/* Ensure cards don't stretch too wide in grid */
+.xp-results > div {
+  width: 100%;
+  max-width: 320px;
+}

@@ -1,0 +1,30 @@
+/* src/App.css */
+
+/* The root element should not constrain width anymore. */
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+/* App-wide container that centers content on large screens */
+.pp-container {
+  width: 100%;
+  max-width: 1240px; /* good “desktop centered” width */
+  margin: 0 auto;
+  padding: 18px;
+}
+
+/* Slightly tighter padding on small screens */
+@media (max-width: 520px) {
+  .pp-container {
+    padding: 14px;
+  }
+}
+
+/* Optional: make headings not feel huge on mobile */
+.pp-container h2,
+.pp-container h3 {
+  letter-spacing: -0.2px;
+}

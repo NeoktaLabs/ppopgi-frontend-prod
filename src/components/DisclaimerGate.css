@@ -1,0 +1,121 @@
+/* src/components/DisclaimerGate.css */
+
+.dg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000; /* Highest priority */
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: dg-fade-in 0.3s ease-out;
+}
+
+@keyframes dg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.dg-card {
+  width: 100%;
+  max-width: 440px;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(0,0,0,0.05);
+  overflow: hidden;
+  animation: dg-scale-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dg-scale-up { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Header */
+.dg-header {
+  padding: 32px 24px 10px 24px;
+  text-align: center;
+}
+
+.dg-icon {
+  font-size: 40px;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+}
+
+.dg-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 1000;
+  color: #1e293b;
+  letter-spacing: -0.5px;
+}
+
+/* Body */
+.dg-body {
+  padding: 24px 32px 32px 32px;
+}
+
+.dg-text {
+  font-size: 14px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.dg-list {
+  margin: 0 0 24px 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dg-list li {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.dg-list li strong {
+  display: block;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+/* Action Button */
+.dg-accept-btn {
+  width: 100%;
+  padding: 14px;
+  background: #1e293b;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2);
+}
+
+.dg-accept-btn:hover {
+  background: #0f172a;
+  transform: translateY(-1px);
+}
+
+.dg-accept-btn:active {
+  transform: scale(0.98);
+}
+
+.dg-footer {
+  margin-top: 16px;
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+}
