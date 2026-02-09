@@ -10,18 +10,25 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ledgerhq/hw-app-eth": "^7.3.2",
+    "@ledgerhq/hw-transport-webhid": "^6.31.0",
+    "buffer": "^6.0.3",
     "canvas-confetti": "^1.9.4",
     "ethers": "^6.16.0",
     "graphql-request": "^7.4.0",
+    "mermaid": "^11.12.2",
+    "process": "^0.11.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "thirdweb": "^5.117.2",
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
+    "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
     "@eslint/js": "^9.39.1",
     "@types/canvas-confetti": "^1.9.0",
-    "@types/node": "^24.10.1",
+    "@types/node": "^24.10.12",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

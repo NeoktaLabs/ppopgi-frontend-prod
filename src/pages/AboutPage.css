@@ -1,0 +1,126 @@
+/* src/pages/AboutPage.css */
+
+.about-container {
+  /* Center the page content */
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px 80px 20px;
+}
+
+.about-card {
+  background: white;
+  width: 100%;
+  max-width: 720px; /* Optimal reading width */
+  border-radius: 24px;
+  box-shadow: 0 10px 40px -10px rgba(0,0,0,0.08);
+  border: 1px solid rgba(0,0,0,0.04);
+  overflow: hidden;
+  padding: 48px;
+}
+
+/* --- HEADER --- */
+.about-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.about-icon {
+  font-size: 40px;
+  margin-bottom: 16px;
+}
+
+.about-title {
+  font-size: 32px;
+  font-weight: 900;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+  letter-spacing: -1px;
+}
+
+.about-subtitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* --- CONTENT --- */
+.about-content {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #334155;
+  line-height: 1.7; /* Relaxed line height for reading */
+  font-size: 16px;
+}
+
+.about-content p {
+  margin-bottom: 24px;
+}
+
+.about-content strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.about-content em {
+  font-style: italic;
+  color: #475569;
+}
+
+/* Headings within text */
+.about-content h3 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #1e293b;
+  margin-top: 40px;
+  margin-bottom: 16px;
+}
+
+/* --- HIGHLIGHT BOX (For the Ppopgi definition) --- */
+.about-highlight-box {
+  background: #f8fafc;
+  border-left: 4px solid #db2777; /* Pink accent */
+  padding: 24px 32px;
+  border-radius: 0 12px 12px 0;
+  margin: 40px 0;
+}
+
+.about-highlight-box h3 {
+  margin-top: 0;
+  color: #db2777;
+}
+
+.about-highlight-box p {
+  margin-bottom: 0;
+  font-size: 15px;
+  color: #475569;
+}
+
+/* --- DIVIDER --- */
+.about-divider {
+  border: 0;
+  height: 1px;
+  background: #e2e8f0;
+  margin: 40px 0;
+}
+
+/* --- SIGNOFF --- */
+.about-signoff {
+  margin-top: 40px;
+  font-weight: 800;
+  font-family: cursive, sans-serif; /* Makes it look slightly like a signature */
+  font-size: 18px;
+  color: #0f172a;
+  text-align: right;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 600px) {
+  .about-card {
+    padding: 24px;
+  }
+  .about-title {
+    font-size: 24px;
+  }
+}

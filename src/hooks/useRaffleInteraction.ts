@@ -8,7 +8,6 @@ import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 import { useRaffleDetails } from "./useRaffleDetails";
 import { useConfetti } from "./useConfetti";
 
-// --- Helpers moved out of UI ---
 function short(a: string) {
   return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—";
 }
@@ -28,14 +27,11 @@ function toInt(v: string, fb = 0) {
 }
 
 export function useRaffleInteraction(raffleId: string | null, isOpen: boolean) {
-  // 1. Core Data
   const { data, loading, note } = useRaffleDetails(raffleId, isOpen);
   const account = useActiveAccount();
   const { mutateAsync: sendAndConfirm, isPending } = useSendAndConfirmTransaction();
-
   const { fireConfetti } = useConfetti();
 
-  // 3. Local State
   const [nowMs, setNowMs] = useState(Date.now());
   const [tickets, setTickets] = useState("1");
   const [buyMsg, setBuyMsg] = useState<string | null>(null);
@@ -44,20 +40,26 @@ export function useRaffleInteraction(raffleId: string | null, isOpen: boolean) {
   const [allowLoading, setAllowLoading] = useState(false);
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
 
-  // ✅ Reduce work: only tick the clock while the modal is open
   useEffect(() => {
     if (!isOpen) return;
     const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
   }, [isOpen]);
 
+  const soldNow = Number(data?.sold || "0");
+  const maxTicketsN = Number(data?.maxTickets || "0");
+  const maxReached = maxTicketsN > 0 && soldNow >= maxTicketsN;
+
   const deadlineMs = Number(data?.deadline || "0") * 1000;
   const deadlinePassed = deadlineMs > 0 && nowMs >= deadlineMs;
 
-  // Status Logic
+  // Remaining tickets (only meaningful if maxTickets is set)
+  const remainingTickets = maxTicketsN > 0 ? Math.max(0, maxTicketsN - soldNow) : null;
+
+  // Status label shown in UI
   let displayStatus = "Unknown";
   if (data) {
-    if (data.status === "OPEN" && deadlinePassed) displayStatus = "Finalizing";
+    if (data.status === "OPEN" && (deadlinePassed || maxReached)) displayStatus = "Finalizing";
     else if (data.status === "FUNDING_PENDING") displayStatus = "Getting ready";
     else if (data.status === "COMPLETED") displayStatus = "Settled";
     else if (data.status === "CANCELED") displayStatus = "Canceled";
@@ -65,35 +67,43 @@ export function useRaffleInteraction(raffleId: string | null, isOpen: boolean) {
     else displayStatus = data.status.charAt(0) + data.status.slice(1).toLowerCase();
   }
 
-  const minBuy = Math.floor(Number(data?.minPurchaseAmount || "1") || 1);
-  const soldNow = Number(data?.sold || "0");
-  const maxTicketsN = Number(data?.maxTickets || "0");
-  const remaining = maxTicketsN > 0 ? Math.max(0, maxTicketsN - soldNow) : 500; // UX cap
-  const maxBuy = Math.max(minBuy, remaining);
+  // UI min should always be 1 (you requested)
+  const uiMinBuy = 1;
 
-  const ticketCount = clampInt(toInt(tickets, minBuy), minBuy, maxBuy);
+  // Cap max buy to remaining when maxTickets is set
+  const uiMaxBuy = maxTicketsN > 0 ? Math.max(0, remainingTickets || 0) : 500; // UX cap when unlimited
+
+  // Clamp ticketCount (if uiMaxBuy is 0, ticketCount will still clamp to 1, but buying will be disabled below)
+  const ticketCount = clampInt(toInt(tickets, uiMinBuy), uiMinBuy, Math.max(uiMinBuy, uiMaxBuy));
+
   const ticketPriceU = BigInt(data?.ticketPrice || "0");
   const totalCostU = BigInt(ticketCount) * ticketPriceU;
 
-  // Contracts
   const raffleContract = useMemo(() => {
     if (!raffleId) return null;
     return getContract({ client: thirdwebClient, chain: ETHERLINK_CHAIN, address: raffleId });
   }, [raffleId]);
 
   const usdcContract = useMemo(() => {
-    if (!data?.usdcToken) return null;
-    return getContract({ client: thirdwebClient, chain: ETHERLINK_CHAIN, address: data.usdcToken });
-  }, [data?.usdcToken]);
+    // NOTE: your subgraph type uses `usdc`, but your hook used `usdcToken`.
+    // Keep as-is if your useRaffleDetails really returns `usdcToken`.
+    if (!(data as any)?.usdcToken) return null;
+    return getContract({ client: thirdwebClient, chain: ETHERLINK_CHAIN, address: (data as any).usdcToken });
+  }, [data]);
 
   const isConnected = !!account?.address;
-  const raffleIsOpen = data?.status === "OPEN" && !data.paused && !deadlinePassed;
 
-  // Permissions
+  // ✅ Close buying if: not OPEN, paused, deadline passed, max reached, or no remaining tickets
+  const raffleIsOpen =
+    data?.status === "OPEN" &&
+    !data.paused &&
+    !deadlinePassed &&
+    !maxReached &&
+    (maxTicketsN === 0 || (remainingTickets ?? 0) > 0);
+
   const hasEnoughAllowance = allowance !== null ? allowance >= totalCostU : false;
   const hasEnoughBalance = usdcBal !== null ? usdcBal >= totalCostU : true;
 
-  // ✅ Throttle / in-flight guards to prevent RPC burst on mobile rerenders
   const allowInFlight = useRef(false);
   const lastAllowFetchAt = useRef(0);
 
@@ -102,7 +112,6 @@ export function useRaffleInteraction(raffleId: string | null, isOpen: boolean) {
       if (!isOpen) return;
       if (!account?.address || !usdcContract || !raffleId) return;
 
-      // throttle: don't refetch more often than every ~2.5s unless postTx
       const now = Date.now();
       const minGap = reason === "postTx" ? 0 : 2500;
       if (now - lastAllowFetchAt.current < minGap) return;
@@ -158,10 +167,10 @@ export function useRaffleInteraction(raffleId: string | null, isOpen: boolean) {
         params: [raffleId, totalCostU],
       });
       await sendAndConfirm(tx);
-      setBuyMsg("✅ Coins allowed.");
+      setBuyMsg("✅ Wallet prepared.");
       refreshAllowance("postTx");
     } catch {
-      setBuyMsg("Approval failed.");
+      setBuyMsg("Prepare wallet failed.");
     }
   }, [account?.address, usdcContract, raffleId, totalCostU, sendAndConfirm, refreshAllowance]);
 
@@ -198,16 +207,15 @@ export function useRaffleInteraction(raffleId: string | null, isOpen: boolean) {
     setTimeout(() => setCopyMsg(null), 1500);
   }, [raffleId]);
 
-  // ✅ On open / raffle change / account change: do ONE refresh (throttled)
   useEffect(() => {
     if (!isOpen) return;
 
-    setTickets(String(minBuy));
+    // Always default to 1 in the buy UI
+    setTickets("1");
     setBuyMsg(null);
 
-    // Kick a single balance/allowance refresh for the opened raffle
     refreshAllowance("open");
-  }, [isOpen, raffleId, account?.address, minBuy, refreshAllowance]);
+  }, [isOpen, raffleId, account?.address, refreshAllowance]);
 
   return {
     state: {
@@ -225,8 +233,10 @@ export function useRaffleInteraction(raffleId: string | null, isOpen: boolean) {
       allowance,
     },
     math: {
-      minBuy,
-      maxBuy,
+      minBuy: uiMinBuy,
+      maxBuy: uiMaxBuy,
+      remainingTickets,
+      maxReached,
       ticketCount,
       totalCostU,
       fmtUsdc,

@@ -109,9 +109,7 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
       updateSettledEdges();
     };
 
-    // Run after paint to ensure scrollWidth is correct
     const t = window.setTimeout(tick, 0);
-
     const onResize = () => tick();
     window.addEventListener("resize", onResize);
 
@@ -134,6 +132,16 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
           <h1 className="hp-hero-title">Welcome to Ppopgi (뽑기)</h1>
           <div className="hp-hero-sub">
             Where fun meets fairness. Experience the thrill of fully transparent, on-chain raffles. No tricks — just luck.
+          </div>
+
+          {/* ✅ UPDATED: Professional Action Buttons */}
+          <div className="hp-hero-actions">
+            <a href="/testimonials" className="hp-action-btn primary">
+              Testimonials
+            </a>
+            <a href="/faq" className="hp-action-btn secondary">
+              FAQ
+            </a>
           </div>
 
           {/* STATS BAR */}
@@ -199,7 +207,10 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
             )}
 
             {!isLoading && !podium.gold && !podium.silver && !podium.bronze && (
-              <div className="hp-empty-msg">No active raffles to display.</div>
+              <div className="hp-empty-msg">
+                <div className="hp-empty-icon">🍃</div>
+                <div>No active raffles to display.</div>
+              </div>
             )}
           </div>
         </div>
@@ -242,11 +253,13 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
                   </div>
                 ))}
 
-              {!isLoading && endingSoonSorted.length === 0 && <div className="hp-empty-msg">No raffles ending soon.</div>}
+              {!isLoading && endingSoonSorted.length === 0 && (
+                <div className="hp-empty-msg">
+                   <div className="hp-empty-icon">😴</div>
+                   <div>No raffles ending soon.</div>
+                </div>
+              )}
             </div>
-
-            {!endingEdges.atLeft && <div className="hp-strip-fade left" />}
-            {!endingEdges.atRight && <div className="hp-strip-fade right" />}
           </div>
         </div>
 
@@ -289,12 +302,12 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
                 ))}
 
               {!isLoading && recentlySettledSorted.length === 0 && (
-                <div className="hp-empty-msg">No recently settled raffles yet.</div>
+                <div className="hp-empty-msg">
+                  <div className="hp-empty-icon">📂</div>
+                  <div>No recently settled raffles yet.</div>
+                </div>
               )}
             </div>
-
-            {!settledEdges.atLeft && <div className="hp-strip-fade left" />}
-            {!settledEdges.atRight && <div className="hp-strip-fade right" />}
           </div>
         </div>
       </div>

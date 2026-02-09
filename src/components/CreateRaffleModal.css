@@ -342,6 +342,23 @@
 
 .crm-done-btn { background: none; border: none; font-weight: 700; color: #94a3b8; cursor: pointer; text-decoration: underline; }
 
+.crm-input-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.4);
+}
+
+/* ✅ Invalid highlight should also apply to inputs inside wrapper */
+.crm-input-wrapper input.crm-input-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Optional: also highlight selects if you ever apply invalid class to them */
+.crm-select.crm-input-invalid {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.4) !important;
+}
+
 /* --- Responsive Mobile --- */
 @media (max-width: 800px) {
   /* ✅ More breathing room from sticky TopNav on mobile */

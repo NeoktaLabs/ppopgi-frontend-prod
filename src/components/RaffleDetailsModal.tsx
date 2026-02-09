@@ -1,3 +1,4 @@
+// src/components/RaffleDetailsModal.tsx
 import { useState, useEffect, useMemo } from "react";
 import { useActiveAccount } from "thirdweb/react";
 import { useRaffleInteraction } from "../hooks/useRaffleInteraction";
@@ -5,17 +6,11 @@ import { useRaffleParticipants } from "../hooks/useRaffleParticipants";
 import { fetchRaffleMetadata, type RaffleListItem } from "../indexer/subgraph";
 import "./RaffleDetailsModal.css";
 
-// Helper for clickable addresses
 const ExplorerLink = ({ addr, label }: { addr: string; label?: string }) => {
   if (!addr || addr === "0x0000000000000000000000000000000000000000") return <span>{label || "—"}</span>;
   const a = String(addr).toLowerCase();
   return (
-    <a
-      href={`https://explorer.etherlink.com/address/${a}`}
-      target="_blank"
-      rel="noreferrer"
-      className="rdm-info-link"
-    >
+    <a href={`https://explorer.etherlink.com/address/${a}`} target="_blank" rel="noreferrer" className="rdm-info-link">
       {label || `${a.slice(0, 6)}...${a.slice(-4)}`}
     </a>
   );
@@ -119,7 +114,6 @@ function fmtNum(n: number) {
   return safe.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
-// ✅ UI clamp: never allow < 1
 function clampTicketsUi(v: any) {
   const n = Math.floor(Number(String(v ?? "").trim()));
   if (!Number.isFinite(n)) return 1;
@@ -163,7 +157,6 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
   }, [raffleId, open, initialRaffle]);
 
   const displayData = (state.data || initialRaffle || metadata) as any;
-
   const { participants, isLoading: loadingPart } = useRaffleParticipants(raffleId, Number(displayData?.sold || 0));
 
   const timeline = useMemo(() => {
@@ -284,26 +277,37 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
     return { isSettled, isCanceled, winnerNet, platformPrizeFee, prizeTotal, creatorNet, platformSalesFee, salesTotal };
   }, [displayData, math]);
 
-  // ✅ creator block (use actual connected account)
   const creatorAddr = String(displayData?.creator || "").toLowerCase();
   const meAddr = String(account?.address || "").toLowerCase();
   const isCreator = !!creatorAddr && !!meAddr && creatorAddr === meAddr;
 
-  // ✅ enforce "1" as UI default (your hook already sets to minBuy; we override UI to 1)
+  // Keep UI tickets clamped into [1..maxBuy]
+  const maxBuy = Math.max(1, math.maxBuy);
+  const uiTicket = clampTicketsUi(state.tickets);
+  const clampedUiTicket = Math.min(uiTicket, maxBuy);
+
   useEffect(() => {
     if (!open || !raffleId) return;
-    if (clampTicketsUi(state.tickets) !== 1) actions.setTickets("1");
+    if (String(clampedUiTicket) !== String(state.tickets)) {
+      actions.setTickets(String(clampedUiTicket));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, raffleId]);
+  }, [open, raffleId, maxBuy]);
 
   if (!open) return null;
 
   const createdOnTs = timeline?.[0]?.date ?? null;
+  const showRemainingNote = typeof (math as any).remainingTickets === "number" && (math as any).remainingTickets > 0;
+
+  // ✅ NEW: blur buy section if not connected
+  const blurBuy = !state.isConnected;
+
+  // ✅ NEW: show clear balance warning when connected + allowance ok + not enough balance
+  const showBalanceWarn = state.isConnected && flags.hasEnoughAllowance && !flags.hasEnoughBalance;
 
   return (
     <div className="rdm-overlay" onMouseDown={onClose}>
       <div className="rdm-card" onMouseDown={(e) => e.stopPropagation()}>
-        {/* HEADER */}
         <div className="rdm-header">
           <div style={{ display: "flex", gap: 8 }}>
             <button className="rdm-close-btn" onClick={actions.handleShare} title="Copy Link">
@@ -318,7 +322,6 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
           </button>
         </div>
 
-        {/* HERO */}
         <div className="rdm-hero">
           <div className="rdm-hero-lbl">Total Prize Pool</div>
 
@@ -329,7 +332,10 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
           <div className="rdm-hero-meta">
             <div className="rdm-host">
               <span>Created by</span>
-              <ExplorerLink addr={String(displayData?.creator || "")} label={math.short(String(displayData?.creator || ""))} />
+              <ExplorerLink
+                addr={String(displayData?.creator || "")}
+                label={math.short(String(displayData?.creator || ""))}
+              />
             </div>
             <div className="rdm-createdon">
               <span>Created on</span>
@@ -338,7 +344,6 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
           </div>
         </div>
 
-        {/* STATS */}
         {stats && (
           <div className="rdm-stats-grid">
             <div className="rdm-stat-box highlight">
@@ -360,7 +365,6 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
           </div>
         )}
 
-        {/* ✅ Distributions / Canceled message */}
         {distribution && (
           <>
             {distribution.isCanceled ? (
@@ -428,60 +432,136 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
         <div className="rdm-buy-section">
           {!flags.raffleIsOpen ? (
             <div style={{ textAlign: "center", padding: 20, opacity: 0.6, fontWeight: 700 }}>
-              {state.displayStatus === "Open" ? "Raffle is finalizing..." : "Raffle Closed"}
+              {state.displayStatus === "Finalizing" ? "Raffle is finalizing..." : "Raffle Closed"}
             </div>
           ) : isCreator ? (
             <div className="rdm-buy-disabled">
               {displayData?.name ? <b>{displayData.name}</b> : "This raffle"} can’t be entered by its creator.
             </div>
           ) : (
-            <>
-              <div className="rdm-balance-row">
-                <span>Bal: {math.fmtUsdc(state.usdcBal?.toString() || "0")} USDC</span>
-                <span>Max: {math.maxBuy} Tickets</span>
+            <div style={{ position: "relative" }}>
+              {/* ✅ Blur the interactive block if not connected */}
+              <div
+                style={{
+                  filter: blurBuy ? "blur(3px)" : undefined,
+                  opacity: blurBuy ? 0.65 : 1,
+                  pointerEvents: blurBuy ? "none" : "auto",
+                  transition: "filter 0.2s ease, opacity 0.2s ease",
+                }}
+              >
+                <div className="rdm-balance-row">
+                  <span>Bal: {math.fmtUsdc(state.usdcBal?.toString() || "0")} USDC</span>
+                  <span>Max: {math.maxBuy} Tickets</span>
+                </div>
+
+                {showRemainingNote && (
+                  <div style={{ textAlign: "center", fontSize: 11, fontWeight: 800, color: "#9a3412", marginBottom: 10 }}>
+                    Only {(math as any).remainingTickets} ticket{(math as any).remainingTickets === 1 ? "" : "s"} remaining
+                  </div>
+                )}
+
+                {/* ✅ Balance warning */}
+                {showBalanceWarn && (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontSize: 12,
+                      fontWeight: 900,
+                      color: "#9a3412",
+                      background: "#fff7ed",
+                      border: "1px solid #fed7aa",
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                      marginBottom: 10,
+                    }}
+                  >
+                    Your wallet balance isn’t enough for this purchase.
+                  </div>
+                )}
+
+                <div className="rdm-stepper">
+                  <button
+                    className="rdm-step-btn"
+                    onClick={() => actions.setTickets(String(Math.max(1, clampedUiTicket - 1)))}
+                    disabled={clampedUiTicket <= 1}
+                  >
+                    −
+                  </button>
+
+                  <div className="rdm-input-wrapper">
+                    <input
+                      className="rdm-amount"
+                      inputMode="numeric"
+                      value={String(clampedUiTicket)}
+                      onChange={(e) => {
+                        const v = clampTicketsUi(e.target.value);
+                        actions.setTickets(String(Math.min(v, maxBuy)));
+                      }}
+                      placeholder="1"
+                    />
+                    <div className="rdm-cost-preview">Total: {math.fmtUsdc(math.totalCostU.toString())} USDC</div>
+                  </div>
+
+                  <button
+                    className="rdm-step-btn"
+                    onClick={() => actions.setTickets(String(Math.min(maxBuy, clampedUiTicket + 1)))}
+                    disabled={clampedUiTicket >= maxBuy}
+                  >
+                    +
+                  </button>
+                </div>
+
+                {!flags.hasEnoughAllowance ? (
+                  <button className="rdm-cta approve" onClick={actions.approve} disabled={state.isPending}>
+                    {state.isPending ? "Preparing..." : "1. Prepare Wallet"}
+                  </button>
+                ) : (
+                  <button
+                    className="rdm-cta buy"
+                    onClick={actions.buy}
+                    disabled={!flags.canBuy || state.isPending}
+                    title={!flags.hasEnoughBalance ? "Not enough USDC balance" : undefined}
+                  >
+                    {state.isPending ? "Confirming..." : `Buy ${clampedUiTicket} Ticket${clampedUiTicket !== 1 ? "s" : ""}`}
+                  </button>
+                )}
+
+                {state.buyMsg && (
+                  <div style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: "#D32F2F", fontWeight: 700 }}>
+                    {state.buyMsg}
+                  </div>
+                )}
               </div>
 
-              <div className="rdm-stepper">
-                <button
-                  className="rdm-step-btn"
-                  onClick={() => actions.setTickets(String(Math.max(1, clampTicketsUi(math.ticketCount - 1))))}
-                  disabled={clampTicketsUi(math.ticketCount) <= 1}
+              {/* ✅ Overlay message (not blurred) */}
+              {blurBuy && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "grid",
+                    placeItems: "center",
+                    padding: 16,
+                    pointerEvents: "none",
+                  }}
                 >
-                  −
-                </button>
-
-                <div className="rdm-input-wrapper">
-                  <input
-                    className="rdm-amount"
-                    inputMode="numeric"
-                    value={state.tickets}
-                    onChange={(e) => actions.setTickets(String(clampTicketsUi(e.target.value)))}
-                    placeholder="1"
-                  />
-                  <div className="rdm-cost-preview">Total: {math.fmtUsdc(math.totalCostU.toString())} USDC</div>
-                </div>
-
-                <button className="rdm-step-btn" onClick={() => actions.setTickets(String(clampTicketsUi(math.ticketCount + 1)))}>
-                  +
-                </button>
-              </div>
-
-              {!flags.hasEnoughAllowance ? (
-                <button className="rdm-cta approve" onClick={actions.approve} disabled={state.isPending}>
-                  {state.isPending ? "Approving..." : "1. Approve USDC"}
-                </button>
-              ) : (
-                <button className="rdm-cta buy" onClick={actions.buy} disabled={!flags.canBuy || state.isPending}>
-                  {state.isPending ? "Confirming..." : `Buy ${clampTicketsUi(state.tickets)} Ticket${clampTicketsUi(state.tickets) !== 1 ? "s" : ""}`}
-                </button>
-              )}
-
-              {state.buyMsg && (
-                <div style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: "#D32F2F", fontWeight: 700 }}>
-                  {state.buyMsg}
+                  <div
+                    style={{
+                      background: "rgba(15, 23, 42, 0.92)",
+                      border: "1px solid rgba(255,255,255,.10)",
+                      borderRadius: 14,
+                      padding: "12px 14px",
+                      color: "#e5e7eb",
+                      fontWeight: 900,
+                      textAlign: "center",
+                      maxWidth: 320,
+                    }}
+                  >
+                    Sign in with your wallet to buy tickets.
+                  </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
 

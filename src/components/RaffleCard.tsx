@@ -43,17 +43,32 @@ function clampPct(p: number) {
 export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.now(), hatch, userEntry }: Props) {
   const { ui, actions } = useRaffleCard(raffle, nowMs);
 
-  const statusClass = ui.displayStatus.toLowerCase().replace(" ", "-");
+  // -----------------------------
+  // ✅ Finalizing rules (card-level)
+  // - Max reached => Finalizing
+  // - Deadline passed while still OPEN => Finalizing
+  // -----------------------------
+  const statusRaw = String((raffle as any).status || "");
+  const isOpenStatus = statusRaw === "OPEN";
+
+  const maxTicketsN = Number((raffle as any).maxTickets ?? 0);
+  const soldN = Number((raffle as any).sold ?? 0);
+  const maxReached = maxTicketsN > 0 && soldN >= maxTicketsN;
+
+  const deadlineSec = Number((raffle as any).deadline ?? 0);
+  const deadlinePassed = deadlineSec > 0 && nowMs >= deadlineSec * 1000;
+
+  const shouldFinalizing = isOpenStatus && (maxReached || deadlinePassed);
+
+  const displayStatus = shouldFinalizing ? "Finalizing" : ui.displayStatus;
+
+  // ✅ Hide quick-buy if not truly live (also hide on finalizing rules)
+  const isLiveForCard = ui.isLive && !shouldFinalizing;
+
+  const statusClass = displayStatus.toLowerCase().replace(" ", "-");
   const cardClass = `rc-card ${ribbon || ""}`;
   const hostAddr = (raffle as any).owner || (raffle as any).creator;
 
-  /**
-   * ✅ Win rate always shown on the card header (top middle)
-   * - Uses maxTickets if defined (better "per ticket chance" framing)
-   * - Otherwise uses sold+1 (classic odds while pool grows)
-   * - Does NOT hide when userEntry exists (Dashboard)
-   * - Does NOT depend on ui.isLive (so you still see it in other states)
-   */
   const winRateLabel = useMemo(() => {
     const max = Number((raffle as any).maxTickets ?? 0);
     const sold = Number((raffle as any).sold ?? 0);
@@ -73,9 +88,8 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
 
       {/* Header */}
       <div className="rc-header">
-        <div className={`rc-chip ${statusClass}`}>{ui.displayStatus}</div>
+        <div className={`rc-chip ${statusClass}`}>{displayStatus}</div>
 
-        {/* ✅ TOP MIDDLE */}
         <div className="rc-winrate-badge" title="Win chance per ticket">
           🎲 Win: {winRateLabel}
         </div>
@@ -93,7 +107,6 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
             🛡
           </button>
 
-          {/* ✅ FIX: pass event to handleShare if it expects one */}
           <button
             className="rc-btn-icon"
             onClick={(e) => {
@@ -137,7 +150,6 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
       {/* Prize Section */}
       <div className="rc-prize-lbl">Current Prize Pool</div>
 
-      {/* ✅ USDC outside gradient, bigger, aligned */}
       <div className="rc-prize-row">
         <div className="rc-prize-val">
           <span className="rc-prize-num">{ui.formattedPot}</span>
@@ -145,12 +157,11 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
         </div>
       </div>
 
-      {/* ✅ only this line, centered */}
       <div className="rc-prize-note">*See details for prize distribution</div>
 
       <div className="rc-quick-buy-wrapper">
         <div className="rc-perforation" />
-        {ui.isLive && (
+        {isLiveForCard && (
           <button
             className="rc-quick-buy-btn"
             onClick={(e) => {
@@ -176,7 +187,7 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
         </div>
       </div>
 
-      {ui.isLive && ui.hasMin && (
+      {isLiveForCard && ui.hasMin && (
         <div className="rc-bar-group">
           {!ui.minReached ? (
             <>
@@ -235,7 +246,7 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
 
       {/* Footer */}
       <div className="rc-footer-new">
-        <div className="rc-footer-left">{ui.isLive ? `Ends: ${ui.timeLeft}` : ui.displayStatus}</div>
+        <div className="rc-footer-left">{isLiveForCard ? `Ends: ${ui.timeLeft}` : displayStatus}</div>
         <div className="rc-footer-right">
           <div className="rc-barcode-div" />
           <a

@@ -1,0 +1,279 @@
+/* src/pages/FaqPage.css */
+
+.faq-page {
+  max-width: 900px;
+  
+  /* ✅ CHANGED: Margin pushes the entire colored block down */
+  margin: 20px auto 0 auto;
+  
+  /* ✅ CHANGED: Reduced padding */
+  padding: 40px 20px 80px 20px;
+  
+  /* ✅ ADDED: Rounded top */
+  border-radius: 32px 32px 0 0;
+  
+  color: #4A0F2B;
+  min-height: calc(100vh - 120px);
+  
+  background: linear-gradient(-45deg, rgba(255,255,255,0.9), #fff0f5, #fce7f3, #ffffff);
+  background-size: 400% 400%;
+  animation: faq-breathing 15s ease infinite;
+}
+
+@keyframes faq-breathing {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* --- HERO CARD --- */
+.faq-hero-card {
+  text-align: center;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 20px 60px -10px rgba(180, 70, 120, 0.15);
+  margin-bottom: 40px;
+}
+
+.faq-h1 {
+  margin: 0;
+  font-size: 48px;
+  font-weight: 1000;
+  color: #4A0F2B;
+  letter-spacing: -1.5px;
+  
+  /* Text Gradient for Premium Feel */
+  background: linear-gradient(180deg, #4A0F2B 0%, #9A2A58 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 4px 12px rgba(180, 70, 120, 0.1));
+}
+
+.faq-sub {
+  margin: 16px auto 0;
+  max-width: 600px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #4A0F2B;
+  opacity: 0.7;
+  line-height: 1.5;
+}
+
+/* --- SECTION HEADERS --- */
+.faq-section-header {
+  margin: 60px 0 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.faq-h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #4A0F2B;
+  background: rgba(255, 255, 255, 0.65);
+  padding: 10px 20px;
+  border-radius: 99px;
+  box-shadow: 0 4px 12px -2px rgba(0,0,0,0.05);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* --- DIAGRAM CARD --- */
+.faq-diagram-title {
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9A2A58;
+  margin-bottom: 16px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.faq-diagram-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #9A2A58;
+  text-align: center;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* --- FAQ LIST --- */
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.faq-item {
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+
+.faq-item:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -5px rgba(74, 15, 43, 0.05);
+}
+
+/* Active State */
+.faq-item.open {
+  background: #ffffff;
+  border-color: rgba(154, 42, 88, 0.2);
+  box-shadow: 0 15px 30px -5px rgba(154, 42, 88, 0.1);
+  transform: scale(1.01);
+}
+
+.faq-q {
+  width: 100%;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.faq-q-text {
+  font-size: 17px;
+  font-weight: 800;
+  color: #4A0F2B;
+  transition: color 0.2s;
+}
+
+.faq-item.open .faq-q-text {
+  color: #9A2A58;
+}
+
+.faq-chevron {
+  width: 28px; 
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(74, 15, 43, 0.05);
+  color: #4A0F2B;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.faq-item.open .faq-chevron {
+  background: #4A0F2B;
+  color: white;
+  transform: rotate(180deg);
+}
+
+/* --- ANIMATION --- */
+.faq-a-wrapper {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.faq-a-wrapper.open {
+  max-height: 800px;
+}
+
+.faq-a {
+  padding: 0 24px 28px 24px;
+  color: #4A0F2B;
+  font-size: 16px;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+.faq-ul, .faq-ol {
+  margin: 12px 0 12px 20px;
+  padding: 0;
+}
+
+.faq-ul li, .faq-ol li {
+  margin-bottom: 8px;
+}
+
+.faq-callout {
+  margin-top: 20px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border-left: 4px solid #9A2A58;
+  background: #fff0f5; /* Light Pink */
+  color: #6D1641;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.faq-a code {
+  background: rgba(74, 15, 43, 0.08);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.9em;
+  color: #4A0F2B;
+}
+
+/* --- MERMAID WRAPPER --- */
+.faq-mermaid {
+  margin: 0 auto 40px;
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 20px 40px -10px rgba(74, 15, 43, 0.05);
+  overflow-x: auto;
+}
+
+/* Footer Card */
+.faq-footer-card {
+  margin-top: 60px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 12px 24px;
+  border-radius: 99px;
+  display: inline-block;
+  
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  
+  color: #4A0F2B;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  backdrop-filter: blur(4px);
+}
+
+/* Mobile Adjustments */
+@media (max-width: 720px) {
+  .faq-page {
+    padding: 24px 16px 50px; /* Reset padding for mobile if needed, or keep high margin */
+    /* Mobile usually has smaller nav, but let's keep consistent margin for now */
+    margin-top: 90px;
+  }
+
+  .faq-h1 {
+    font-size: 36px;
+  }
+  
+  .faq-hero-card {
+    padding: 24px 16px;
+  }
+}

@@ -93,7 +93,7 @@ export function CashierModal({ open, onClose }: Props) {
                 <div className="cm-guide-icon">💳</div>
                 <div className="cm-guide-text">
                    <strong>Buy with Card</strong>
-                   <span>Purchase XTZ via Transak. <b>Select "Etherlink" network.</b></span>
+                   <span>Purchase XTZ and USDC via Transak. <b>Select "Etherlink" network.</b></span>
                 </div>
                 <a 
                   href="https://transak.com/buy" 
