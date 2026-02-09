@@ -20,7 +20,7 @@
     "process": "^0.11.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "thirdweb": "^5.117.2",
+    "thirdweb": "^5.118.1",
     "zustand": "^5.0.10"
   },
   "devDependencies": {

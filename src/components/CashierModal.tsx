@@ -1,16 +1,23 @@
 // src/components/CashierModal.tsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCashierData } from "../hooks/useCashierData";
 import "./CashierModal.css";
+
+import { BuyWidget } from "thirdweb/react";
+import { thirdwebClient } from "../thirdweb/client";
+import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 
 type Props = {
   open: boolean;
   onClose: () => void;
 };
 
+type Tab = "buy_usdc" | "buy_xtz" | "bridge";
+
 export function CashierModal({ open, onClose }: Props) {
   const { state, actions, display } = useCashierData(open);
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<Tab>("buy_xtz");
 
   const handleCopy = () => {
     if (state.me) {
@@ -20,126 +27,151 @@ export function CashierModal({ open, onClose }: Props) {
     }
   };
 
+  const USDC_ADDRESS = "0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9";
+
+  const supportedTokens = useMemo(() => {
+    return [
+      { chainId: ETHERLINK_CHAIN.id, tokenAddress: "native" },
+      { chainId: ETHERLINK_CHAIN.id, tokenAddress: USDC_ADDRESS },
+    ];
+  }, []);
+
+  const ETHERLINK_BRIDGE_URL = "https://bridge.etherlink.com/";
+
   if (!open) return null;
 
   return (
     <div className="cm-overlay" onMouseDown={onClose}>
       <div className="cm-card" onMouseDown={(e) => e.stopPropagation()}>
-        
-        {/* Header */}
         <div className="cm-header">
-          <h3 className="cm-title">My Wallet</h3>
-          <button className="cm-close-btn" onClick={onClose}>✕</button>
+          <h3 className="cm-title">Cashier</h3>
+          <button className="cm-close-btn" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         <div className="cm-body">
-          
-          {/* Address Pill (Click to Copy) */}
           <div className="cm-address-row">
-             <div className="cm-avatar-circle" style={{ background: copied ? "#dcfce7" : "#f1f5f9", color: copied ? "#166534" : "#64748b" }}>
-               {copied ? "✓" : "👤"}
-             </div>
-             <div className="cm-address-info">
-                <div className="cm-label">Connected Account</div>
-                <div className="cm-addr-val" onClick={handleCopy} title="Click to Copy">
-                   {display.shortAddr}
-                   <span className="cm-copy-icon">{copied ? "Copied" : "Copy"}</span>
-                </div>
-             </div>
-             <button className="cm-refresh-btn" onClick={actions.refresh} disabled={state.loading}>
-               {state.loading ? "..." : "🔄"}
-             </button>
+            <div
+              className="cm-avatar-circle"
+              style={{
+                background: copied ? "#dcfce7" : "#f1f5f9",
+                color: copied ? "#166534" : "#64748b",
+              }}
+            >
+              {copied ? "✓" : "👤"}
+            </div>
+
+            <div className="cm-address-info">
+              <div className="cm-label">Connected Account</div>
+              <div className="cm-addr-val" onClick={handleCopy} title="Click to Copy">
+                {display.shortAddr}
+                <span className="cm-copy-icon">{copied ? "Copied" : "Copy"}</span>
+              </div>
+            </div>
+
+            <button className="cm-refresh-btn" onClick={actions.refresh} disabled={state.loading}>
+              {state.loading ? "..." : "🔄"}
+            </button>
           </div>
 
-          {state.note && (
-             <div className="cm-alert">
-               ⚠️ {state.note}
-             </div>
-          )}
+          {state.note && <div className="cm-alert">⚠️ {state.note}</div>}
 
-          {/* Balance Cards */}
           <div className="cm-balance-section">
-             <div className="cm-section-label">Assets on Etherlink</div>
-             
-             <div className="cm-balance-grid">
-                {/* USDC Card (Primary) */}
-                <div className="cm-asset-card primary">
-                   <div className="cm-asset-icon">💲</div>
-                   <div>
-                      <div className="cm-asset-amount">{display.usdc}</div>
-                      <div className="cm-asset-name">USDC</div>
-                   </div>
-                   <div className="cm-asset-tag">Raffle Funds</div>
-                </div>
+            <div className="cm-section-label">Assets on Etherlink</div>
 
-                {/* XTZ Card (Secondary) */}
-                <div className="cm-asset-card secondary">
-                   <div className="cm-asset-icon">⛽</div>
-                   <div>
-                      <div className="cm-asset-amount">{display.xtz}</div>
-                      <div className="cm-asset-name">Tezos (XTZ)</div>
-                   </div>
-                   <div className="cm-asset-tag">Network Fees</div>
+            <div className="cm-balance-grid">
+              <div className="cm-asset-card primary">
+                <div className="cm-asset-icon">💲</div>
+                <div>
+                  <div className="cm-asset-amount">{display.usdc}</div>
+                  <div className="cm-asset-name">USDC</div>
                 </div>
-             </div>
+                <div className="cm-asset-tag">Raffle Funds</div>
+              </div>
+
+              <div className="cm-asset-card secondary">
+                <div className="cm-asset-icon">⛽</div>
+                <div>
+                  <div className="cm-asset-amount">{display.xtz}</div>
+                  <div className="cm-asset-name">Tezos (XTZ)</div>
+                </div>
+                <div className="cm-asset-tag">Gas</div>
+              </div>
+            </div>
           </div>
 
-          {/* "Need Funds" Section */}
-          <div className="cm-guide-section">
-             <div className="cm-section-label">Need Funds?</div>
-             
-             {/* 1. Transak (Credit Card) - ✅ NEW */}
-             <div className="cm-guide-row">
-                <div className="cm-guide-icon">💳</div>
-                <div className="cm-guide-text">
-                   <strong>Buy with Card</strong>
-                   <span>Purchase XTZ and USDC via Transak. <b>Select "Etherlink" network.</b></span>
-                </div>
-                <a 
-                  href="https://transak.com/buy" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="cm-guide-btn"
-                >
-                  Go
-                </a>
-             </div>
-
-             {/* 2. Swap - ✅ Updated Link */}
-             <div className="cm-guide-row">
-                <div className="cm-guide-icon">💱</div>
-                <div className="cm-guide-text">
-                   <strong>Swap for USDC</strong>
-                   <span>Use Oku Trade to swap XTZ for USDC.</span>
-                </div>
-                <a 
-                  href="https://oku.trade/swap?inputChain=etherlink&inToken=0x0000000000000000000000000000000000000000&outToken=0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9&inAmount=" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="cm-guide-btn"
-                >
-                  Go
-                </a>
-             </div>
-
-             {/* 3. Bridge */}
-             <div className="cm-guide-row">
-                <div className="cm-guide-icon">🌉</div>
-                <div className="cm-guide-text">
-                   <strong>Bridge Assets</strong>
-                   <span>Move ETH or XTZ to Etherlink Mainnet.</span>
-                </div>
-                <a 
-                  href="https://bridge.etherlink.com/" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="cm-guide-btn"
-                >
-                  Go
-                </a>
-             </div>
+          <div className="cm-tabs3">
+            <button className={`cm-tab3 ${tab === "buy_usdc" ? "active" : ""}`} onClick={() => setTab("buy_usdc")}>
+              Buy USDC
+            </button>
+            <button className={`cm-tab3 ${tab === "buy_xtz" ? "active" : ""}`} onClick={() => setTab("buy_xtz")}>
+              Buy XTZ
+            </button>
+            <button className={`cm-tab3 ${tab === "bridge" ? "active" : ""}`} onClick={() => setTab("bridge")}>
+              Bridge
+            </button>
           </div>
 
+          <div className="cm-widget-shell">
+            {tab === "buy_usdc" && (
+              <div className="cm-widget-wrap">
+                <BuyWidget
+                  key="buy_usdc"
+                  client={thirdwebClient}
+                  chain={ETHERLINK_CHAIN}
+                  theme="light"
+                  title="Buy USDC"
+                  tokenAddress={USDC_ADDRESS as any}
+                  tokenEditable={false}
+                  amountEditable={true}
+                  supportedTokens={supportedTokens as any}
+                  paymentMethods={["crypto", "card"]}
+                  style={{ width: "100%" }}
+                />
+              </div>
+            )}
+
+            {tab === "buy_xtz" && (
+              <div className="cm-widget-wrap">
+                <BuyWidget
+                  key="buy_xtz"
+                  client={thirdwebClient}
+                  chain={ETHERLINK_CHAIN}
+                  theme="light"
+                  title="Buy XTZ"
+                  tokenAddress={undefined as any}
+                  tokenEditable={false}
+                  amountEditable={true}
+                  supportedTokens={supportedTokens as any}
+                  paymentMethods={["crypto", "card"]}
+                  style={{ width: "100%" }}
+                />
+              </div>
+            )}
+
+            {tab === "bridge" && (
+              <div className="cm-bridge-box">
+                <div className="cm-bridge-header">
+                  <span className="cm-bridge-route">Ethereum L1</span>
+                  <span className="cm-bridge-arrow">➝</span>
+                  <span className="cm-bridge-route highlight">Etherlink L2</span>
+                </div>
+
+                <div className="cm-bridge-title">Deposit Funds</div>
+                <div className="cm-bridge-text">
+                  Already have funds on Ethereum Mainnet? Use the official bridge to move <b>USDC</b> or <b>XTZ</b> over to
+                  Etherlink.
+                </div>
+
+                <a className="cm-bridge-btn" href={ETHERLINK_BRIDGE_URL} target="_blank" rel="noreferrer">
+                  Open Official Bridge ↗
+                </a>
+
+                <div className="cm-bridge-footnote">Bridging typically takes ~15-20 minutes.</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
