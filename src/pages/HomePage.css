@@ -33,6 +33,17 @@
   overflow: hidden; /* Hide the scrolling text that goes off-screen */
 }
 
+/* iOS Safari: prevent random text autoscaling in marquee */
+.hp-announcement-bar,
+.hp-announcement-container,
+.hp-marquee-track,
+.hp-marquee-content,
+.hp-announcement-btn,
+.hp-announcement-text {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* The inner container that matches main content width */
 .hp-announcement-container {
   max-width: 1400px;
