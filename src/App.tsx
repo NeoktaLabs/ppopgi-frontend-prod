@@ -11,7 +11,7 @@ import { HomePage } from "./pages/HomePage";
 import { ExplorePage } from "./pages/ExplorePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AboutPage } from "./pages/AboutPage";
-import { FaqPage } from "./pages/FaqPage"; // ✅ add
+import { FaqPage } from "./pages/FaqPage";
 
 // --- Components (Modals) ---
 import { SignInModal } from "./components/SignInModal";
@@ -26,7 +26,7 @@ import { useSession } from "./state/useSession";
 import { useAppRouting } from "./hooks/useAppRouting";
 import { useRaffleDetails } from "./hooks/useRaffleDetails";
 
-type Page = "home" | "explore" | "dashboard" | "about" | "faq"; // ✅ add faq
+type Page = "home" | "explore" | "dashboard" | "about" | "faq";
 
 export default function App() {
   // 1. Thirdweb Config
@@ -47,6 +47,37 @@ export default function App() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [cashierOpen, setCashierOpen] = useState(false);
+
+  // ✅ Global events (HomePage banner actions)
+  useEffect(() => {
+    const onOpenCashier = () => {
+      if (account) setCashierOpen(true);
+      else setSignInOpen(true);
+    };
+
+    const onNavigate = (e: Event) => {
+      const ce = e as CustomEvent<{ page?: Page }>;
+      const next = ce?.detail?.page;
+      if (!next) return;
+
+      // gate dashboard behind wallet (same rule you already enforce)
+      if (next === "dashboard" && !account) {
+        setPage("home");
+        setSignInOpen(true);
+        return;
+      }
+
+      setPage(next);
+    };
+
+    window.addEventListener("ppopgi:open-cashier", onOpenCashier);
+    window.addEventListener("ppopgi:navigate", onNavigate as EventListener);
+
+    return () => {
+      window.removeEventListener("ppopgi:open-cashier", onOpenCashier);
+      window.removeEventListener("ppopgi:navigate", onNavigate as EventListener);
+    };
+  }, [account]);
 
   // GATE STATE
   const [showGate, setShowGate] = useState(false);
@@ -101,13 +132,11 @@ export default function App() {
         account={account}
         onOpenSignIn={() => setSignInOpen(true)}
         onOpenCreate={() => (account ? setCreateOpen(true) : setSignInOpen(true))}
-        onOpenCashier={() => (account ? setCashierOpen(true) : setSignInOpen(true))} // ✅ already updated
+        onOpenCashier={() => (account ? setCashierOpen(true) : setSignInOpen(true))}
         onSignOut={handleSignOut}
       >
         {/* --- Page Routing --- */}
-        {page === "home" && (
-          <HomePage nowMs={nowMs} onOpenRaffle={openRaffle} onOpenSafety={handleOpenSafety} />
-        )}
+        {page === "home" && <HomePage nowMs={nowMs} onOpenRaffle={openRaffle} onOpenSafety={handleOpenSafety} />}
 
         {page === "explore" && <ExplorePage onOpenRaffle={openRaffle} onOpenSafety={handleOpenSafety} />}
 
@@ -117,7 +146,6 @@ export default function App() {
 
         {page === "about" && <AboutPage />}
 
-        {/* ✅ NEW FAQ PAGE */}
         {page === "faq" && <FaqPage />}
 
         {/* --- Global Modals --- */}
