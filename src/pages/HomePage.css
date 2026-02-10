@@ -21,14 +21,14 @@
   margin-left: -50vw;
   margin-right: -50vw;
 
-  /* Spacing: 80px Top (60px Nav + 20px Gap) */
-  margin-top: 20px; 
+  /* Spacing */
+  margin-top: 20px;
   margin-bottom: 20px;
 
   background: linear-gradient(90deg, #4A0F2B 0%, #701a40 50%, #4A0F2B 100%);
   color: white;
   padding: 10px 0;
-  
+
   box-shadow: 0 4px 20px rgba(74, 15, 43, 0.15);
   overflow: hidden; /* Hide the scrolling text that goes off-screen */
 }
@@ -40,7 +40,7 @@
   padding: 0 20px;
   overflow: hidden; /* Mask the marquee at the container edges */
   position: relative;
-  
+
   /* Optional: Fade edges slightly */
   mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
   -webkit-mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
@@ -50,7 +50,9 @@
   display: flex;
   white-space: nowrap;
   width: max-content; /* Allow it to be as wide as needed */
-  animation: hp-scroll 40s linear infinite; /* Smooth slow scroll */
+
+  /* ✅ SLOWER */
+  animation: hp-scroll 90s linear infinite;
 }
 
 /* Pause scroll when user hovers to make clicking links easier */
@@ -86,6 +88,31 @@
   text-decoration: underline;
 }
 
+/* ✅ Make banner buttons look EXACTLY like banner links (white + uppercase, no background) */
+.hp-announcement-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0 16px;
+
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.hp-announcement-btn:hover {
+  opacity: 0.7;
+  text-decoration: underline;
+}
+
 .hp-announcement-sep {
   color: rgba(255, 255, 255, 0.4);
   font-size: 11px;
@@ -117,7 +144,6 @@
 .hp-board-section .ab-board {
   margin: 0 auto !important;
 }
-
 
 /* --- HERO --- */
 .hp-hero {
