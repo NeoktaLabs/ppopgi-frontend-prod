@@ -122,7 +122,7 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
     };
   }, [isLoading, endingSoonSorted.length, recentlySettledSorted.length, updateEndingEdges, updateSettledEdges]);
 
-  // ✅ Banner item: always a button (so we don’t rely on URL routing)
+  // ✅ Banner item: button (so we don’t rely on URL routing)
   const BannerItem = ({
     children,
     onClick,
