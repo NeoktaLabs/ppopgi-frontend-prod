@@ -4,6 +4,7 @@ import { useCashierData } from "../hooks/useCashierData";
 import "./CashierModal.css";
 
 import { BuyWidget } from "thirdweb/react";
+import { NATIVE_TOKEN_ADDRESS } from "thirdweb";
 import { thirdwebClient } from "../thirdweb/client";
 import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 
@@ -29,11 +30,14 @@ export function CashierModal({ open, onClose }: Props) {
 
   const USDC_ADDRESS = "0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9";
 
+  // ✅ Provide explicit token info so the widget doesn't need to fetch metadata
   const supportedTokens = useMemo(() => {
-    return [
-      { chainId: ETHERLINK_CHAIN.id, tokenAddress: "native" },
-      { chainId: ETHERLINK_CHAIN.id, tokenAddress: USDC_ADDRESS },
-    ];
+    return {
+      [ETHERLINK_CHAIN.id]: [
+        { address: NATIVE_TOKEN_ADDRESS, symbol: "XTZ", name: "Tezos" },
+        { address: USDC_ADDRESS, symbol: "USDC", name: "USD Coin" },
+      ],
+    };
   }, []);
 
   const ETHERLINK_BRIDGE_URL = "https://bridge.etherlink.com/";
@@ -45,9 +49,7 @@ export function CashierModal({ open, onClose }: Props) {
       <div className="cm-card" onMouseDown={(e) => e.stopPropagation()}>
         <div className="cm-header">
           <h3 className="cm-title">Cashier</h3>
-          <button className="cm-close-btn" onClick={onClose}>
-            ✕
-          </button>
+          <button className="cm-close-btn" onClick={onClose}>✕</button>
         </div>
 
         <div className="cm-body">
@@ -122,10 +124,10 @@ export function CashierModal({ open, onClose }: Props) {
                   chain={ETHERLINK_CHAIN}
                   theme="light"
                   title="Buy USDC"
-                  tokenAddress={USDC_ADDRESS as any}
+                  tokenAddress={USDC_ADDRESS}
                   tokenEditable={false}
                   amountEditable={true}
-                  supportedTokens={supportedTokens as any}
+                  supportedTokens={supportedTokens}
                   paymentMethods={["crypto", "card"]}
                   style={{ width: "100%" }}
                 />
@@ -140,10 +142,10 @@ export function CashierModal({ open, onClose }: Props) {
                   chain={ETHERLINK_CHAIN}
                   theme="light"
                   title="Buy XTZ"
-                  tokenAddress={undefined as any}
+                  tokenAddress={NATIVE_TOKEN_ADDRESS}
                   tokenEditable={false}
                   amountEditable={true}
-                  supportedTokens={supportedTokens as any}
+                  supportedTokens={supportedTokens}
                   paymentMethods={["crypto", "card"]}
                   style={{ width: "100%" }}
                 />
@@ -160,8 +162,7 @@ export function CashierModal({ open, onClose }: Props) {
 
                 <div className="cm-bridge-title">Deposit Funds</div>
                 <div className="cm-bridge-text">
-                  Already have funds on Ethereum Mainnet? Use the official bridge to move <b>USDC</b> or <b>XTZ</b> over to
-                  Etherlink.
+                  Already have funds on Ethereum Mainnet? Use the official bridge to move <b>USDC</b> or <b>XTZ</b> over to Etherlink.
                 </div>
 
                 <a className="cm-bridge-btn" href={ETHERLINK_BRIDGE_URL} target="_blank" rel="noreferrer">
