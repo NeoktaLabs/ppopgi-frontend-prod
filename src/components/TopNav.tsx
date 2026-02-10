@@ -1,10 +1,10 @@
 // src/components/TopNav.tsx
-// src/components/TopNav.tsx
 import { useState, useEffect, memo, useRef } from "react";
 import { useWalletBalance } from "thirdweb/react";
 import { thirdwebClient } from "../thirdweb/client";
 import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 import { ADDRESSES } from "../config/contracts";
+import { InfraStatusPill } from "./InfraStatusPill"; // ✅ NEW
 import "./TopNav.css";
 
 type Page = "home" | "explore" | "dashboard" | "about" | "faq";
@@ -174,6 +174,11 @@ export const TopNav = memo(function TopNav({
               🏦 Cashier
             </button>
 
+            {/* ✅ Desktop: keep it subtle and out of the way */}
+            <div className="topnav-status-slot">
+              <InfraStatusPill />
+            </div>
+
             {!account ? (
               <button className="nav-link signin-btn" onClick={() => handleNav(onOpenSignIn)}>
                 Sign In
@@ -201,6 +206,12 @@ export const TopNav = memo(function TopNav({
 
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
+          {/* ✅ Mobile: show infra status INSIDE the menu (keeps top row clean) */}
+          <div className="mobile-infra-row">
+            <div className="mobile-infra-label">Infra Status</div>
+            <InfraStatusPill />
+          </div>
+
           {account && (
             <div className="mobile-balances" onClick={() => handleNav(onOpenCashier)}>
               <div className="mobile-balances-title">Balances</div>
