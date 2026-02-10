@@ -353,7 +353,7 @@
 /* Mobile */
 @media (max-width: 520px) {
   .cm-overlay {
-    padding-top: 80px;
+    padding-top: 100px;
     padding-left: 12px;
     padding-right: 12px;
   }
