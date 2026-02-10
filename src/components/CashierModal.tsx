@@ -17,7 +17,7 @@ type Tab = "buy_usdc" | "buy_xtz" | "bridge";
 export function CashierModal({ open, onClose }: Props) {
   const { state, actions, display } = useCashierData(open);
   const [copied, setCopied] = useState(false);
-  const [tab, setTab] = useState<Tab>("buy_xtz");
+  const [tab, setTab] = useState<Tab>("buy_usdc");
 
   const handleCopy = () => {
     if (state.me) {
