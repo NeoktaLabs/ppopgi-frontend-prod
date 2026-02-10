@@ -1,3 +1,5 @@
+/* src/components/TopNav.css */
+
 /* 1. Wrapper */
 .topnav-wrapper {
   position: sticky;
@@ -236,6 +238,14 @@
   border-radius: 50%;
 }
 
+/* ✅ NEW: subtle status slot (desktop only; mobile shows inside menu) */
+.topnav-status-slot {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  margin-right: 6px;
+}
+
 /* --- MOBILE BURGER --- */
 .mobile-burger {
   display: none;
@@ -329,6 +339,29 @@
 
 .mobile-menu-inner button:hover {
   background: #f8fafc;
+}
+
+/* ✅ NEW: infra status row in mobile menu */
+.mobile-infra-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 10px 10px;
+  margin: 6px 6px 2px;
+
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.mobile-infra-label {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #4A0F2B;
 }
 
 /* Mobile balances card */
