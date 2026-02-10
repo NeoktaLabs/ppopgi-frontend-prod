@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type IndexerLevel = "healthy" | "degraded" | "late" | "down";
 type RpcLevel = "healthy" | "degraded" | "slow" | "down";
+type BotLevel = "healthy" | "degraded" | "down" | "unknown";
 
 type InfraStatus = {
   tsMs: number;
@@ -23,6 +24,19 @@ type InfraStatus = {
     label: string;
     latencyMs: number | null; // median latency
     ok: boolean;
+    error?: string;
+  };
+
+  // Finalizer bot status
+  bot: {
+    level: BotLevel;
+    label: string;
+    running: boolean;
+    lastRunMs: number | null;
+    nextRunMs: number | null;
+    secondsSinceLastRun: number | null;
+    secondsToNextRun: number | null;
+    lastError?: string | null;
     error?: string;
   };
 
@@ -72,7 +86,24 @@ function rpcStatus(ms: number | null, ok: boolean): { level: RpcLevel; label: st
   return { level: "slow", label: "Slow" };
 }
 
-function worstOverall(indexer: IndexerLevel, rpc: RpcLevel): { level: InfraStatus["overall"]["level"]; label: string } {
+function botStatusFromWire(w: any): { level: BotLevel; label: string } {
+  const status = String(w?.status || "").toLowerCase();
+  const running = !!w?.running;
+
+  if (running) return { level: "degraded", label: "Running" };
+  if (status === "ok") return { level: "healthy", label: "Healthy" };
+  if (status === "error") return { level: "down", label: "Error" };
+  if (status.startsWith("skipped")) return { level: "degraded", label: "Skipped" };
+  if (status === "running") return { level: "degraded", label: "Running" };
+  if (!status) return { level: "unknown", label: "Unknown" };
+  return { level: "unknown", label: "Unknown" };
+}
+
+function worstOverall(
+  indexer: IndexerLevel,
+  rpc: RpcLevel,
+  bot: BotLevel
+): { level: InfraStatus["overall"]["level"]; label: string } {
   // Priority order (worst to best)
   const rank = (x: string) => {
     switch (x) {
@@ -84,16 +115,21 @@ function worstOverall(indexer: IndexerLevel, rpc: RpcLevel): { level: InfraStatu
         return 2; // rpc-only
       case "degraded":
         return 2;
+      case "unknown":
+        return 1; // doesn't worsen overall (but still not "better than healthy")
       case "healthy":
       default:
         return 1;
     }
   };
 
-  const worst = Math.max(rank(indexer), rank(rpc));
+  const worst = Math.max(rank(indexer), rank(rpc), rank(bot));
+
   if (worst >= 4) return { level: "down", label: "Issues" };
   if (indexer === "late") return { level: "late", label: "Late" };
-  if (indexer === "degraded" || rpc === "degraded" || rpc === "slow") return { level: "degraded", label: "Degraded" };
+  if (indexer === "degraded" || rpc === "degraded" || rpc === "slow" || bot === "degraded") {
+    return { level: "degraded", label: "Degraded" };
+  }
   return { level: "healthy", label: "Healthy" };
 }
 
@@ -153,19 +189,30 @@ async function subgraphIndexedBlock(subgraphUrl: string, timeoutMs: number): Pro
   return out;
 }
 
+async function fetchBotStatus(statusUrl: string, timeoutMs: number) {
+  const res = await withTimeout(fetch(statusUrl, { cache: "no-store" }), timeoutMs, "bot_timeout");
+  if (!res.ok) throw new Error(`bot_http_${res.status}`);
+  const json = await res.json().catch(() => null);
+  if (!json) throw new Error("bot_bad_json");
+  return json;
+}
+
 /**
  * useInfraStatus
- * - polls RPC + subgraph meta
- * - computes blocksBehind + latency
+ * - polls RPC + subgraph meta + (optional) bot status endpoint
+ * - computes blocksBehind + latency + last/next bot run
  *
  * Env:
- * - VITE_SUBGRAPH_URL (already in your app)
- * - VITE_ETHERLINK_RPC_URL (already in your app)
+ * - VITE_SUBGRAPH_URL (required)
+ * - VITE_ETHERLINK_RPC_URL (required)
  * - Optional: VITE_INFRA_POLL_MS (default 30000)
+ * - Optional: VITE_FINALIZER_STATUS_URL (e.g. https://neokta-finalizer-bot.<subdomain>.workers.dev)
  */
 export function useInfraStatus() {
   const subgraphUrl = useMemo(() => mustEnv("VITE_SUBGRAPH_URL"), []);
   const rpcUrl = useMemo(() => mustEnv("VITE_ETHERLINK_RPC_URL"), []);
+
+  const botBase = useMemo(() => env("VITE_FINALIZER_STATUS_URL"), []);
 
   const pollMs = useMemo(() => {
     const v = env("VITE_INFRA_POLL_MS");
@@ -177,6 +224,16 @@ export function useInfraStatus() {
     tsMs: Date.now(),
     indexer: { level: "down", label: "Down", blocksBehind: null, headBlock: null, indexedBlock: null },
     rpc: { level: "down", label: "Down", latencyMs: null, ok: false },
+    bot: {
+      level: "unknown",
+      label: "Unknown",
+      running: false,
+      lastRunMs: null,
+      nextRunMs: null,
+      secondsSinceLastRun: null,
+      secondsToNextRun: null,
+      lastError: null,
+    },
     overall: { level: "down", label: "Issues" },
     isLoading: true,
   }));
@@ -235,7 +292,41 @@ export function useInfraStatus() {
 
       const idxS = indexerStatus(behind);
 
-      const overall = worstOverall(idxS.level, rpcS.level);
+      // ---- Bot status (optional) ----
+      let botLevel: BotLevel = "unknown";
+      let botLabel = "Unknown";
+      let botRunning = false;
+      let lastRunMs: number | null = null;
+      let nextRunMs: number | null = null;
+      let secondsSinceLastRun: number | null = null;
+      let secondsToNextRun: number | null = null;
+      let lastError: string | null = null;
+      let botErr: string | undefined;
+
+      if (botBase) {
+        const url = botBase.replace(/\/$/, "") + "/";
+        try {
+          const w = await fetchBotStatus(url, 5000);
+          const bs = botStatusFromWire(w);
+          botLevel = bs.level;
+          botLabel = bs.label;
+
+          botRunning = !!w?.running;
+          lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
+          nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
+
+          secondsSinceLastRun = typeof w?.secondsSinceLastRun === "number" ? w.secondsSinceLastRun : null;
+          secondsToNextRun = typeof w?.secondsToNextRun === "number" ? w.secondsToNextRun : null;
+
+          lastError = w?.lastError ? String(w.lastError) : null;
+        } catch (e: any) {
+          botErr = String(e?.message || e || "bot_error");
+          botLevel = "unknown";
+          botLabel = "Unknown";
+        }
+      }
+
+      const overall = worstOverall(idxS.level, rpcS.level, botLevel);
 
       if (!aliveRef.current) return;
       setState({
@@ -255,6 +346,17 @@ export function useInfraStatus() {
           ok: rpcOk,
           error: rpcErr,
         },
+        bot: {
+          level: botLevel,
+          label: botLabel,
+          running: botRunning,
+          lastRunMs,
+          nextRunMs,
+          secondsSinceLastRun,
+          secondsToNextRun,
+          lastError,
+          error: botErr,
+        },
         overall,
         isLoading: false,
       });
@@ -272,7 +374,7 @@ export function useInfraStatus() {
         clearInterval(timer);
       } catch {}
     };
-  }, [pollMs, rpcUrl, subgraphUrl]);
+  }, [pollMs, rpcUrl, subgraphUrl, botBase]);
 
   return state;
 }
