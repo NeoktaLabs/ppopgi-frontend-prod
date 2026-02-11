@@ -7,10 +7,10 @@
   z-index: 300;
 
   display: flex;
-  flex-direction: column; /* Stack Pill and Notch naturally */
+  flex-direction: column; 
   align-items: center;
 
-  padding: 0 16px; /* Removed bottom padding since notch takes up physical space now */
+  padding: 0 16px; 
   pointer-events: none;
 }
 
@@ -42,7 +42,7 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  pointer-events: auto; /* Enable hover/clicks on the notch */
+  pointer-events: auto; 
 }
 
 
@@ -269,10 +269,10 @@
 .mobile-burger.open span:first-child { transform: rotate(45deg) translate(5px, 5px); }
 .mobile-burger.open span:last-child { transform: rotate(-45deg) translate(5px, -5px); }
 
+/* ✅ MOBILE OVERRIDES */
 @media (max-width: 900px) {
   .topnav-desktop-links,
-  .desktop-actions,
-  .topnav-notch-slot { /* Hide standalone notch on mobile */
+  .desktop-actions {
     display: none;
   }
 
@@ -288,7 +288,8 @@
 /* --- MOBILE MENU --- */
 .mobile-menu {
   position: absolute;
-  top: 80px;
+  /* Push menu down to clear the notch */
+  top: 130px; 
   left: 0;
   right: 0;
   display: flex;
@@ -298,6 +299,13 @@
   transform: translateY(-10px);
   transition: all 0.2s ease;
   z-index: 350;
+}
+
+@media (max-width: 700px) {
+  .mobile-menu {
+     /* Push slightly less down on smaller screens */
+     top: 120px;
+  }
 }
 
 .mobile-menu.visible {
@@ -330,54 +338,6 @@
 }
 
 .mobile-menu-inner button:hover { background: #f8fafc; }
-
-/* =========================================
-   ✅ MOBILE STATUS MENU FLATTENING
-   ========================================= */
-
-.mobile-infra-row {
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  margin: 6px 6px 8px;
-  border-radius: 18px;
-  background: #f8fafc;
-  border: 1px solid rgba(0,0,0,0.06);
-}
-
-.mobile-infra-label {
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: #4A0F2B;
-  text-align: center;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 8px;
-}
-
-/* Flatten the pill so it behaves inside the mobile menu */
-.mobile-infra-row .isp-notch {
-  position: static !important;
-  transform: none !important;
-  width: 100% !important;
-  margin: 0 !important;
-}
-
-.mobile-infra-row .isp-notch-inner {
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-  padding: 0 !important;
-}
-
-/* Hide redundant title and arrow */
-.mobile-infra-row .isp-notch-inner::before,
-.mobile-infra-row .isp-notch-title {
-  display: none !important;
-}
-
 
 /* Mobile balances card */
 .mobile-balances {
