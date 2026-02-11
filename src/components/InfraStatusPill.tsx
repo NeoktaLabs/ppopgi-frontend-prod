@@ -31,13 +31,8 @@ export function InfraStatusPill() {
   const s = useInfraStatus();
   const [open, setOpen] = useState(false);
 
-  const dotClass = useMemo(() => {
-    return `isp-dot ${s.overall.level}`;
-  }, [s.overall.level]);
-
-  const pillClass = useMemo(() => {
-    return `isp-pill ${s.overall.level}`;
-  }, [s.overall.level]);
+  const dotClass = useMemo(() => `isp-dot ${s.overall.level}`, [s.overall.level]);
+  const pillClass = useMemo(() => `isp-pill ${s.overall.level}`, [s.overall.level]);
 
   const botLabel = useMemo(() => {
     if (!s.bot) return "Unknown";
