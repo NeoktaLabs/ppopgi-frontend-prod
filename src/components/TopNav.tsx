@@ -122,11 +122,8 @@ export const TopNav = memo(function TopNav({
   const usdcText = fmtBal(usdcBal.data?.displayValue, 2);
   const usdcSym = usdcBal.data?.symbol || "USDC";
 
-  const balancesLoading = !!account && (xtzBal.isLoading || usdcBal.isLoading) && !xtzBal.data && !usdcBal.data;
-
   return (
     <div className="topnav-wrapper">
-      
       {/* 1. Main Nav Pill */}
       <div className="topnav-pill">
         <div className="topnav-brand" onClick={() => handleNav(() => {}, "home")}>
@@ -135,7 +132,10 @@ export const TopNav = memo(function TopNav({
         </div>
 
         <nav className="topnav-desktop-links">
-          <button className={`nav-link ${page === "explore" ? "active" : ""}`} onClick={() => handleNav(onOpenExplore, "explore")}>
+          <button
+            className={`nav-link ${page === "explore" ? "active" : ""}`}
+            onClick={() => handleNav(onOpenExplore, "explore")}
+          >
             Explore
           </button>
 
@@ -156,9 +156,13 @@ export const TopNav = memo(function TopNav({
         <div className="topnav-right">
           <div className="desktop-actions">
             {account && (
-              <button className="balances-pill" onClick={() => handleNav(onOpenCashier)} title="Open Cashier" type="button">
-                <div className="balances-title">{balancesLoading ? "Loading…" : "Balances"}</div>
-
+              <button
+                className="balances-pill"
+                onClick={() => handleNav(onOpenCashier)}
+                title="Open Cashier"
+                type="button"
+              >
+                {/* ✅ removed "Balances" title */}
                 <div className="balances-rows">
                   <div className="bal-row">
                     <span className="bal-sym">{xtzSym}</span>
@@ -181,10 +185,19 @@ export const TopNav = memo(function TopNav({
                 Sign In
               </button>
             ) : (
-              <div className="account-badge" onClick={() => handleNav(onSignOut)} title="Click to Sign Out">
-                <div className="acct-dot" />
-                {short(account)}
-              </div>
+              // ✅ new stacked "Log Off" + address
+              <button
+                type="button"
+                className="account-badge account-badge-stack"
+                onClick={() => handleNav(onSignOut)}
+                title="Log Off"
+              >
+                <div className="acct-dot" aria-hidden="true" />
+                <div className="acct-stack">
+                  <div className="acct-top">Log Off</div>
+                  <div className="acct-bottom">{short(account)}</div>
+                </div>
+              </button>
             )}
           </div>
 
@@ -209,9 +222,9 @@ export const TopNav = memo(function TopNav({
       {/* 3. Mobile Menu */}
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
-
           {account && (
             <div className="mobile-balances" onClick={() => handleNav(onOpenCashier)}>
+              {/* (keeping mobile title as-is; tell me if you want it removed too) */}
               <div className="mobile-balances-title">Balances</div>
               <div className="mobile-balances-rows">
                 <div className="mobile-bal-row">
@@ -243,7 +256,7 @@ export const TopNav = memo(function TopNav({
             </button>
           ) : (
             <button className="danger" onClick={() => handleNav(onSignOut)}>
-              Sign Out ({short(account)})
+              Log Off ({short(account)})
             </button>
           )}
         </div>
