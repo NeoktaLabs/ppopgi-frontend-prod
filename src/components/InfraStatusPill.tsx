@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { useInfraStatus } from "../hooks/useInfraStatus";
 import "./InfraStatusPill.css";
 
-// Helper to keep time very short (e.g., "4m ago")
 function fmtAgoSec(sec: number | null): string {
   if (sec === null) return "—";
   const s = Math.max(0, Math.floor(sec));
@@ -15,9 +14,20 @@ function fmtAgoSec(sec: number | null): string {
   return `${h}h ${mm}m ago`;
 }
 
+function fmtInSec(sec: number | null): string {
+  if (sec === null) return "—";
+  const s = Math.max(0, Math.floor(sec));
+  if (s < 60) return `in ${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `in ${m}m`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `in ${h}h ${mm}m`;
+}
+
 function fmtBlocksBehind(n: number | null): string {
   if (n === null) return "—";
-  return n === 0 ? "Synced" : `-${n} blks`;
+  return n === 0 ? "Synced" : `${n} blocks behind`;
 }
 
 function fmtLatency(ms: number | null): string {
@@ -53,61 +63,74 @@ export function InfraStatusPill() {
     <div className="isp-notch" aria-label="Ppopgi systems status">
       <div className="isp-notch-inner">
         
-        {/* Left: Overall Status */}
+        {/* Notch Title */}
         <div className="isp-notch-title">
           <span className={`isp-dot ${overallDot}`} aria-hidden="true" />
-          <span className="isp-title-text">Systems</span>
+          <span style={{ marginLeft: 6 }}>System Status</span>
         </div>
 
-        <div className="isp-divider hide-mobile" />
-
-        {/* Middle: Horizontal Metrics */}
+        {/* 3-Column Grid */}
         <div className="isp-notch-grid">
           
-          {/* Indexer */}
+          {/* 1. Indexer */}
           <div className="isp-item">
-            <span className="isp-item-name">Idx:</span>
-            <span className="isp-item-val">{fmtBlocksBehind(s.indexer.blocksBehind)}</span>
-            <span className={`isp-dot-small ${idxDot}`} aria-hidden="true" />
-            <span className="isp-q" tabIndex={0}>
-              ?
-              <span className="isp-tip">Reads the blockchain.<br/>If behind, stats update late.</span>
-            </span>
+            <div className="isp-item-header">
+              <span className={`isp-dot ${idxDot}`} aria-hidden="true" />
+              <span className="isp-item-name">Indexer</span>
+              <span className="isp-q" tabIndex={0} aria-label="What is the indexer?">
+                ?
+                <span className="isp-tip" role="tooltip">Reads the blockchain.<br/>If behind, stats update late.</span>
+              </span>
+            </div>
+            <div className="isp-item-data">
+              <div className="isp-item-val">{fmtBlocksBehind(s.indexer.blocksBehind)}</div>
+              <div className="isp-item-sub">{s.indexer.label}</div>
+            </div>
           </div>
 
-          {/* RPC */}
+          {/* 2. RPC */}
           <div className="isp-item">
-            <span className="isp-item-name">RPC:</span>
-            <span className="isp-item-val">{fmtLatency(s.rpc.latencyMs)}</span>
-            <span className={`isp-dot-small ${rpcDot}`} aria-hidden="true" />
-            <span className="isp-q" tabIndex={0}>
-              ?
-              <span className="isp-tip">Gateway to the blockchain.<br/>High latency makes actions slow.</span>
-            </span>
+            <div className="isp-item-header">
+              <span className={`isp-dot ${rpcDot}`} aria-hidden="true" />
+              <span className="isp-item-name">RPC</span>
+              <span className="isp-q" tabIndex={0} aria-label="What is the RPC?">
+                ?
+                <span className="isp-tip" role="tooltip">Gateway to the blockchain.<br/>High latency makes actions slow.</span>
+              </span>
+            </div>
+            <div className="isp-item-data">
+              <div className="isp-item-val">{fmtLatency(s.rpc.latencyMs)}</div>
+              <div className="isp-item-sub">{s.rpc.label}</div>
+            </div>
           </div>
 
-          {/* Bot */}
+          {/* 3. Finalizer Bot */}
           <div className="isp-item">
-            <span className="isp-item-name">Bot:</span>
-            <span className="isp-item-val">{botLabel}</span>
-            <span className={`isp-dot-small ${botDot}`} aria-hidden="true" />
-            <span className="isp-q" tabIndex={0}>
-              ?
-              <span className="isp-tip">Auto-finalizes ended raffles.<br/>Last run: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)}</span>
-            </span>
+            <div className="isp-item-header">
+              <span className={`isp-dot ${botDot}`} aria-hidden="true" />
+              <span className="isp-item-name">Bot</span>
+              <span className="isp-q" tabIndex={0} aria-label="What is the finalizer bot?">
+                ?
+                <span className="isp-tip" role="tooltip">Auto-finalizes ended raffles.<br/>Runs every ~5 mins.</span>
+              </span>
+            </div>
+            <div className="isp-item-data">
+              <div className="isp-item-val">{botLabel}</div>
+              {/* ✅ UX FIX: Put Last/Next on ONE line to save vertical space */}
+              <div className="isp-item-sub">
+                Last: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)} <span style={{ opacity: 0.5 }}>|</span> Next: {fmtInSec(s.bot?.secondsToNextRun ?? null)}
+              </div>
+            </div>
           </div>
 
         </div>
 
-        <div className="isp-divider hide-mobile" />
-
-        {/* Right: Last Updated */}
-        <div className="isp-notch-foot hide-mobile">
+        {/* Footer */}
+        <div className="isp-notch-foot">
           {s.isLoading 
-            ? "..." 
-            : new Date(s.tsMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            ? "Checking..." 
+            : `Updated ${new Date(s.tsMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (refresh ${fmtInSec(s.secondsToNextPoll)})`}
         </div>
-        
       </div>
     </div>
   );
