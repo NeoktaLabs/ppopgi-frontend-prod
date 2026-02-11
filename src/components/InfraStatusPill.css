@@ -2,24 +2,16 @@
 
 .isp-notch {
   position: relative; 
-  /* Tucked up close to the nav pill */
-  margin: 6px auto 0 auto; 
-  /* Only as wide as the text needs to be */
-  width: max-content; 
-  max-width: calc(100vw - 24px);
+  margin: 10px auto 0 auto; 
+  width: min(860px, calc(100vw - 24px));
   pointer-events: none; 
 }
 
-/* 🟢 Thin Single-Line Pill Layout */
+/* Inner card */
 .isp-notch-inner {
   pointer-events: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  
-  /* Super tight padding to make it thin */
-  padding: 6px 16px; 
+  position: relative;
+  width: 100%;
 
   /* Premium Glassmorphism */
   background: rgba(255, 255, 255, 0.95);
@@ -27,60 +19,67 @@
   -webkit-backdrop-filter: blur(16px);
 
   border: 1px solid rgba(74, 15, 43, 0.08); 
-  border-radius: 999px; /* Pill shape */
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  border-radius: 16px; /* Slightly tighter border radius */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+
+  /* ✅ THINNER PADDING */
+  padding: 10px 16px; 
 }
 
-/* The little pointing arrow connecting it to the top nav */
+/* The little pointing arrow at the top */
 .isp-notch-inner::before {
   content: "";
   position: absolute;
-  top: -5px;
+  top: -6px;
   left: 50%;
   transform: translateX(-50%) rotate(45deg);
 
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   background: #ffffff;
   border-left: 1px solid rgba(74, 15, 43, 0.08);
   border-top: 1px solid rgba(74, 15, 43, 0.08);
-  border-top-left-radius: 2px;
+  border-top-left-radius: 3px;
 }
 
-/* Title Section */
+/* Title */
 .isp-notch-title {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #4A0F2B; /* Brand Pink */
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* ✅ THINNER MARGIN */
+  margin-bottom: 8px; 
+}
+
+/* 3-Column Grid */
+.isp-notch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px; /* ✅ TIGHTER GAP */
+}
+
+/* Each block */
+.isp-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  /* ✅ THINNER BOX PADDING */
+  padding: 8px 12px; 
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* Close the gap between title and data */
+}
+
+.isp-item-header {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.isp-title-text {
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #4A0F2B;
-}
-
-/* Thin vertical separators */
-.isp-divider {
-  width: 1px;
-  height: 12px;
-  background: rgba(0,0,0,0.1);
-}
-
-/* Metrics Container */
-.isp-notch-grid {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-/* Individual Metric */
-.isp-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
 }
 
 .isp-item-name {
@@ -88,21 +87,41 @@
   font-weight: 800;
   color: #64748b;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.isp-item-data {
+  margin-top: 0;
 }
 
 .isp-item-val {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 900;
   color: #0f172a;
+  line-height: 1.2;
 }
 
+.isp-item-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+/* Footer */
 .isp-notch-foot {
+  /* ✅ THINNER MARGINS/PADDING */
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
   font-size: 10px;
   font-weight: 700;
   color: #94a3b8;
+  text-align: center;
 }
 
-/* Tooltip (?) */
+/* Tooltip Logic */
 .isp-q {
   display: inline-flex;
   align-items: center;
@@ -116,7 +135,6 @@
   font-weight: 900;
   cursor: help;
   position: relative;
-  margin-left: 2px;
 }
 
 .isp-q:hover {
@@ -126,7 +144,7 @@
 
 .isp-tip {
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%) translateY(4px);
   opacity: 0;
@@ -172,57 +190,73 @@
   box-shadow: 0 0 0 2px rgba(0,0,0,0.04);
 }
 
-.isp-dot-small {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.isp-dot.healthy, .isp-dot-small.healthy { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2); }
-.isp-dot.degraded, .isp-dot-small.degraded { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
-.isp-dot.late, .isp-dot-small.late { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
-.isp-dot.slow, .isp-dot-small.slow { background: #f59e0b; }
-.isp-dot.down, .isp-dot-small.down { background: #0f172a; }
-.isp-dot.unknown, .isp-dot-small.unknown { background: #94a3b8; }
-
-.isp-dot-small.healthy, 
-.isp-dot-small.degraded, 
-.isp-dot-small.late {
-  box-shadow: none; /* No shadow on the tiny dots to keep it clean */
-}
+.isp-dot.healthy { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2); }
+.isp-dot.degraded { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
+.isp-dot.late { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+.isp-dot.slow { background: #f59e0b; }
+.isp-dot.down { background: #0f172a; }
+.isp-dot.unknown { background: #94a3b8; }
 
 /* =========================================
-   ✅ MOBILE RESPONSIVENESS (Wrap smoothly)
+   ✅ MOBILE RESPONSIVENESS (Compact)
    ========================================= */
 @media (max-width: 700px) {
+  .isp-notch {
+    margin-top: 6px; 
+    width: calc(100vw - 16px);
+  }
+
   .isp-notch-inner {
-    flex-wrap: wrap;
-    border-radius: 16px;
-    padding: 8px 12px;
-    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 14px;
   }
-  
+
+  .isp-notch-title {
+    margin-bottom: 6px;
+  }
+
   .isp-notch-grid {
-    width: 100%;
-    justify-content: space-between;
-    gap: 8px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
   }
   
-  .hide-mobile {
-    display: none;
+  .isp-item {
+    align-items: center;
+    text-align: center;
+    padding: 6px 4px;
+    gap: 4px;
   }
   
-  /* Hide tooltips on mobile since there is no hover */
-  .isp-q {
-    display: none;
+  .isp-item-header {
+    justify-content: center;
+    gap: 4px;
   }
   
   .isp-item-name {
     font-size: 10px;
+    letter-spacing: 0;
+  }
+  
+  .isp-item-data {
+    margin-top: 0;
   }
   
   .isp-item-val {
     font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  
+  .isp-item-sub,
+  .isp-q {
+    display: none; 
+  }
+
+  .isp-notch-foot {
+    margin-top: 6px;
+    padding-top: 6px;
+    font-size: 9px;
   }
 }
