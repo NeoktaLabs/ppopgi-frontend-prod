@@ -92,7 +92,8 @@ export function InfraStatusPill() {
           <div className="isp-item">
             <div className="isp-item-header">
               <span className={`isp-dot ${rpcDot}`} aria-hidden="true" />
-              <span className="isp-item-name">Etherlink RPC</span>
+              {/* Shortened label for better mobile fit */}
+              <span className="isp-item-name">RPC</span>
               <span className="isp-q" tabIndex={0} aria-label="What is the RPC?">
                 ?
                 <span className="isp-tip" role="tooltip">Gateway to the blockchain.<br/>High latency makes actions slow.</span>
@@ -108,7 +109,8 @@ export function InfraStatusPill() {
           <div className="isp-item">
             <div className="isp-item-header">
               <span className={`isp-dot ${botDot}`} aria-hidden="true" />
-              <span className="isp-item-name">Finalizer Bot</span>
+              {/* Shortened label for better mobile fit */}
+              <span className="isp-item-name">Bot</span>
               <span className="isp-q" tabIndex={0} aria-label="What is the finalizer bot?">
                 ?
                 <span className="isp-tip" role="tooltip">Auto-finalizes ended raffles.<br/>Runs every ~5 mins.</span>
