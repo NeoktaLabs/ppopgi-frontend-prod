@@ -116,7 +116,7 @@ function worstOverall(
       case "degraded":
         return 2;
       case "unknown":
-        return 1; // doesn't worsen overall (but still not "better than healthy")
+        return 1; // doesn't worsen overall
       case "healthy":
       default:
         return 1;
@@ -304,7 +304,8 @@ export function useInfraStatus() {
       let botErr: string | undefined;
 
       if (botBase) {
-        const url = botBase.replace(/\/$/, "") + "/";
+        // ✅ Bot endpoint is /bot-status (not "/")
+        const url = botBase.replace(/\/$/, "") + "/bot-status";
         try {
           const w = await fetchBotStatus(url, 5000);
           const bs = botStatusFromWire(w);
@@ -312,6 +313,8 @@ export function useInfraStatus() {
           botLabel = bs.label;
 
           botRunning = !!w?.running;
+
+          // Bot returns timestamps in ms
           lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
           nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
 
@@ -321,8 +324,9 @@ export function useInfraStatus() {
           lastError = w?.lastError ? String(w.lastError) : null;
         } catch (e: any) {
           botErr = String(e?.message || e || "bot_error");
-          botLevel = "unknown";
-          botLabel = "Unknown";
+          // ✅ If we can't reach the bot status endpoint, treat as Down (better UX than "unknown")
+          botLevel = "down";
+          botLabel = "Down";
         }
       }
 
