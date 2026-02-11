@@ -36,11 +36,14 @@ type InfraStatus = {
     lastRunMs: number | null;
     nextRunMs: number | null;
 
-    // ✅ “wire” values (what the endpoint returned at fetch time)
+    // new field from worker (for debugging/UI if you want it)
+    cronEveryMinutes: number | null;
+
+    // “wire” values (what the endpoint returned at fetch time)
     secondsSinceLastRunWire: number | null;
     secondsToNextRunWire: number | null;
 
-    // ✅ “live” values (computed locally every second)
+    // “live” values (computed locally every second)
     secondsSinceLastRun: number | null;
     secondsToNextRun: number | null;
 
@@ -74,6 +77,18 @@ function env(name: string): string | null {
 }
 
 function clampInt(n: any): number | null {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return null;
+  return Math.max(0, Math.floor(x));
+}
+
+function clampSec(n: any): number | null {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return null;
+  return Math.max(0, Math.floor(x));
+}
+
+function clampPosInt(n: any): number | null {
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
   return Math.max(0, Math.floor(x));
@@ -209,17 +224,11 @@ async function fetchBotStatus(statusUrl: string, timeoutMs: number) {
   return json;
 }
 
-function clampSec(n: any): number | null {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return null;
-  return Math.max(0, Math.floor(x));
-}
-
 /**
  * useInfraStatus
  * - polls RPC + subgraph meta + (optional) bot status endpoint
- * - computes blocksBehind + latency + last/next bot run
- * - ✅ live countdown without refetching every second
+ * - live countdown without refetching every second
+ * - ✅ forces refresh when bot countdown hits 0
  *
  * Env:
  * - VITE_SUBGRAPH_URL (required)
@@ -230,7 +239,7 @@ function clampSec(n: any): number | null {
 export function useInfraStatus() {
   const subgraphUrl = useMemo(() => mustEnv("VITE_SUBGRAPH_URL"), []);
   const rpcUrl = useMemo(() => mustEnv("VITE_ETHERLINK_RPC_URL"), []);
-  const botBase = useMemo(() => env("VITE_FINALIZER_STATUS_URL"), []);
+  const botUrl = useMemo(() => env("VITE_FINALIZER_STATUS_URL"), []);
 
   const pollMs = useMemo(() => {
     const v = env("VITE_INFRA_POLL_MS");
@@ -238,32 +247,12 @@ export function useInfraStatus() {
     return Number.isFinite(n) ? Math.max(5000, Math.floor(n)) : 30000;
   }, []);
 
-  const [state, setState] = useState<InfraStatus>(() => ({
-    tsMs: Date.now(),
-    indexer: { level: "down", label: "Down", blocksBehind: null, headBlock: null, indexedBlock: null },
-    rpc: { level: "down", label: "Down", latencyMs: null, ok: false },
-    bot: {
-      level: "unknown",
-      label: "Unknown",
-      running: false,
-      lastRunMs: null,
-      nextRunMs: null,
-      secondsSinceLastRunWire: null,
-      secondsToNextRunWire: null,
-      secondsSinceLastRun: null,
-      secondsToNextRun: null,
-      lastError: null,
-    },
-    overall: { level: "down", label: "Issues" },
-    isLoading: true,
-    pollMs,
-    nextPollMs: Date.now() + pollMs,
-    secondsToNextPoll: Math.floor(pollMs / 1000),
-  }));
-
   const aliveRef = useRef(true);
+  const fetchingRef = useRef(false);
+  const nextPollTimerRef = useRef<any>(null);
+  const zeroKickArmedRef = useRef(false);
 
-  // ✅ local clock tick (for live countdowns)
+  // local clock tick (for live countdowns)
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 1000);
@@ -277,13 +266,39 @@ export function useInfraStatus() {
     };
   }, []);
 
-  useEffect(() => {
-    let timer: any = null;
+  const [state, setState] = useState<InfraStatus>(() => ({
+    tsMs: Date.now(),
+    indexer: { level: "down", label: "Down", blocksBehind: null, headBlock: null, indexedBlock: null },
+    rpc: { level: "down", label: "Down", latencyMs: null, ok: false },
+    bot: {
+      level: "unknown",
+      label: "Unknown",
+      running: false,
+      lastRunMs: null,
+      nextRunMs: null,
+      cronEveryMinutes: null,
+      secondsSinceLastRunWire: null,
+      secondsToNextRunWire: null,
+      secondsSinceLastRun: null,
+      secondsToNextRun: null,
+      lastError: null,
+    },
+    overall: { level: "down", label: "Issues" },
+    isLoading: true,
+    pollMs,
+    nextPollMs: Date.now() + pollMs,
+    secondsToNextPoll: Math.floor(pollMs / 1000),
+  }));
 
-    const runOnce = async () => {
-      const fetchedAtMs = Date.now();
-      const nextPollAt = fetchedAtMs + pollMs;
+  // --- core fetcher (reusable for normal poll + forced refresh) ---
+  const runOnce = async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
 
+    const fetchedAtMs = Date.now();
+    const nextPollAt = fetchedAtMs + pollMs;
+
+    try {
       // ---- RPC (median of 3) ----
       let rpcOk = false;
       let rpcLatency: number | null = null;
@@ -332,6 +347,7 @@ export function useInfraStatus() {
 
       let lastRunMs: number | null = null;
       let nextRunMs: number | null = null;
+      let cronEveryMinutes: number | null = null;
 
       let sinceWire: number | null = null;
       let toWire: number | null = null;
@@ -339,10 +355,13 @@ export function useInfraStatus() {
       let lastError: string | null = null;
       let botErr: string | undefined;
 
-      if (botBase) {
-        const url = botBase.replace(/\/$/, "");
+      if (botUrl) {
+        // IMPORTANT: env should point to the full endpoint, e.g. https://.../bot-status
+        const url = botUrl.trim();
+
         try {
           const w = await fetchBotStatus(url, 5000);
+
           const bs = botStatusFromWire(w);
           botLevel = bs.level;
           botLabel = bs.label;
@@ -351,6 +370,8 @@ export function useInfraStatus() {
 
           lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
           nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
+
+          cronEveryMinutes = clampPosInt(w?.cronEveryMinutes);
 
           sinceWire = clampSec(w?.secondsSinceLastRun);
           toWire = clampSec(w?.secondsToNextRun);
@@ -367,8 +388,6 @@ export function useInfraStatus() {
 
       if (!aliveRef.current) return;
 
-      // ✅ compute “live” from timestamps if available (best),
-      // otherwise fallback to wire values.
       const liveSince =
         lastRunMs !== null ? Math.max(0, Math.floor((Date.now() - lastRunMs) / 1000)) : sinceWire;
       const liveTo =
@@ -397,6 +416,7 @@ export function useInfraStatus() {
           running: botRunning,
           lastRunMs,
           nextRunMs,
+          cronEveryMinutes,
           secondsSinceLastRunWire: sinceWire,
           secondsToNextRunWire: toWire,
           secondsSinceLastRun: liveSince ?? null,
@@ -410,27 +430,38 @@ export function useInfraStatus() {
         nextPollMs: nextPollAt,
         secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - Date.now()) / 1000)),
       });
-    };
+
+      // re-arm the “0s kick” after every successful fetch
+      zeroKickArmedRef.current = true;
+    } finally {
+      fetchingRef.current = false;
+    }
+  };
+
+  // schedule the normal polling
+  useEffect(() => {
+    let interval: any = null;
 
     const loop = async () => {
       await runOnce();
-      timer = setInterval(runOnce, pollMs);
+      interval = setInterval(runOnce, pollMs);
     };
 
     void loop();
 
     return () => {
       try {
-        clearInterval(timer);
+        clearInterval(interval);
       } catch {}
     };
-  }, [pollMs, rpcUrl, subgraphUrl, botBase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollMs, rpcUrl, subgraphUrl, botUrl]);
 
-  // ✅ every second: recompute live countdowns + “refresh in”
+  // every second: recompute live countdowns + “refresh in”
   useEffect(() => {
-    setState((prev) => {
-      const now = nowTick;
+    const now = nowTick;
 
+    setState((prev) => {
       const nextPollMs = prev.nextPollMs || now + prev.pollMs;
       const secondsToNextPoll = Math.max(0, Math.floor((nextPollMs - now) / 1000));
 
@@ -443,7 +474,6 @@ export function useInfraStatus() {
       const secondsToNextRun =
         nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : prev.bot.secondsToNextRunWire;
 
-      // avoid re-render storms if nothing changes
       const changed =
         secondsToNextPoll !== prev.secondsToNextPoll ||
         secondsSinceLastRun !== prev.bot.secondsSinceLastRun ||
@@ -461,6 +491,26 @@ export function useInfraStatus() {
         },
       };
     });
+
+    // ✅ Force refresh when bot countdown hits 0s.
+    // We do a small delay (250ms) to let the cron actually start / KV update.
+    const secToNext = state.bot?.secondsToNextRun ?? null;
+    if (secToNext === 0 && zeroKickArmedRef.current) {
+      zeroKickArmedRef.current = false;
+
+      try {
+        clearTimeout(nextPollTimerRef.current);
+      } catch {}
+
+      nextPollTimerRef.current = setTimeout(() => {
+        void runOnce();
+      }, 250);
+    }
+
+    return () => {
+      // no-op
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowTick]);
 
   return state;
