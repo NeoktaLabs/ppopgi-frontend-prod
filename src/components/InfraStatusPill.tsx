@@ -1,38 +1,38 @@
 // src/components/InfraStatusPill.tsx
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useInfraStatus } from "../hooks/useInfraStatus";
 import "./InfraStatusPill.css";
 
-function fmtAgoSec(sec: number | null): string {
+function fmtShort(sec: number | null): string {
   if (sec === null) return "—";
   const s = Math.max(0, Math.floor(sec));
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   const r = s % 60;
-  if (m < 60) return `${m}m ${r}s ago`;
+  if (m < 60) return `${m}m ${r}s`;
   const h = Math.floor(m / 60);
   const mm = m % 60;
-  return `${h}h ${mm}m ago`;
+  return `${h}h ${mm}m`;
 }
 
-function fmtInSec(sec: number | null): string {
-  if (sec === null) return "—";
-  const s = Math.max(0, Math.floor(sec));
-  if (s < 60) return `in ${s}s`;
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  if (m < 60) return `in ${m}m ${r}s`;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `in ${h}h ${mm}m`;
+function levelDot(level: string): string {
+  // reuse your overall levels; map rpc slow -> degraded if it ever leaks in
+  if (level === "slow") return "degraded";
+  return level;
 }
 
 export function InfraStatusPill() {
   const s = useInfraStatus();
-  const [open, setOpen] = useState(false);
 
-  const dotClass = useMemo(() => `isp-dot ${s.overall.level}`, [s.overall.level]);
-  const pillClass = useMemo(() => `isp-pill ${s.overall.level}`, [s.overall.level]);
+  const indexerHelp =
+    "Keeps Ppopgi up-to-date by reading the blockchain and building the data you see in the app (raffles, history, stats).";
+  const rpcHelp =
+    "A gateway to the Etherlink blockchain. The app and bots use it to read balances and send transactions.";
+  const finalizerHelp =
+    "A scheduled bot that closes raffles when they end (or cancels them if not enough tickets), then publishes the result.";
+
+  const indexerDot = useMemo(() => `isp-dot ${levelDot(s.indexer.level)}`, [s.indexer.level]);
+  const rpcDot = useMemo(() => `isp-dot ${levelDot(s.rpc.level)}`, [s.rpc.level]);
 
   const botLabel = useMemo(() => {
     if (!s.bot) return "Unknown";
@@ -40,75 +40,83 @@ export function InfraStatusPill() {
     return s.bot.label || "Unknown";
   }, [s.bot]);
 
-  const pillSub = useMemo(() => {
-    // show a small live countdown to next run if we have it
+  const botDot = useMemo(() => `isp-dot ${levelDot(s.bot?.level || "unknown")}`, [s.bot?.level]);
+
+  const botSub = useMemo(() => {
     const to = s.bot?.secondsToNextRun ?? null;
     if (to === null) return null;
-    return ` · next ${to}s`;
+    // tiny and friendly countdown
+    return ` · next in ${fmtShort(to)}`;
   }, [s.bot?.secondsToNextRun]);
 
   return (
-    <div className="isp-wrap" onMouseLeave={() => setOpen(false)}>
-      <button type="button" className={pillClass} onClick={() => setOpen((v) => !v)} title="Infra Status">
-        <span className={dotClass} aria-hidden="true" />
-        <span className="isp-label">
-          {s.isLoading ? "Checking…" : `${s.overall.label}${pillSub ?? ""}`}
-        </span>
-      </button>
+    // fixed notch container (CSS will anchor it under the topnav)
+    <div className="isp-notch" aria-label="Ppopgi systems status">
+      <div className="isp-notch-inner">
+        <div className="isp-notch-title">Ppopgi Systems Status</div>
 
-      {open && (
-        <div className="isp-popover" role="dialog" aria-label="Infra status details">
-          <div className="isp-row">
-            <div className="isp-k">Indexer</div>
-            <div className="isp-v">
-              <b>{s.indexer.label}</b>
+        <div className="isp-notch-grid">
+          {/* INDEXER */}
+          <div className="isp-item">
+            <div className="isp-item-left">
+              <span className={indexerDot} aria-hidden="true" />
+              <span className="isp-item-name">
+                Ppopgi Indexer
+                <span className="isp-q" title={indexerHelp} aria-label="What is the indexer?">
+                  ?
+                </span>
+              </span>
+            </div>
+
+            <div className="isp-item-right">
+              <b className="isp-item-status">{s.isLoading ? "Checking…" : s.indexer.label}</b>
               {typeof s.indexer.blocksBehind === "number" && (
-                <span className="isp-muted"> · {s.indexer.blocksBehind} blocks behind</span>
+                <span className="isp-item-sub">· {s.indexer.blocksBehind} blocks behind</span>
               )}
             </div>
           </div>
 
-          <div className="isp-row">
-            <div className="isp-k">RPC</div>
-            <div className="isp-v">
-              <b>{s.rpc.label}</b>
-              {typeof s.rpc.latencyMs === "number" && <span className="isp-muted"> · {s.rpc.latencyMs}ms</span>}
+          {/* RPC */}
+          <div className="isp-item">
+            <div className="isp-item-left">
+              <span className={rpcDot} aria-hidden="true" />
+              <span className="isp-item-name">
+                Etherlink RPC
+                <span className="isp-q" title={rpcHelp} aria-label="What is the RPC?">
+                  ?
+                </span>
+              </span>
+            </div>
+
+            <div className="isp-item-right">
+              <b className="isp-item-status">{s.isLoading ? "Checking…" : s.rpc.label}</b>
+              {typeof s.rpc.latencyMs === "number" && <span className="isp-item-sub">· {s.rpc.latencyMs}ms</span>}
             </div>
           </div>
 
-          <div className="isp-row">
-            <div className="isp-k">Finalizer</div>
-            <div className="isp-v">
-              <b>{botLabel}</b>
-              {s.bot?.lastError ? <span className="isp-muted"> · last error</span> : null}
+          {/* FINALIZER */}
+          <div className="isp-item">
+            <div className="isp-item-left">
+              <span className={botDot} aria-hidden="true" />
+              <span className="isp-item-name">
+                Ppopgi Finalizer Bot
+                <span className="isp-q" title={finalizerHelp} aria-label="What is the finalizer bot?">
+                  ?
+                </span>
+              </span>
             </div>
-          </div>
 
-          <div className="isp-row isp-row-compact">
-            <div className="isp-k">Last run</div>
-            <div className="isp-v">
-              <b>{fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)}</b>
+            <div className="isp-item-right">
+              <b className="isp-item-status">{s.isLoading ? "Checking…" : botLabel}</b>
+              {botSub ? <span className="isp-item-sub">{botSub}</span> : null}
             </div>
-          </div>
-
-          <div className="isp-row isp-row-compact">
-            <div className="isp-k">Next run</div>
-            <div className="isp-v">
-              <b>{fmtInSec(s.bot?.secondsToNextRun ?? null)}</b>
-            </div>
-          </div>
-
-          {s.bot?.lastError && (
-            <div className="isp-error" title={s.bot.lastError}>
-              {String(s.bot.lastError)}
-            </div>
-          )}
-
-          <div className="isp-foot">
-            Updated: {new Date(s.tsMs).toLocaleTimeString()} · refresh {fmtInSec(s.secondsToNextPoll)}
           </div>
         </div>
-      )}
+
+        <div className="isp-notch-foot">
+          Updated: {new Date(s.tsMs).toLocaleTimeString()} · refresh in {fmtShort(s.secondsToNextPoll)}
+        </div>
+      </div>
     </div>
   );
 }
