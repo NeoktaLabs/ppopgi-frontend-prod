@@ -31,6 +31,31 @@ function toInt(v: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+type DurUnit = "minutes" | "hours" | "days";
+
+const MIN_DURATION_SEC = 10 * 60; // 10 minutes
+const MAX_DURATION_SEC = 365 * 24 * 60 * 60; // 365 days
+
+function unitToSeconds(unit: DurUnit): number {
+  if (unit === "minutes") return 60;
+  if (unit === "hours") return 3600;
+  return 86400;
+}
+
+function clampDurationToBounds(seconds: number): number {
+  if (!Number.isFinite(seconds)) return MIN_DURATION_SEC;
+  if (seconds < MIN_DURATION_SEC) return MIN_DURATION_SEC;
+  if (seconds > MAX_DURATION_SEC) return MAX_DURATION_SEC;
+  return Math.floor(seconds);
+}
+
+function secondsToBestUnitValue(seconds: number, unit: DurUnit): { value: number; unit: DurUnit } {
+  // Keep the chosen unit (don’t change design/UX unexpectedly), just clamp the value.
+  const per = unitToSeconds(unit);
+  const v = Math.max(1, Math.round(seconds / per));
+  return { value: v, unit };
+}
+
 export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
   // ✅ Hooks must be called unconditionally (even when open=false)
   const { fireConfetti } = useConfetti();
@@ -116,6 +141,39 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
   };
 
   // ---------------------------------------------
+  // ✅ Duration enforcement (10 min .. 365 days)
+  // - Clamp on blur (typing stays smooth)
+  // - Clamp when unit changes (prevents out-of-range instantly)
+  // ---------------------------------------------
+  const durationSecondsN = validation.durationSecondsN;
+
+  const durationTooShort = durationSecondsN > 0 && durationSecondsN < MIN_DURATION_SEC;
+  const durationTooLong = durationSecondsN > 0 && durationSecondsN > MAX_DURATION_SEC;
+  const durationOutOfBounds = durationTooShort || durationTooLong;
+
+  const clampDurationFromCurrentInputs = (nextUnit?: DurUnit) => {
+    const unit = (nextUnit ?? form.durationUnit) as DurUnit;
+    const rawVal = toInt(form.durationValue || "0");
+    const seconds = rawVal * unitToSeconds(unit);
+    const clamped = clampDurationToBounds(seconds);
+    const { value } = secondsToBestUnitValue(clamped, unit);
+
+    // keep same unit, update value only
+    form.setDurationValue(String(value));
+    if (nextUnit) form.setDurationUnit(nextUnit);
+  };
+
+  const handleDurationBlur = () => {
+    // If user left it empty/0, still clamp to minimum
+    clampDurationFromCurrentInputs();
+  };
+
+  const handleDurationUnitChange = (u: DurUnit) => {
+    // Switch unit, then clamp based on that new unit
+    clampDurationFromCurrentInputs(u);
+  };
+
+  // ---------------------------------------------
   // Balance vs Winning Pot validation
   // ---------------------------------------------
   const winningPotU6 = useMemo(() => toBigInt6(form.winningPot), [form.winningPot]);
@@ -130,14 +188,23 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
   const invalidName = !form.name.trim();
   const invalidTicketPrice = Number(form.ticketPrice) <= 0;
   const invalidWinningPot = Number(form.winningPot) <= 0;
-  const invalidDuration = Number(form.durationValue) <= 0;
+
+  // keep your base invalidDuration, but also include bounds
+  const invalidDurationBase = Number(form.durationValue) <= 0;
+  const invalidDuration = invalidDurationBase || durationOutOfBounds;
 
   const showInvalid = submitAttempted;
 
   const fieldClass = (invalid: boolean) => `crm-input ${showInvalid && invalid ? "crm-input-invalid" : ""}`;
 
-  // ✅ Only allow create if connected + valid + enough balance
-  const canCreate = isConnected && validation.canSubmit && !status.isPending && !insufficientPrizeFunds;
+  // ✅ Only allow create if connected + valid + enough balance + duration within bounds
+  const canCreate =
+    isConnected &&
+    validation.canSubmit &&
+    !status.isPending &&
+    !insufficientPrizeFunds &&
+    !durationOutOfBounds &&
+    !invalidDurationBase;
 
   // ✅ button visuals when disabled
   const createDisabled = !canCreate;
@@ -314,18 +381,40 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                     inputMode="numeric"
                     value={form.durationValue}
                     onChange={(e) => form.setDurationValue(helpers.sanitizeInt(e.target.value))}
+                    onBlur={handleDurationBlur}
                   />
                 </div>
 
                 <div className="crm-input-group">
                   <label>Unit</label>
-                  <select className="crm-select" value={form.durationUnit} onChange={(e) => form.setDurationUnit(e.target.value as any)}>
+                  <select
+                    className="crm-select"
+                    value={form.durationUnit}
+                    onChange={(e) => handleDurationUnitChange(e.target.value as DurUnit)}
+                  >
                     <option value="minutes">Minutes</option>
                     <option value="hours">Hours</option>
                     <option value="days">Days</option>
                   </select>
                 </div>
               </div>
+
+              {/* ✅ Duration bounds helper (matches contract rules) */}
+              {durationOutOfBounds && (
+                <div
+                  className="crm-status-msg"
+                  style={{
+                    marginTop: 10,
+                    marginBottom: 14,
+                    background: "#fff7ed",
+                    border: "1px solid #fed7aa",
+                    color: "#9a3412",
+                    fontWeight: 800,
+                  }}
+                >
+                  Duration must be between <b>10 minutes</b> and <b>365 days</b>.
+                </div>
+              )}
 
               {/* Advanced */}
               <div className="crm-advanced">
@@ -338,11 +427,7 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                     <div className="crm-grid-2">
                       <div className="crm-input-group">
                         <label>Min Tickets to Draw</label>
-                        <input
-                          className="crm-input"
-                          value={form.minTickets}
-                          onChange={(e) => handleMinTicketsChange(e.target.value)}
-                        />
+                        <input className="crm-input" value={form.minTickets} onChange={(e) => handleMinTicketsChange(e.target.value)} />
                       </div>
                       <div className="crm-input-group">
                         <label>Max Capacity (Opt)</label>
@@ -362,7 +447,11 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
               <div className="crm-actions">
                 <div className="crm-steps">
                   {/* STEP 1 */}
-                  <button className={`crm-step-btn ${status.isReady ? "done" : "active"}`} onClick={status.approve} disabled={!isConnected || status.isReady}>
+                  <button
+                    className={`crm-step-btn ${status.isReady ? "done" : "active"}`}
+                    onClick={status.approve}
+                    disabled={!isConnected || status.isReady}
+                  >
                     <span className="crm-step-icon">{status.isReady ? "✓" : "1"}</span>
                     <span>{status.isReady ? "Wallet Prepared" : "Prepare Wallet"}</span>
                   </button>
