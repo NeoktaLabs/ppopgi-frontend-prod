@@ -201,8 +201,7 @@ export const TopNav = memo(function TopNav({
         </div>
       </div>
 
-      {/* 2. Expanded Notch (Desktop Only) */}
-      {/* Sitting directly under the pill in normal flow so it pushes the page down properly */}
+      {/* 2. Permanent Notch (Visible on Desktop AND Mobile) */}
       <div className="topnav-notch-slot">
         <InfraStatusPill />
       </div>
@@ -210,11 +209,6 @@ export const TopNav = memo(function TopNav({
       {/* 3. Mobile Menu */}
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
-          
-          <div className="mobile-infra-row">
-            <div className="mobile-infra-label">Systems Status</div>
-            <InfraStatusPill />
-          </div>
 
           {account && (
             <div className="mobile-balances" onClick={() => handleNav(onOpenCashier)}>
