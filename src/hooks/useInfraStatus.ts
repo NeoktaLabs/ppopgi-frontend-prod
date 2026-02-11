@@ -8,7 +8,6 @@ type BotLevel = "healthy" | "degraded" | "down" | "unknown";
 type InfraStatus = {
   tsMs: number;
 
-  // Indexer status (subgraph)
   indexer: {
     level: IndexerLevel;
     label: string;
@@ -18,16 +17,14 @@ type InfraStatus = {
     error?: string;
   };
 
-  // RPC status
   rpc: {
     level: RpcLevel;
     label: string;
-    latencyMs: number | null; // median latency
+    latencyMs: number | null;
     ok: boolean;
     error?: string;
   };
 
-  // Finalizer bot status
   bot: {
     level: BotLevel;
     label: string;
@@ -36,14 +33,11 @@ type InfraStatus = {
     lastRunMs: number | null;
     nextRunMs: number | null;
 
-    // new field from worker (for debugging/UI if you want it)
     cronEveryMinutes: number | null;
 
-    // “wire” values (what the endpoint returned at fetch time)
     secondsSinceLastRunWire: number | null;
     secondsToNextRunWire: number | null;
 
-    // “live” values (computed locally every second)
     secondsSinceLastRun: number | null;
     secondsToNextRun: number | null;
 
@@ -51,15 +45,13 @@ type InfraStatus = {
     error?: string;
   };
 
-  // Overall (simple worst-of)
   overall: {
     level: "healthy" | "degraded" | "late" | "down";
     label: string;
   };
 
-  // when the next poll will happen (for UI)
   pollMs: number;
-  nextPollMs: number; // timestamp
+  nextPollMs: number;
   secondsToNextPoll: number;
 
   isLoading: boolean;
@@ -139,7 +131,7 @@ function worstOverall(
       case "late":
         return 3;
       case "slow":
-        return 2; // rpc-only
+        return 2;
       case "degraded":
         return 2;
       case "unknown":
@@ -224,18 +216,6 @@ async function fetchBotStatus(statusUrl: string, timeoutMs: number) {
   return json;
 }
 
-/**
- * useInfraStatus
- * - polls RPC + subgraph meta + (optional) bot status endpoint
- * - live countdown without refetching every second
- * - ✅ forces refresh when bot countdown hits 0
- *
- * Env:
- * - VITE_SUBGRAPH_URL (required)
- * - VITE_ETHERLINK_RPC_URL (required)
- * - Optional: VITE_INFRA_POLL_MS (default 30000)
- * - Optional: VITE_FINALIZER_STATUS_URL (e.g. https://...workers.dev/bot-status)
- */
 export function useInfraStatus() {
   const subgraphUrl = useMemo(() => mustEnv("VITE_SUBGRAPH_URL"), []);
   const rpcUrl = useMemo(() => mustEnv("VITE_ETHERLINK_RPC_URL"), []);
@@ -249,8 +229,9 @@ export function useInfraStatus() {
 
   const aliveRef = useRef(true);
   const fetchingRef = useRef(false);
-  const nextPollTimerRef = useRef<any>(null);
-  const zeroKickArmedRef = useRef(false);
+
+  // ✅ kick only on transition 1 -> 0
+  const prevBotToRef = useRef<number | null>(null);
 
   // local clock tick (for live countdowns)
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -290,7 +271,6 @@ export function useInfraStatus() {
     secondsToNextPoll: Math.floor(pollMs / 1000),
   }));
 
-  // --- core fetcher (reusable for normal poll + forced refresh) ---
   const runOnce = async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
@@ -356,11 +336,8 @@ export function useInfraStatus() {
       let botErr: string | undefined;
 
       if (botUrl) {
-        // IMPORTANT: env should point to the full endpoint, e.g. https://.../bot-status
-        const url = botUrl.trim();
-
         try {
-          const w = await fetchBotStatus(url, 5000);
+          const w = await fetchBotStatus(botUrl.trim(), 5000);
 
           const bs = botStatusFromWire(w);
           botLevel = bs.level;
@@ -430,15 +407,12 @@ export function useInfraStatus() {
         nextPollMs: nextPollAt,
         secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - Date.now()) / 1000)),
       });
-
-      // re-arm the “0s kick” after every successful fetch
-      zeroKickArmedRef.current = true;
     } finally {
       fetchingRef.current = false;
     }
   };
 
-  // schedule the normal polling
+  // normal poll
   useEffect(() => {
     let interval: any = null;
 
@@ -457,9 +431,11 @@ export function useInfraStatus() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollMs, rpcUrl, subgraphUrl, botUrl]);
 
-  // every second: recompute live countdowns + “refresh in”
+  // every second: recompute live countdowns + “refresh in” + kick on 1->0
   useEffect(() => {
     const now = nowTick;
+
+    let kick = false;
 
     setState((prev) => {
       const nextPollMs = prev.nextPollMs || now + prev.pollMs;
@@ -473,6 +449,13 @@ export function useInfraStatus() {
 
       const secondsToNextRun =
         nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : prev.bot.secondsToNextRunWire;
+
+      // ✅ decide kick based on transition (prev 1+ -> now 0)
+      const prevTo = prevBotToRef.current;
+      if (prevTo !== null && prevTo > 0 && secondsToNextRun === 0) {
+        kick = true;
+      }
+      prevBotToRef.current = secondsToNextRun ?? null;
 
       const changed =
         secondsToNextPoll !== prev.secondsToNextPoll ||
@@ -492,24 +475,10 @@ export function useInfraStatus() {
       };
     });
 
-    // ✅ Force refresh when bot countdown hits 0s.
-    // We do a small delay (250ms) to let the cron actually start / KV update.
-    const secToNext = state.bot?.secondsToNextRun ?? null;
-    if (secToNext === 0 && zeroKickArmedRef.current) {
-      zeroKickArmedRef.current = false;
-
-      try {
-        clearTimeout(nextPollTimerRef.current);
-      } catch {}
-
-      nextPollTimerRef.current = setTimeout(() => {
-        void runOnce();
-      }, 250);
+    // ✅ do the fetch AFTER state update, and give the cron/KV a tiny moment
+    if (kick) {
+      setTimeout(() => void runOnce(), 250);
     }
-
-    return () => {
-      // no-op
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowTick]);
 
