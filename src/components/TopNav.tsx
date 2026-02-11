@@ -126,6 +126,8 @@ export const TopNav = memo(function TopNav({
 
   return (
     <div className="topnav-wrapper">
+      
+      {/* 1. Main Nav Pill */}
       <div className="topnav-pill">
         <div className="topnav-brand" onClick={() => handleNav(() => {}, "home")}>
           <img className="topnav-logo" src="/ppopgi-logo.png" alt="Ppopgi logo" draggable={false} />
@@ -197,17 +199,18 @@ export const TopNav = memo(function TopNav({
             <span />
           </button>
         </div>
-
-        {/* ✅ NEW: notch slot anchors the status centered under the pill */}
-        <div className="topnav-notch-slot">
-          <InfraStatusPill />
-        </div>
       </div>
 
+      {/* 2. Expanded Notch (Desktop Only) */}
+      {/* Sitting directly under the pill in normal flow so it pushes the page down properly */}
+      <div className="topnav-notch-slot">
+        <InfraStatusPill />
+      </div>
+
+      {/* 3. Mobile Menu */}
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
-          {/* Mobile: you can keep or remove this.
-              If you keep it, you might want a different compact component for mobile. */}
+          
           <div className="mobile-infra-row">
             <div className="mobile-infra-label">Systems Status</div>
             <InfraStatusPill />
