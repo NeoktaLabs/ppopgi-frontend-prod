@@ -8,7 +8,7 @@ function fmtAgoSec(sec: number | null): string {
   const s = Math.max(0, Math.floor(sec));
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`; // Dropped seconds for condensed look
+  if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   const mm = m % 60;
   return `${h}h ${mm}m ago`;
@@ -19,7 +19,7 @@ function fmtInSec(sec: number | null): string {
   const s = Math.max(0, Math.floor(sec));
   if (s < 60) return `in ${s}s`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `in ${m}m`; // Dropped seconds for condensed look
+  if (m < 60) return `in ${m}m`;
   const h = Math.floor(m / 60);
   const mm = m % 60;
   return `in ${h}h ${mm}m`;
@@ -69,7 +69,7 @@ export function InfraStatusPill() {
           <span style={{ marginLeft: 6 }}>System Status</span>
         </div>
 
-        {/* 3-Column Grid for Desktop */}
+        {/* 3-Column Grid */}
         <div className="isp-notch-grid">
           
           {/* 1. Indexer */}
