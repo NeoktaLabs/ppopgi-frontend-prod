@@ -1,204 +1,235 @@
 /* src/components/InfraStatusPill.css */
 
-/* The notch is positioned by its parent slot (TopNav) */
 .isp-notch {
   position: absolute;
   left: 50%;
-  top: calc(100% + 10px); /* below the pill */
+  top: calc(100% + 12px); /* Spaced nicely below nav */
   transform: translateX(-50%);
   z-index: 3000;
-
-  width: min(720px, calc(100vw - 24px));
-  pointer-events: none; /* doesn’t block clicks around it */
+  
+  /* Wider to fit 3 columns side-by-side */
+  width: min(860px, calc(100vw - 24px));
+  pointer-events: none; 
 }
 
 /* Inner card */
 .isp-notch-inner {
   pointer-events: auto;
-
   position: relative;
   width: 100%;
 
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* Premium Glassmorphism */
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 18px;
+  border: 1px solid rgba(74, 15, 43, 0.08); /* Brand hint */
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 
-  box-shadow:
-    0 8px 26px rgba(0, 0, 0, 0.10),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.55);
-
-  padding: 10px 12px;
+  padding: 16px 20px;
 }
 
-/* Little notch pointer */
+/* The little pointing arrow at the top */
 .isp-notch-inner::before {
   content: "";
   position: absolute;
-  top: -7px;
+  top: -6px;
   left: 50%;
   transform: translateX(-50%) rotate(45deg);
 
-  width: 14px;
-  height: 14px;
-  background: rgba(255, 255, 255, 0.86);
-
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-left: 1px solid rgba(74, 15, 43, 0.08);
+  border-top: 1px solid rgba(74, 15, 43, 0.08);
   border-top-left-radius: 3px;
 }
 
 /* Title */
 .isp-notch-title {
   font-size: 11px;
-  font-weight: 950;
-  letter-spacing: 0.6px;
+  font-weight: 900;
+  letter-spacing: 1px;
   text-transform: uppercase;
-  color: #64748b;
+  color: #4A0F2B; /* Brand Pink */
 
   display: flex;
   align-items: center;
   justify-content: center;
-
-  padding: 2px 0 8px;
+  margin-bottom: 16px;
 }
 
-/* Grid of 3 */
+/* 3-Column Grid */
 .isp-notch-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+/* Each block */
+.isp-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
-/* Each row */
-.isp-item {
+.isp-item-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-
-  padding: 8px 10px;
-  border-radius: 14px;
-
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.55);
-}
-
-/* Left side */
-.isp-item-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
+  gap: 6px;
 }
 
 .isp-item-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-
-  font-size: 13px;
-  font-weight: 900;
-  color: #0f172a;
-
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Right side */
-.isp-item-right {
-  display: inline-flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 8px;
-
-  text-align: right;
-  min-width: 0;
-}
-
-.isp-item-status {
-  font-size: 13px;
-  font-weight: 950;
-  color: #0f172a;
-  white-space: nowrap;
-}
-
-.isp-item-sub {
   font-size: 12px;
   font-weight: 800;
   color: #64748b;
-  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.isp-item-data {
+  margin-top: 2px;
+}
+
+.isp-item-val {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.isp-item-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 /* Footer */
 .isp-notch-foot {
-  margin-top: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   color: #94a3b8;
-  text-align: right;
+  text-align: center;
 }
 
-/* ? bubble */
+/* =========================================
+   ✅ TOOLTIP LOGIC (Added)
+   ========================================= */
 .isp-q {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-
-  border: 1px solid rgba(0, 0, 0, 0.10);
-  background: rgba(255, 255, 255, 0.7);
-
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #e2e8f0;
   color: #475569;
-  font-size: 12px;
-  font-weight: 950;
-  line-height: 1;
-
+  font-size: 10px;
+  font-weight: 900;
   cursor: help;
-  user-select: none;
+  position: relative; /* For absolute tooltip positioning */
 }
 
 .isp-q:hover {
-  background: white;
-  color: #0f172a;
+  background: #4A0F2B;
+  color: #ffffff;
 }
 
-/* Dots (keeps your semantics) */
+.isp-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  opacity: 0;
+  visibility: hidden;
+  
+  background: #1e293b;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* Tooltip Arrow */
+.isp-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: #1e293b transparent transparent transparent;
+}
+
+.isp-q:hover .isp-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* =========================================
+   ✅ DOT STATUS COLORS
+   ========================================= */
 .isp-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   display: inline-block;
-  box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
-  flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.04);
 }
 
-.isp-dot.healthy { background: #16a34a; }
-.isp-dot.degraded { background: #f59e0b; }
-.isp-dot.late { background: #ef4444; }
-.isp-dot.slow { background: #f59e0b; }   /* rpc slow */
+.isp-dot.healthy { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2); }
+.isp-dot.degraded { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
+.isp-dot.late { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+.isp-dot.slow { background: #f59e0b; }
 .isp-dot.down { background: #0f172a; }
 .isp-dot.unknown { background: #94a3b8; }
 
-/* Responsive */
-@media (max-width: 520px) {
-  .isp-notch {
-    width: calc(100vw - 16px);
+/* =========================================
+   ✅ MOBILE RESPONSIVENESS
+   ========================================= */
+@media (max-width: 650px) {
+  .isp-notch-grid {
+    /* Stack them vertically on mobile */
+    grid-template-columns: 1fr;
   }
-  .isp-item-sub {
+  
+  .isp-item {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+  }
+  
+  .isp-item-data {
+    margin-top: 0;
+    text-align: right;
+  }
+  
+  .isp-item-sub br {
+    display: none; /* Keep text inline on mobile if possible */
+  }
+  
+  /* Hide tooltips on mobile since hover doesn't work well */
+  .isp-q {
     display: none;
-  }
-  .isp-item-name {
-    font-size: 12px;
-  }
-  .isp-item-status {
-    font-size: 12px;
   }
 }
