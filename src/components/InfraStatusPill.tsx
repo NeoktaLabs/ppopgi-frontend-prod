@@ -6,9 +6,14 @@ import "./InfraStatusPill.css";
 function fmtAgoSec(sec: number | null): string {
   if (sec === null) return "—";
   const s = Math.max(0, Math.floor(sec));
+
   if (s < 60) return `${s}s ago`;
+
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  const r = s % 60;
+
+  if (m < 60) return `${m}m ${String(r).padStart(2, "0")}s ago`;
+
   const h = Math.floor(m / 60);
   const mm = m % 60;
   return `${h}h ${mm}m ago`;
@@ -17,9 +22,14 @@ function fmtAgoSec(sec: number | null): string {
 function fmtInSec(sec: number | null): string {
   if (sec === null) return "—";
   const s = Math.max(0, Math.floor(sec));
+
   if (s < 60) return `in ${s}s`;
+
   const m = Math.floor(s / 60);
-  if (m < 60) return `in ${m}m`;
+  const r = s % 60;
+
+  if (m < 60) return `in ${m}m ${String(r).padStart(2, "0")}s`;
+
   const h = Math.floor(m / 60);
   const mm = m % 60;
   return `in ${h}h ${mm}m`;
@@ -62,7 +72,6 @@ export function InfraStatusPill() {
   return (
     <div className="isp-notch" aria-label="Ppopgi systems status">
       <div className="isp-notch-inner">
-        
         {/* Notch Title */}
         <div className="isp-notch-title">
           <span className={`isp-dot ${overallDot}`} aria-hidden="true" />
@@ -71,7 +80,6 @@ export function InfraStatusPill() {
 
         {/* 3-Column Grid */}
         <div className="isp-notch-grid">
-          
           {/* 1. Indexer */}
           <div className="isp-item">
             <div className="isp-item-header">
@@ -79,7 +87,11 @@ export function InfraStatusPill() {
               <span className="isp-item-name">Indexer</span>
               <span className="isp-q" tabIndex={0} aria-label="What is the indexer?">
                 ?
-                <span className="isp-tip" role="tooltip">Reads the blockchain.<br/>If behind, stats update late.</span>
+                <span className="isp-tip" role="tooltip">
+                  Reads the blockchain.
+                  <br />
+                  If behind, stats update late.
+                </span>
               </span>
             </div>
             <div className="isp-item-data">
@@ -95,7 +107,11 @@ export function InfraStatusPill() {
               <span className="isp-item-name">RPC</span>
               <span className="isp-q" tabIndex={0} aria-label="What is the RPC?">
                 ?
-                <span className="isp-tip" role="tooltip">Gateway to the blockchain.<br/>High latency makes actions slow.</span>
+                <span className="isp-tip" role="tooltip">
+                  Gateway to the blockchain.
+                  <br />
+                  High latency makes actions slow.
+                </span>
               </span>
             </div>
             <div className="isp-item-data">
@@ -111,25 +127,33 @@ export function InfraStatusPill() {
               <span className="isp-item-name">Bot</span>
               <span className="isp-q" tabIndex={0} aria-label="What is the finalizer bot?">
                 ?
-                <span className="isp-tip" role="tooltip">Auto-finalizes ended raffles.<br/>Runs every ~5 mins.</span>
+                <span className="isp-tip" role="tooltip">
+                  Auto-finalizes ended raffles.
+                  <br />
+                  Runs every ~5 mins.
+                </span>
               </span>
             </div>
             <div className="isp-item-data">
               <div className="isp-item-val">{botLabel}</div>
-              {/* ✅ UX FIX: Put Last/Next on ONE line to save vertical space */}
+              {/* Last/Next on one line (now includes seconds) */}
               <div className="isp-item-sub">
-                Last: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)} <span style={{ opacity: 0.5 }}>|</span> Next: {fmtInSec(s.bot?.secondsToNextRun ?? null)}
+                Last: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)}{" "}
+                <span style={{ opacity: 0.5 }}>|</span>{" "}
+                Next: {fmtInSec(s.bot?.secondsToNextRun ?? null)}
               </div>
             </div>
           </div>
-
         </div>
 
         {/* Footer */}
         <div className="isp-notch-foot">
-          {s.isLoading 
-            ? "Checking..." 
-            : `Updated ${new Date(s.tsMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (refresh ${fmtInSec(s.secondsToNextPoll)})`}
+          {s.isLoading
+            ? "Checking..."
+            : `Updated ${new Date(s.tsMs).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })} (refresh ${fmtInSec(s.secondsToNextPoll)})`}
         </div>
       </div>
     </div>
