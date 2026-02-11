@@ -1,13 +1,9 @@
 /* src/components/InfraStatusPill.css */
 
+/* ✅ CHANGED: Normal flow positioning instead of absolute */
 .isp-notch {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 12px); /* Spaced nicely below nav */
-  transform: translateX(-50%);
-  z-index: 3000;
-  
-  /* Wider to fit 3 columns side-by-side */
+  position: relative; 
+  margin: 10px auto 0 auto; /* Spaced perfectly below the pill */
   width: min(860px, calc(100vw - 24px));
   pointer-events: none; 
 }
@@ -122,9 +118,7 @@
   text-align: center;
 }
 
-/* =========================================
-   ✅ TOOLTIP LOGIC (Added)
-   ========================================= */
+/* Tooltip Logic */
 .isp-q {
   display: inline-flex;
   align-items: center;
@@ -137,7 +131,7 @@
   font-size: 10px;
   font-weight: 900;
   cursor: help;
-  position: relative; /* For absolute tooltip positioning */
+  position: relative;
 }
 
 .isp-q:hover {
@@ -167,7 +161,6 @@
   pointer-events: none;
 }
 
-/* Tooltip Arrow */
 .isp-tip::after {
   content: "";
   position: absolute;
@@ -185,9 +178,7 @@
   transform: translateX(-50%) translateY(0);
 }
 
-/* =========================================
-   ✅ DOT STATUS COLORS
-   ========================================= */
+/* Dot Status Colors */
 .isp-dot {
   width: 8px;
   height: 8px;
@@ -203,12 +194,9 @@
 .isp-dot.down { background: #0f172a; }
 .isp-dot.unknown { background: #94a3b8; }
 
-/* =========================================
-   ✅ MOBILE RESPONSIVENESS
-   ========================================= */
+/* Responsive adjustments */
 @media (max-width: 650px) {
   .isp-notch-grid {
-    /* Stack them vertically on mobile */
     grid-template-columns: 1fr;
   }
   
@@ -224,12 +212,6 @@
     text-align: right;
   }
   
-  .isp-item-sub br {
-    display: none; /* Keep text inline on mobile if possible */
-  }
-  
-  /* Hide tooltips on mobile since hover doesn't work well */
-  .isp-q {
-    display: none;
-  }
+  .isp-item-sub br { display: none; }
+  .isp-q { display: none; }
 }
