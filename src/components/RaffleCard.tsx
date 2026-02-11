@@ -2,6 +2,7 @@
 import React, { useMemo } from "react";
 import type { RaffleListItem } from "../indexer/subgraph";
 import { useRaffleCard } from "../hooks/useRaffleCard";
+import { useInfraStatus } from "../hooks/useInfraStatus"; // ✅ NEW
 import "./RaffleCard.css";
 
 const EXPLORER_URL = "https://explorer.etherlink.com/address/";
@@ -40,8 +41,19 @@ function clampPct(p: number) {
   return p < 1 ? `${p.toFixed(2)}%` : `${p.toFixed(1)}%`;
 }
 
+// ✅ NEW: show "in Xm Ys" (same format as system notch bot countdown)
+function fmtInMinSec(sec: number | null): string {
+  if (sec === null) return "—";
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m <= 0) return `in ${r}s`;
+  return `in ${m}m ${r}s`;
+}
+
 export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.now(), hatch, userEntry }: Props) {
   const { ui, actions } = useRaffleCard(raffle, nowMs);
+  const infra = useInfraStatus(); // ✅ NEW
 
   // -----------------------------
   // ✅ Finalizing rules (card-level)
@@ -79,6 +91,22 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
     const pct = (1 / denom) * 100;
     return clampPct(pct);
   }, [raffle.maxTickets, raffle.sold]);
+
+  // ✅ NEW: show “Finalizing in …” based on the SAME bot countdown as System Status
+  const finalizeCountdown = useMemo(() => {
+    const to = infra.bot?.secondsToNextRun ?? null;
+    return fmtInMinSec(to);
+  }, [infra.bot?.secondsToNextRun]);
+
+  const finalizingLine = useMemo(() => {
+    if (!shouldFinalizing) return null;
+
+    // If bot is currently running, communicate that clearly
+    if (infra.bot?.running) return "Finalizing now";
+
+    // Otherwise show countdown; fallback if unknown
+    return `Finalizing ${finalizeCountdown}`;
+  }, [shouldFinalizing, infra.bot?.running, finalizeCountdown]);
 
   return (
     <div className={cardClass} onClick={() => onOpen(raffle.id)} role="button" tabIndex={0}>
@@ -158,6 +186,13 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
       </div>
 
       <div className="rc-prize-note">*See details for prize distribution</div>
+
+      {/* ✅ NEW: Finalizing countdown line (only when finalizing) */}
+      {finalizingLine && (
+        <div className="rc-prize-note" style={{ marginTop: 8, fontWeight: 900, color: "#0B2E5C" }}>
+          ⏳ {finalizingLine}
+        </div>
+      )}
 
       <div className="rc-quick-buy-wrapper">
         <div className="rc-perforation" />
