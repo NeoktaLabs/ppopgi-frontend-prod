@@ -1,301 +1,459 @@
-// src/components/RaffleCard.tsx
-import React, { useMemo } from "react";
-import type { RaffleListItem } from "../indexer/subgraph";
-import { useRaffleCard } from "../hooks/useRaffleCard";
-import { useInfraStatus } from "../hooks/useInfraStatus"; // ✅ NEW
-import "./RaffleCard.css";
+/* src/components/RaffleCard.css */
 
-const EXPLORER_URL = "https://explorer.etherlink.com/address/";
+/* --- Base Card Container --- */
+.rc-card {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  border-radius: 12px;
+  padding: 20px 16px;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
 
-type HatchUI = {
-  show: boolean;
-  ready: boolean;
-  label: string;
-  disabled?: boolean;
-  busy?: boolean;
-  onClick?: (e: React.MouseEvent) => void;
-  note?: string | null;
-};
+  background-color: #ffeef6;
+  background-image:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 3px),
+    linear-gradient(180deg, rgba(255,190,215,1), rgba(255,210,230,1) 42%, rgba(255,235,246,1));
 
-export type UserEntryStats = {
-  count: number;
-  percentage: string;
-};
+  border: 2px solid rgba(255,255,255,0.9);
+  box-shadow: 0 4px 0px rgba(0,0,0,0.1), 0 8px 20px rgba(0,0,0,0.15);
 
-type Props = {
-  raffle: RaffleListItem;
-  onOpen: (id: string) => void;
-  onOpenSafety?: (id: string) => void;
-  ribbon?: "gold" | "silver" | "bronze";
-  nowMs?: number;
-  hatch?: HatchUI | null;
-  userEntry?: UserEntryStats;
-};
-
-const short = (addr: string) => (addr ? `${addr.slice(0, 5)}...${addr.slice(-4)}` : "Unknown");
-
-function clampPct(p: number) {
-  if (!isFinite(p) || p <= 0) return "0%";
-  if (p < 0.01) return "<0.01%";
-  if (p >= 100) return "100%";
-  return p < 1 ? `${p.toFixed(2)}%` : `${p.toFixed(1)}%`;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+  color: #5C1F3B;
 }
 
-// ✅ NEW: show "in Xm Ys" (same format as system notch bot countdown)
-function fmtInMinSec(sec: number | null): string {
-  if (sec === null) return "—";
-  const s = Math.max(0, Math.floor(sec));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  if (m <= 0) return `in ${r}s`;
-  return `in ${m}m ${r}s`;
+.rc-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0px rgba(0,0,0,0.1), 0 12px 24px rgba(0,0,0,0.18);
 }
 
-export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.now(), hatch, userEntry }: Props) {
-  const { ui, actions } = useRaffleCard(raffle, nowMs);
-  const infra = useInfraStatus(); // ✅ NEW
+/* --- Foil Variants --- */
+.rc-card.gold {
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 3px),
+    radial-gradient(at 20% 20%, rgba(255,255,255,0.7), transparent 55%),
+    linear-gradient(135deg, #ffd89a, #ffbe78 40%, #ffe8be);
+  color: #4A2A00;
+}
+.rc-card.silver {
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 3px),
+    radial-gradient(at 20% 20%, rgba(255,255,255,0.7), transparent 55%),
+    linear-gradient(135deg, #ecf1fa, #dae2ee 45%, #f5f8ff);
+  color: #1F2A3A;
+}
+.rc-card.bronze {
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 3px),
+    radial-gradient(at 20% 20%, rgba(255,255,255,0.7), transparent 55%),
+    linear-gradient(135deg, #f6b6c8, #ce8269 45%, #ffdccd);
+  color: #4A1A12;
+}
 
-  // -----------------------------
-  // ✅ Finalizing rules (card-level)
-  // - Max reached => Finalizing
-  // - Deadline passed while still OPEN => Finalizing
-  // -----------------------------
-  const statusRaw = String((raffle as any).status || "");
-  const isOpenStatus = statusRaw === "OPEN";
+/* --- Notches --- */
+.rc-notch {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.15);
+  border: 2px solid rgba(255,255,255,0.9);
+}
+.rc-notch.left { left: -24px; }
+.rc-notch.right { right: -24px; }
 
-  const maxTicketsN = Number((raffle as any).maxTickets ?? 0);
-  const soldN = Number((raffle as any).sold ?? 0);
-  const maxReached = maxTicketsN > 0 && soldN >= maxTicketsN;
+/* --- Toast --- */
+.rc-toast {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: rgba(255,255,255,0.95);
+  padding: 8px 16px;
+  border-radius: 99px;
+  text-align: center;
+  font-weight: 950;
+  font-size: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  pointer-events: none;
+  border: 1px solid rgba(0,0,0,0.1);
+}
 
-  const deadlineSec = Number((raffle as any).deadline ?? 0);
-  const deadlinePassed = deadlineSec > 0 && nowMs >= deadlineSec * 1000;
+/* --- Perforation (used under quick buy) --- */
+.rc-perforation {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  height: 2px;
+  background-image: linear-gradient(to right, currentColor 30%, rgba(255, 255, 255, 0) 0%);
+  background-position: bottom;
+  background-size: 10px 2px;
+  background-repeat: repeat-x;
+  opacity: 0.4;
+}
 
-  const shouldFinalizing = isOpenStatus && (maxReached || deadlinePassed);
+/* --- Header --- */
+.rc-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
 
-  const displayStatus = shouldFinalizing ? "Finalizing" : ui.displayStatus;
+/* Status chip */
+.rc-chip {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(0,0,0,0.1);
+  letter-spacing: 0.5px;
+}
 
-  // ✅ Hide quick-buy if not truly live (also hide on finalizing rules)
-  const isLiveForCard = ui.isLive && !shouldFinalizing;
+.rc-chip.open { background: #d1fbe2; color: #0B4A24; }
+.rc-chip.finalizing,
+.rc-chip.drawing {
+  background: #dceeff;
+  color: #0B2E5C;
+  animation: rc-pulse 2s infinite;
+}
+.rc-chip.settled { background: #ffecc9; color: #4A2A00; }
+.rc-chip.canceled { background: #ffe3e8; color: #5A0012; }
 
-  const statusClass = displayStatus.toLowerCase().replace(" ", "-");
-  const cardClass = `rc-card ${ribbon || ""}`;
-  const hostAddr = (raffle as any).owner || (raffle as any).creator;
+@keyframes rc-pulse {
+  0% { opacity: 1; }
+  50% { opacity: .7; }
+  100% { opacity: 1; }
+}
 
-  const winRateLabel = useMemo(() => {
-    const max = Number((raffle as any).maxTickets ?? 0);
-    const sold = Number((raffle as any).sold ?? 0);
+/* ✅ Win rate badge (TOP CENTER) */
+.rc-winrate-badge {
+  margin-left: auto;
+  margin-right: auto;
 
-    const denom = max > 0 ? max : sold + 1;
-    if (!isFinite(denom) || denom <= 0) return "0%";
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(0,0,0,0.1);
+  color: #4A0F2B;
+  letter-spacing: 0.5px;
 
-    const pct = (1 / denom) * 100;
-    return clampPct(pct);
-  }, [raffle.maxTickets, raffle.sold]);
+  /* safety so it doesn’t collapse in some flex edge cases */
+  white-space: nowrap;
+}
 
-  // ✅ NEW: show “Finalizing in …” based on the SAME bot countdown as System Status
-  const finalizeCountdown = useMemo(() => {
-    const to = infra.bot?.secondsToNextRun ?? null;
-    return fmtInMinSec(to);
-  }, [infra.bot?.secondsToNextRun]);
+/* Header actions */
+.rc-actions {
+  display: flex;
+  gap: 8px;
+}
 
-  const finalizingLine = useMemo(() => {
-    if (!shouldFinalizing) return null;
+.rc-btn-icon,
+.rc-shield-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(0,0,0,0.1);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all .2s;
+}
 
-    // If bot is currently running, communicate that clearly
-    if (infra.bot?.running) return "Finalizing now";
+.rc-btn-icon:hover,
+.rc-shield-btn:hover {
+  background: rgba(255,255,255,0.85);
+  transform: scale(1.05);
+}
 
-    // Otherwise show countdown; fallback if unknown
-    return `Finalizing ${finalizeCountdown}`;
-  }, [shouldFinalizing, infra.bot?.running, finalizeCountdown]);
+/* --- Host / Title --- */
+.rc-host {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  opacity: .8;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
 
-  return (
-    <div className={cardClass} onClick={() => onOpen(raffle.id)} role="button" tabIndex={0}>
-      <div className="rc-notch left" />
-      <div className="rc-notch right" />
-      {ui.copyMsg && <div className="rc-toast">{ui.copyMsg}</div>}
+.rc-host-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(0,0,0,.3);
+}
+.rc-host-link:hover {
+  border-bottom-style: solid;
+  opacity: 1;
+}
 
-      {/* Header */}
-      <div className="rc-header">
-        <div className={`rc-chip ${statusClass}`}>{displayStatus}</div>
+.rc-title {
+  font-size: 20px;
+  font-weight: 1000;
+  text-align: center;
+  margin-top: 4px;
 
-        <div className="rc-winrate-badge" title="Win chance per ticket">
-          🎲 Win: {winRateLabel}
-        </div>
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
-        <div className="rc-actions">
-          <button
-            className="rc-shield-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenSafety?.(raffle.id);
-            }}
-            title="Verified Contract"
-            disabled={!onOpenSafety}
-          >
-            🛡
-          </button>
+/* --- Prize --- */
+.rc-prize-lbl {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  opacity: .8;
+}
 
-          <button
-            className="rc-btn-icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              actions.handleShare(e);
-            }}
-            title="Share"
-          >
-            🔗
-          </button>
-        </div>
-      </div>
+.rc-prize-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
 
-      {userEntry && (
-        <div className="rc-user-badge">
-          🎟️ <strong>{userEntry.count}</strong> Owned ({userEntry.percentage}%)
-        </div>
-      )}
+.rc-prize-val {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-      <div className="rc-host">
-        <span>Created by</span>
-        {hostAddr ? (
-          <a
-            href={`${EXPLORER_URL}${hostAddr}`}
-            target="_blank"
-            rel="noreferrer"
-            className="rc-host-link"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {short(hostAddr)}
-          </a>
-        ) : (
-          <span>PPOPGI</span>
-        )}
-      </div>
+.rc-prize-num {
+  font-size: 36px;
+  font-weight: 1000;
+  font-family: "Courier New", monospace;
+  letter-spacing: -2px;
 
-      <div className="rc-title" title={raffle.name}>
-        {raffle.name}
-      </div>
+  background: linear-gradient(135deg, #4A0F2B, #BE185D);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 
-      {/* Prize Section */}
-      <div className="rc-prize-lbl">Current Prize Pool</div>
+  animation: prize-breath 3s ease-in-out infinite;
+}
 
-      <div className="rc-prize-row">
-        <div className="rc-prize-val">
-          <span className="rc-prize-num">{ui.formattedPot}</span>
-          <span className="rc-prize-unit">USDC</span>
-        </div>
-      </div>
+.rc-prize-unit {
+  font-size: 18px;
+  font-weight: 1000;
+  color: #4A0F2B;
+  opacity: 0.9;
+}
 
-      <div className="rc-prize-note">*See details for prize distribution</div>
+@keyframes prize-breath {
+  0%,100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
 
-      {/* ✅ NEW: Finalizing countdown line (only when finalizing) */}
-      {finalizingLine && (
-        <div className="rc-prize-note" style={{ marginTop: 8, fontWeight: 900, color: "#0B2E5C" }}>
-          ⏳ {finalizingLine}
-        </div>
-      )}
+.rc-prize-note {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+  opacity: 0.9;
+}
 
-      <div className="rc-quick-buy-wrapper">
-        <div className="rc-perforation" />
-        {isLiveForCard && (
-          <button
-            className="rc-quick-buy-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(raffle.id);
-            }}
-          >
-            ⚡ Buy Ticket
-          </button>
-        )}
-      </div>
+/* --- Quick Buy --- */
+.rc-quick-buy-wrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 12px 0;
+}
 
-      <div className="rc-grid">
-        <div className="rc-stat">
-          <div className="rc-stat-lbl">Ticket Price</div>
-          <div className="rc-stat-val">{ui.formattedPrice} USDC</div>
-        </div>
-        <div className="rc-stat">
-          <div className="rc-stat-lbl">Sold</div>
-          <div className="rc-stat-val">
-            {ui.sold} {ui.hasMax && `/ ${ui.max}`}
-          </div>
-        </div>
-      </div>
+.rc-quick-buy-wrapper .rc-perforation {
+  width: 100%;
+  position: absolute;
+  z-index: 0;
+}
 
-      {isLiveForCard && ui.hasMin && (
-        <div className="rc-bar-group">
-          {!ui.minReached ? (
-            <>
-              <div className="rc-bar-row">
-                <span>Min To Draw</span>
-                <span>
-                  {ui.sold} / {ui.min}
-                </span>
-              </div>
-              <div className="rc-track">
-                <div className="rc-fill blue" style={{ width: ui.progressMinPct }} />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="rc-bar-row">
-                <span>Min Reached</span>
-                <span>Ready</span>
-              </div>
-              <div className="rc-track">
-                <div className="rc-fill green" style={{ width: "100%" }} />
-              </div>
+.rc-quick-buy-btn {
+  position: relative;
+  z-index: 1;
+  background: #191923;
+  color: white;
+  border: none;
+  border-radius: 99px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 1000;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  transition: transform .2s, background .2s;
+}
+.rc-quick-buy-btn:hover {
+  transform: scale(1.05);
+  background: #2e2e3d;
+}
+.rc-quick-buy-btn:active { transform: scale(0.95); }
 
-              <div className="rc-bar-row" style={{ marginTop: 8 }}>
-                <span>Capacity</span>
-                <span>{ui.hasMax ? `${ui.sold} / ${ui.max}` : "Unlimited"}</span>
-              </div>
-              <div className="rc-track">
-                <div className="rc-fill purple" style={{ width: ui.progressMaxPct }} />
-              </div>
-            </>
-          )}
-        </div>
-      )}
+/* --- Stats --- */
+.rc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: rgba(255,255,255,.3);
+  margin: 0 -16px;
+  padding: 16px;
+}
 
-      {hatch && hatch.show && (
-        <div className="rc-hatch" onClick={(e) => e.stopPropagation()}>
-          <div className="rc-bar-row">
-            <span>⚠️ Emergency Hatch</span>
-            <span>{hatch.label}</span>
-          </div>
-          <button
-            className={`rc-hatch-btn ${hatch.ready ? "ready" : ""}`}
-            disabled={hatch.disabled || hatch.busy}
-            onClick={hatch.onClick}
-          >
-            {hatch.busy ? "CONFIRMING..." : hatch.ready ? "HATCH (CANCEL)" : "LOCKED"}
-          </button>
-          {hatch.note && (
-            <div style={{ fontSize: 10, marginTop: 4, textAlign: "center", fontWeight: 800, textTransform: "uppercase" }}>
-              {hatch.note}
-            </div>
-          )}
-        </div>
-      )}
+.rc-stat-lbl {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  opacity: .8;
+}
 
-      {/* Footer */}
-      <div className="rc-footer-new">
-        <div className="rc-footer-left">{isLiveForCard ? `Ends: ${ui.timeLeft}` : displayStatus}</div>
-        <div className="rc-footer-right">
-          <div className="rc-barcode-div" />
-          <a
-            href={`${EXPLORER_URL}${raffle.id}`}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="rc-id-link"
-            title="View Contract"
-          >
-            #{raffle.id.slice(2, 8).toUpperCase()}
-          </a>
-        </div>
-      </div>
-    </div>
+.rc-stat-val {
+  font-size: 15px;
+  font-weight: 950;
+  font-family: "Courier New", monospace;
+}
+
+/* --- ✅ Progress Bars (RESTORED) --- */
+.rc-bar-group {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+  padding-bottom: 16px;
+}
+
+.rc-bar-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 900;
+  opacity: 0.9;
+  text-transform: uppercase;
+}
+
+.rc-track {
+  height: 10px;
+  background: rgba(0,0,0,0.10);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+.rc-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+  min-width: 0; /* prevents weird flex/layout interactions */
+}
+
+.rc-fill.blue { background: #2563eb; }
+.rc-fill.green { background: #16a34a; }
+.rc-fill.purple { background: #9333ea; }
+
+/* --- Hatch --- */
+.rc-hatch {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.5);
+  border: 2px dashed rgba(0,0,0,0.2);
+}
+
+.rc-hatch-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  font-weight: 1000;
+  font-size: 12px;
+  margin-top: 8px;
+  background: rgba(255,255,255,0.8);
+  border: 1px solid rgba(0,0,0,0.2);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.rc-hatch-btn.ready { background: #ff4d6d; color: #5A0012; border-color: #d6334f; }
+
+/* --- Footer --- */
+.rc-footer-new {
+  margin: 0 -16px -20px;
+  padding: 12px 16px;
+  background: rgba(0,0,0,.03);
+  border-top: 1px dashed rgba(0,0,0,.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  opacity: .8;
+}
+
+.rc-footer-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.rc-barcode-div {
+  width: 50px;
+  height: 16px;
+  opacity: .6;
+  background-image: repeating-linear-gradient(
+    90deg,
+    currentColor 0px,
+    currentColor 2px,
+    transparent 2px,
+    transparent 4px,
+    currentColor 4px,
+    currentColor 5px,
+    transparent 5px,
+    transparent 8px
   );
+}
+
+.rc-id-link {
+  font-size: 9px;
+  letter-spacing: 1px;
+  opacity: .6;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px dotted transparent;
+  line-height: 1;
+}
+.rc-id-link:hover {
+  opacity: 1;
+  border-bottom-color: currentColor;
+}
+
+/* --- User badge --- */
+.rc-user-badge {
+  background: #EAB308;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 99px;
+  margin: 6px auto;
+  display: table;
+  box-shadow: 0 4px 10px rgba(234, 179, 8, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(255,255,255,0.2);
 }
