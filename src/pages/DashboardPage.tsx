@@ -55,6 +55,18 @@ function pluralTickets(n: number) {
   return x === 1 ? "ticket" : "tickets";
 }
 
+// ✅ safer BigInt parse (prevents weird "0.0" / null cases from breaking logic)
+function safeBigInt(v: any): bigint {
+  try {
+    if (v === null || v === undefined) return 0n;
+    const s = String(v);
+    if (!s) return 0n;
+    return BigInt(s);
+  } catch {
+    return 0n;
+  }
+}
+
 /**
  * Fetch "ticketsPurchased" (historical total bought) for the current buyer
  */
@@ -295,9 +307,13 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
     return /success|successful|claimed/i.test(data.msg);
   }, [data.msg]);
 
+  // ✅ FIXED: refunds should NOT depend on claimableUsdc being non-zero
   const getPrimaryMethod = (opts: { isRefund: boolean; hasUsdc: boolean; hasNative: boolean }): WithdrawMethod | null => {
     const { isRefund, hasUsdc, hasNative } = opts;
-    if (isRefund) return hasUsdc ? "claimTicketRefund" : null;
+
+    // refund path is a specific contract action; the amount can legitimately appear as "0" in UI
+    if (isRefund) return "claimTicketRefund";
+
     if (hasUsdc) return "withdrawFunds";
     if (hasNative) return "withdrawNative";
     return null;
@@ -404,8 +420,8 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
               const iAmWinner = !!acct && acct === winner;
               const iAmCreator = !!acct && acct === creator;
 
-              const hasUsdc = BigInt(it.claimableUsdc || "0") > 0n;
-              const hasNative = BigInt(it.claimableNative || "0") > 0n;
+              const hasUsdc = safeBigInt(it.claimableUsdc) > 0n;
+              const hasNative = safeBigInt(it.claimableNative) > 0n;
 
               const isRefund = it.type === "REFUND";
 
@@ -425,10 +441,6 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
               let message = "Funds available to claim.";
               let primaryLabel = "Claim";
               let badgeKind: "refund" | "winner" | "creator" | "claim" = "claim";
-
-              /**
-               * ✅ Your 5 scenarios
-               */
 
               // 1) CANCELED + CREATOR => reclaim pot
               if (isCanceled && iAmCreator) {
@@ -461,14 +473,14 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
                 message = "Raffle settled — reclaim your ticket sale pot.";
                 primaryLabel = "Reclaim Ticket Sales";
               }
-              // 5) SETTLED + LOSER => should reclaim nothing (shouldn't be in claimables, but handle safely)
+              // 5) SETTLED + LOSER => should reclaim nothing
               else if (isSettled && !iAmWinner && !iAmCreator) {
                 badgeTitle = "Settled";
                 badgeKind = "claim";
                 message = "Raffle settled — nothing to claim.";
                 primaryLabel = "Nothing to Claim";
               }
-              // Fallback for any other edge-case claimables that still exist
+              // Fallbacks
               else if (isRefund) {
                 badgeTitle = "Refund";
                 badgeKind = "refund";
@@ -491,6 +503,9 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
 
               const showDual = !isRefund && hasUsdc && hasNative;
 
+              // ✅ FIX: for refunds, the button should be enabled when user has tickets to refund
+              const refundDisabled = isRefund && displayTicketCount <= 0;
+
               return (
                 <div key={r.id} className="db-claim-wrapper">
                   <RaffleCard raffle={r} onOpen={onOpenRaffle} onOpenSafety={onOpenSafety} nowMs={nowS * 1000} />
@@ -505,7 +520,8 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
 
                       {isRefund ? (
                         <div className="db-refund-layout">
-                          {hasUsdc && (
+                          {/* keep this optional: subgraph may not populate amounts */}
+                          {safeBigInt(it.claimableUsdc) > 0n && (
                             <div className="db-refund-sub">
                               Expected: <b>{fmt(it.claimableUsdc, 6)} USDC</b>
                             </div>
@@ -544,7 +560,12 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
                       ) : (
                         <button
                           className={`db-btn ${isRefund ? "secondary" : "primary"}`}
-                          disabled={data.isPending || !primaryMethod || primaryLabel === "Nothing to Claim"}
+                          disabled={
+                            data.isPending ||
+                            refundDisabled ||
+                            !primaryMethod ||
+                            primaryLabel === "Nothing to Claim"
+                          }
                           onClick={() => primaryMethod && actions.withdraw(r.id, primaryMethod)}
                         >
                           {data.isPending ? "Processing..." : primaryLabel}
