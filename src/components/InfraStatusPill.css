@@ -1,9 +1,8 @@
 /* src/components/InfraStatusPill.css */
 
-/* ✅ CHANGED: Normal flow positioning instead of absolute */
 .isp-notch {
   position: relative; 
-  margin: 10px auto 0 auto; /* Spaced perfectly below the pill */
+  margin: 10px auto 0 auto; 
   width: min(860px, calc(100vw - 24px));
   pointer-events: none; 
 }
@@ -14,12 +13,11 @@
   position: relative;
   width: 100%;
 
-  /* Premium Glassmorphism */
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 
-  border: 1px solid rgba(74, 15, 43, 0.08); /* Brand hint */
+  border: 1px solid rgba(74, 15, 43, 0.08); 
   border-radius: 20px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 
@@ -48,7 +46,7 @@
   font-weight: 900;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: #4A0F2B; /* Brand Pink */
+  color: #4A0F2B;
 
   display: flex;
   align-items: center;
@@ -194,24 +192,69 @@
 .isp-dot.down { background: #0f172a; }
 .isp-dot.unknown { background: #94a3b8; }
 
-/* Responsive adjustments */
-@media (max-width: 650px) {
+/* =========================================
+   ✅ MOBILE RESPONSIVENESS (Ultra Compact)
+   ========================================= */
+@media (max-width: 700px) {
+  .isp-notch {
+    margin-top: 6px; 
+    width: calc(100vw - 16px);
+  }
+
+  .isp-notch-inner {
+    padding: 12px 10px;
+    border-radius: 16px;
+  }
+
+  .isp-notch-title {
+    margin-bottom: 10px;
+    font-size: 10px;
+  }
+
+  /* Keep 3 columns but squash them together */
   .isp-notch-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
   }
   
   .isp-item {
-    flex-direction: row;
-    justify-content: space-between;
     align-items: center;
-    padding: 10px 14px;
+    text-align: center;
+    padding: 8px 4px;
+    gap: 4px;
+  }
+  
+  .isp-item-header {
+    justify-content: center;
+    gap: 4px;
+  }
+  
+  .isp-item-name {
+    font-size: 10px;
+    letter-spacing: 0;
   }
   
   .isp-item-data {
     margin-top: 0;
-    text-align: right;
   }
   
-  .isp-item-sub br { display: none; }
-  .isp-q { display: none; }
+  .isp-item-val {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  
+  /* Hide the extra details on mobile to save height */
+  .isp-item-sub,
+  .isp-q {
+    display: none; 
+  }
+
+  .isp-notch-foot {
+    margin-top: 10px;
+    padding-top: 8px;
+    font-size: 9px;
+  }
 }
