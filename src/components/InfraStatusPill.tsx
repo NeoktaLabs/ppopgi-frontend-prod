@@ -40,11 +40,20 @@ export function InfraStatusPill() {
     return s.bot.label || "Unknown";
   }, [s.bot]);
 
+  const pillSub = useMemo(() => {
+    // show a small live countdown to next run if we have it
+    const to = s.bot?.secondsToNextRun ?? null;
+    if (to === null) return null;
+    return ` · next ${to}s`;
+  }, [s.bot?.secondsToNextRun]);
+
   return (
     <div className="isp-wrap" onMouseLeave={() => setOpen(false)}>
       <button type="button" className={pillClass} onClick={() => setOpen((v) => !v)} title="Infra Status">
         <span className={dotClass} aria-hidden="true" />
-        <span className="isp-label">{s.isLoading ? "Checking…" : s.overall.label}</span>
+        <span className="isp-label">
+          {s.isLoading ? "Checking…" : `${s.overall.label}${pillSub ?? ""}`}
+        </span>
       </button>
 
       {open && (
@@ -95,7 +104,9 @@ export function InfraStatusPill() {
             </div>
           )}
 
-          <div className="isp-foot">Updated: {new Date(s.tsMs).toLocaleTimeString()}</div>
+          <div className="isp-foot">
+            Updated: {new Date(s.tsMs).toLocaleTimeString()} · refresh {fmtInSec(s.secondsToNextPoll)}
+          </div>
         </div>
       )}
     </div>
