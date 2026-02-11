@@ -91,6 +91,9 @@
   font-weight: 700;
   color: #0f172a;
   text-align: right;
+
+  /* ✅ optional safety for long values */
+  overflow-wrap: anywhere;
 }
 
 .isp-muted {
@@ -114,6 +117,10 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+
+  /* ✅ prevent long error strings from blowing layout */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .isp-foot {
