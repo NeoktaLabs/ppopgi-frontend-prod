@@ -32,10 +32,18 @@ type InfraStatus = {
     level: BotLevel;
     label: string;
     running: boolean;
+
     lastRunMs: number | null;
     nextRunMs: number | null;
+
+    // ✅ “wire” values (what the endpoint returned at fetch time)
+    secondsSinceLastRunWire: number | null;
+    secondsToNextRunWire: number | null;
+
+    // ✅ “live” values (computed locally every second)
     secondsSinceLastRun: number | null;
     secondsToNextRun: number | null;
+
     lastError?: string | null;
     error?: string;
   };
@@ -45,6 +53,11 @@ type InfraStatus = {
     level: "healthy" | "degraded" | "late" | "down";
     label: string;
   };
+
+  // when the next poll will happen (for UI)
+  pollMs: number;
+  nextPollMs: number; // timestamp
+  secondsToNextPoll: number;
 
   isLoading: boolean;
 };
@@ -104,7 +117,6 @@ function worstOverall(
   rpc: RpcLevel,
   bot: BotLevel
 ): { level: InfraStatus["overall"]["level"]; label: string } {
-  // Priority order (worst to best)
   const rank = (x: string) => {
     switch (x) {
       case "down":
@@ -116,7 +128,7 @@ function worstOverall(
       case "degraded":
         return 2;
       case "unknown":
-        return 1; // doesn't worsen overall
+        return 1;
       case "healthy":
       default:
         return 1;
@@ -197,21 +209,27 @@ async function fetchBotStatus(statusUrl: string, timeoutMs: number) {
   return json;
 }
 
+function clampSec(n: any): number | null {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return null;
+  return Math.max(0, Math.floor(x));
+}
+
 /**
  * useInfraStatus
  * - polls RPC + subgraph meta + (optional) bot status endpoint
  * - computes blocksBehind + latency + last/next bot run
+ * - ✅ live countdown without refetching every second
  *
  * Env:
  * - VITE_SUBGRAPH_URL (required)
  * - VITE_ETHERLINK_RPC_URL (required)
  * - Optional: VITE_INFRA_POLL_MS (default 30000)
- * - Optional: VITE_FINALIZER_STATUS_URL (e.g. https://neokta-finalizer-bot.<subdomain>.workers.dev)
+ * - Optional: VITE_FINALIZER_STATUS_URL (e.g. https://...workers.dev/bot-status)
  */
 export function useInfraStatus() {
   const subgraphUrl = useMemo(() => mustEnv("VITE_SUBGRAPH_URL"), []);
   const rpcUrl = useMemo(() => mustEnv("VITE_ETHERLINK_RPC_URL"), []);
-
   const botBase = useMemo(() => env("VITE_FINALIZER_STATUS_URL"), []);
 
   const pollMs = useMemo(() => {
@@ -230,15 +248,27 @@ export function useInfraStatus() {
       running: false,
       lastRunMs: null,
       nextRunMs: null,
+      secondsSinceLastRunWire: null,
+      secondsToNextRunWire: null,
       secondsSinceLastRun: null,
       secondsToNextRun: null,
       lastError: null,
     },
     overall: { level: "down", label: "Issues" },
     isLoading: true,
+    pollMs,
+    nextPollMs: Date.now() + pollMs,
+    secondsToNextPoll: Math.floor(pollMs / 1000),
   }));
 
   const aliveRef = useRef(true);
+
+  // ✅ local clock tick (for live countdowns)
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -251,6 +281,9 @@ export function useInfraStatus() {
     let timer: any = null;
 
     const runOnce = async () => {
+      const fetchedAtMs = Date.now();
+      const nextPollAt = fetchedAtMs + pollMs;
+
       // ---- RPC (median of 3) ----
       let rpcOk = false;
       let rpcLatency: number | null = null;
@@ -296,16 +329,18 @@ export function useInfraStatus() {
       let botLevel: BotLevel = "unknown";
       let botLabel = "Unknown";
       let botRunning = false;
+
       let lastRunMs: number | null = null;
       let nextRunMs: number | null = null;
-      let secondsSinceLastRun: number | null = null;
-      let secondsToNextRun: number | null = null;
+
+      let sinceWire: number | null = null;
+      let toWire: number | null = null;
+
       let lastError: string | null = null;
       let botErr: string | undefined;
 
       if (botBase) {
-        // ✅ Bot endpoint is /bot-status (not "/")
-        const url = botBase.replace(/\/$/, "") + "/bot-status";
+        const url = botBase.replace(/\/$/, "");
         try {
           const w = await fetchBotStatus(url, 5000);
           const bs = botStatusFromWire(w);
@@ -314,27 +349,33 @@ export function useInfraStatus() {
 
           botRunning = !!w?.running;
 
-          // Bot returns timestamps in ms
           lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
           nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
 
-          secondsSinceLastRun = typeof w?.secondsSinceLastRun === "number" ? w.secondsSinceLastRun : null;
-          secondsToNextRun = typeof w?.secondsToNextRun === "number" ? w.secondsToNextRun : null;
+          sinceWire = clampSec(w?.secondsSinceLastRun);
+          toWire = clampSec(w?.secondsToNextRun);
 
           lastError = w?.lastError ? String(w.lastError) : null;
         } catch (e: any) {
           botErr = String(e?.message || e || "bot_error");
-          // ✅ If we can't reach the bot status endpoint, treat as Down (better UX than "unknown")
-          botLevel = "down";
-          botLabel = "Down";
+          botLevel = "unknown";
+          botLabel = "Unknown";
         }
       }
 
       const overall = worstOverall(idxS.level, rpcS.level, botLevel);
 
       if (!aliveRef.current) return;
+
+      // ✅ compute “live” from timestamps if available (best),
+      // otherwise fallback to wire values.
+      const liveSince =
+        lastRunMs !== null ? Math.max(0, Math.floor((Date.now() - lastRunMs) / 1000)) : sinceWire;
+      const liveTo =
+        nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - Date.now()) / 1000)) : toWire;
+
       setState({
-        tsMs: Date.now(),
+        tsMs: fetchedAtMs,
         indexer: {
           level: idxS.level,
           label: idxS.label,
@@ -356,13 +397,18 @@ export function useInfraStatus() {
           running: botRunning,
           lastRunMs,
           nextRunMs,
-          secondsSinceLastRun,
-          secondsToNextRun,
+          secondsSinceLastRunWire: sinceWire,
+          secondsToNextRunWire: toWire,
+          secondsSinceLastRun: liveSince ?? null,
+          secondsToNextRun: liveTo ?? null,
           lastError,
           error: botErr,
         },
         overall,
         isLoading: false,
+        pollMs,
+        nextPollMs: nextPollAt,
+        secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - Date.now()) / 1000)),
       });
     };
 
@@ -379,6 +425,43 @@ export function useInfraStatus() {
       } catch {}
     };
   }, [pollMs, rpcUrl, subgraphUrl, botBase]);
+
+  // ✅ every second: recompute live countdowns + “refresh in”
+  useEffect(() => {
+    setState((prev) => {
+      const now = nowTick;
+
+      const nextPollMs = prev.nextPollMs || now + prev.pollMs;
+      const secondsToNextPoll = Math.max(0, Math.floor((nextPollMs - now) / 1000));
+
+      const lastRunMs = prev.bot?.lastRunMs ?? null;
+      const nextRunMs = prev.bot?.nextRunMs ?? null;
+
+      const secondsSinceLastRun =
+        lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : prev.bot.secondsSinceLastRunWire;
+
+      const secondsToNextRun =
+        nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : prev.bot.secondsToNextRunWire;
+
+      // avoid re-render storms if nothing changes
+      const changed =
+        secondsToNextPoll !== prev.secondsToNextPoll ||
+        secondsSinceLastRun !== prev.bot.secondsSinceLastRun ||
+        secondsToNextRun !== prev.bot.secondsToNextRun;
+
+      if (!changed) return prev;
+
+      return {
+        ...prev,
+        secondsToNextPoll,
+        bot: {
+          ...prev.bot,
+          secondsSinceLastRun: secondsSinceLastRun ?? null,
+          secondsToNextRun: secondsToNextRun ?? null,
+        },
+      };
+    });
+  }, [nowTick]);
 
   return state;
 }
