@@ -4,7 +4,7 @@ import { useWalletBalance } from "thirdweb/react";
 import { thirdwebClient } from "../thirdweb/client";
 import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 import { ADDRESSES } from "../config/contracts";
-import { InfraStatusPill } from "./InfraStatusPill"; // ✅ NEW
+import { InfraStatusPill } from "./InfraStatusPill";
 import "./TopNav.css";
 
 type Page = "home" | "explore" | "dashboard" | "about" | "faq";
@@ -174,11 +174,6 @@ export const TopNav = memo(function TopNav({
               🏦 Cashier
             </button>
 
-            {/* ✅ Desktop: keep it subtle and out of the way */}
-            <div className="topnav-status-slot">
-              <InfraStatusPill />
-            </div>
-
             {!account ? (
               <button className="nav-link signin-btn" onClick={() => handleNav(onOpenSignIn)}>
                 Sign In
@@ -202,13 +197,19 @@ export const TopNav = memo(function TopNav({
             <span />
           </button>
         </div>
+
+        {/* ✅ NEW: notch slot anchors the status centered under the pill */}
+        <div className="topnav-notch-slot">
+          <InfraStatusPill />
+        </div>
       </div>
 
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
-          {/* ✅ Mobile: show infra status INSIDE the menu (keeps top row clean) */}
+          {/* Mobile: you can keep or remove this.
+              If you keep it, you might want a different compact component for mobile. */}
           <div className="mobile-infra-row">
-            <div className="mobile-infra-label">Infra Status</div>
+            <div className="mobile-infra-label">Systems Status</div>
             <InfraStatusPill />
           </div>
 
