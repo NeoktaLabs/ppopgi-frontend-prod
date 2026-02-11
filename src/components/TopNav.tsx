@@ -124,7 +124,6 @@ export const TopNav = memo(function TopNav({
 
   return (
     <div className="topnav-wrapper">
-      {/* 1. Main Nav Pill */}
       <div className="topnav-pill">
         <div className="topnav-brand" onClick={() => handleNav(() => {}, "home")}>
           <img className="topnav-logo" src="/ppopgi-logo.png" alt="Ppopgi logo" draggable={false} />
@@ -156,13 +155,7 @@ export const TopNav = memo(function TopNav({
         <div className="topnav-right">
           <div className="desktop-actions">
             {account && (
-              <button
-                className="balances-pill"
-                onClick={() => handleNav(onOpenCashier)}
-                title="Open Cashier"
-                type="button"
-              >
-                {/* ✅ removed "Balances" title */}
+              <button className="balances-pill" onClick={() => handleNav(onOpenCashier)} title="Open Cashier" type="button">
                 <div className="balances-rows">
                   <div className="bal-row">
                     <span className="bal-sym">{xtzSym}</span>
@@ -185,14 +178,13 @@ export const TopNav = memo(function TopNav({
                 Sign In
               </button>
             ) : (
-              // ✅ new stacked "Log Off" + address
+              // ✅ removed the dot/avatar
               <button
                 type="button"
                 className="account-badge account-badge-stack"
                 onClick={() => handleNav(onSignOut)}
                 title="Log Off"
               >
-                <div className="acct-dot" aria-hidden="true" />
                 <div className="acct-stack">
                   <div className="acct-top">Log Off</div>
                   <div className="acct-bottom">{short(account)}</div>
@@ -214,17 +206,14 @@ export const TopNav = memo(function TopNav({
         </div>
       </div>
 
-      {/* 2. Permanent Notch (Visible on Desktop AND Mobile) */}
       <div className="topnav-notch-slot">
         <InfraStatusPill />
       </div>
 
-      {/* 3. Mobile Menu */}
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
           {account && (
             <div className="mobile-balances" onClick={() => handleNav(onOpenCashier)}>
-              {/* (keeping mobile title as-is; tell me if you want it removed too) */}
               <div className="mobile-balances-title">Balances</div>
               <div className="mobile-balances-rows">
                 <div className="mobile-bal-row">
