@@ -6,8 +6,10 @@ import { useRaffleParticipants } from "../hooks/useRaffleParticipants";
 import { fetchRaffleMetadata, type RaffleListItem } from "../indexer/subgraph";
 import "./RaffleDetailsModal.css";
 
+const ZERO = "0x0000000000000000000000000000000000000000";
+
 const ExplorerLink = ({ addr, label }: { addr: string; label?: string }) => {
-  if (!addr || addr === "0x0000000000000000000000000000000000000000") return <span>{label || "—"}</span>;
+  if (!addr || String(addr).toLowerCase() === ZERO) return <span>{label || "—"}</span>;
   const a = String(addr).toLowerCase();
   return (
     <a href={`https://explorer.etherlink.com/address/${a}`} target="_blank" rel="noreferrer" className="rdm-info-link">
@@ -120,6 +122,76 @@ function clampTicketsUi(v: any) {
   return Math.max(1, n);
 }
 
+// --------------------------
+// ✅ merge helpers
+// --------------------------
+const norm = (v: any) => String(v ?? "").trim();
+const isZeroAddr = (v: any) => norm(v).toLowerCase() === ZERO;
+const isZeroNumStr = (v: any) => {
+  const s = norm(v);
+  if (!s) return true;
+  return s === "0" || s === "0n" || s === "0.0";
+};
+function pickNonZeroNum(primary: any, fallback: any) {
+  return !isZeroNumStr(primary) ? primary : fallback;
+}
+function pickNonZeroAddr(primary: any, fallback: any) {
+  return primary && !isZeroAddr(primary) ? primary : fallback;
+}
+function pickTruthy(primary: any, fallback: any) {
+  const p = primary;
+  return p !== null && p !== undefined && norm(p) !== "" ? p : fallback;
+}
+
+/**
+ * IMPORTANT: Don't allow onchain fallback "0" / ZERO to override subgraph base.
+ * This keeps your UI non-zero while onchain calls are flaky/timeouting.
+ */
+function mergeDisplayData(onchain: any, base: any) {
+  if (!onchain && !base) return null;
+  const b = base || {};
+  const o = onchain || {};
+
+  return {
+    ...b,
+
+    // strings
+    name: pickTruthy(o.name, b.name),
+
+    // numbers-as-strings
+    winningPot: pickNonZeroNum(o.winningPot, b.winningPot),
+    ticketPrice: pickNonZeroNum(o.ticketPrice, b.ticketPrice),
+    sold: pickNonZeroNum(o.sold, b.sold),
+    ticketRevenue: pickNonZeroNum(o.ticketRevenue, b.ticketRevenue),
+    minTickets: pickNonZeroNum(o.minTickets, b.minTickets),
+    maxTickets: pickNonZeroNum(o.maxTickets, b.maxTickets),
+    deadline: pickNonZeroNum(o.deadline, b.deadline),
+    protocolFeePercent: pickNonZeroNum(o.protocolFeePercent, b.protocolFeePercent),
+    minPurchaseAmount: pickNonZeroNum(o.minPurchaseAmount, b.minPurchaseAmount),
+
+    // addresses
+    creator: pickNonZeroAddr(o.creator, b.creator),
+    usdcToken: pickNonZeroAddr(o.usdcToken, b.usdcToken ?? b.usdc),
+    feeRecipient: pickNonZeroAddr(o.feeRecipient, b.feeRecipient),
+    winner: pickNonZeroAddr(o.winner, b.winner),
+
+    // status
+    status: pickTruthy(o.status, b.status),
+
+    // timestamps / tx (from onchain history if present, but don't override with zeros)
+    createdAtTimestamp: pickNonZeroNum(o?.history?.createdAtTimestamp, b.createdAtTimestamp),
+    creationTx: pickTruthy(o?.history?.creationTx, b.creationTx),
+    completedAt: pickNonZeroNum(o?.history?.completedAt, b.completedAt),
+    canceledAt: pickNonZeroNum(o?.history?.canceledAt, b.canceledAt),
+    registeredAt: pickNonZeroNum(o?.history?.registeredAt, b.registeredAt),
+
+    // bool
+    paused: typeof o.paused === "boolean" ? o.paused : b.paused,
+
+    history: o.history ?? b.history,
+  };
+}
+
 export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: Props) {
   const { state, math, flags, actions } = useRaffleInteraction(raffleId, open);
   const account = useActiveAccount();
@@ -156,8 +228,17 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
     };
   }, [raffleId, open, initialRaffle]);
 
-  const displayData = (state.data || initialRaffle || metadata) as any;
-  const { participants, isLoading: loadingPart } = useRaffleParticipants(raffleId, Number(displayData?.sold || 0));
+  // ✅ Keep the same "works like a charm" structure:
+  // base = initialRaffle/metadata, overlay = state.data (onchain)
+  const baseData = (initialRaffle || metadata) as any;
+  const onchainData = state.data as any;
+
+  // ✅ merged displayData so you don't see zeros everywhere
+  const displayData = useMemo(() => mergeDisplayData(onchainData, baseData), [onchainData, baseData]);
+
+  // ✅ holders % must use merged sold
+  const soldForPct = Number(displayData?.sold || 0);
+  const { participants, isLoading: loadingPart } = useRaffleParticipants(raffleId, soldForPct);
 
   const timeline = useMemo(() => {
     if (!displayData) return [];
@@ -288,9 +369,7 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
 
   useEffect(() => {
     if (!open || !raffleId) return;
-    if (String(clampedUiTicket) !== String(state.tickets)) {
-      actions.setTickets(String(clampedUiTicket));
-    }
+    if (String(clampedUiTicket) !== String(state.tickets)) actions.setTickets(String(clampedUiTicket));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, raffleId, maxBuy]);
 
@@ -299,10 +378,10 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
   const createdOnTs = timeline?.[0]?.date ?? null;
   const showRemainingNote = typeof (math as any).remainingTickets === "number" && (math as any).remainingTickets > 0;
 
-  // ✅ NEW: blur buy section if not connected
+  // blur buy section if not connected
   const blurBuy = !state.isConnected;
 
-  // ✅ NEW: show clear balance warning when connected + allowance ok + not enough balance
+  // show balance warning when connected + allowance ok + not enough balance
   const showBalanceWarn = state.isConnected && flags.hasEnoughAllowance && !flags.hasEnoughBalance;
 
   return (
@@ -332,10 +411,7 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
           <div className="rdm-hero-meta">
             <div className="rdm-host">
               <span>Created by</span>
-              <ExplorerLink
-                addr={String(displayData?.creator || "")}
-                label={math.short(String(displayData?.creator || ""))}
-              />
+              <ExplorerLink addr={String(displayData?.creator || "")} label={math.short(String(displayData?.creator || ""))} />
             </div>
             <div className="rdm-createdon">
               <span>Created on</span>
@@ -428,7 +504,7 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
 
         <div className="rdm-tear" />
 
-        {/* BUY SECTION */}
+        {/* ✅ BUY SECTION (kept EXACTLY like your “works like a charm” version) */}
         <div className="rdm-buy-section">
           {!flags.raffleIsOpen ? (
             <div style={{ textAlign: "center", padding: 20, opacity: 0.6, fontWeight: 700 }}>
@@ -440,7 +516,6 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
             </div>
           ) : (
             <div style={{ position: "relative" }}>
-              {/* ✅ Blur the interactive block if not connected */}
               <div
                 style={{
                   filter: blurBuy ? "blur(3px)" : undefined,
@@ -460,7 +535,6 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
                   </div>
                 )}
 
-                {/* ✅ Balance warning */}
                 {showBalanceWarn && (
                   <div
                     style={{
@@ -533,7 +607,6 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
                 )}
               </div>
 
-              {/* ✅ Overlay message (not blurred) */}
               {blurBuy && (
                 <div
                   style={{
