@@ -133,24 +133,15 @@ function mustEnv(name: string): string {
   return v;
 }
 
-async function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
-  let t: any;
-  try {
-    return await Promise.race([
-      p,
-      new Promise<T>((res) => {
-        t = setTimeout(() => res(fallback), ms);
-      }),
-    ]);
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function fetchRaffleHistoryFromSubgraph(id: string, signal?: AbortSignal): Promise<RaffleHistory | null> {
+async function fetchRaffleHistoryFromSubgraph(
+  id: string,
+  signal?: AbortSignal
+): Promise<RaffleHistory | null> {
   const raffleId = id.toLowerCase();
   const url = mustEnv("VITE_SUBGRAPH_URL");
 
+  // NOTE: Leaving $id: ID! as you had it, since you said this version worked.
+  // If your Graph endpoint actually requires Bytes!, switch it.
   const query = `
     query RaffleById($id: ID!) {
       raffle(id: $id) {
@@ -245,18 +236,18 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
       setLoading(true);
       setNote(null);
 
-      // ✅ Start subgraph fetch, but DO NOT let it block on-chain values
-      const historyPromise = withTimeout(
-        fetchRaffleHistoryFromSubgraph(normalizedAddress, ac.signal).catch(() => null),
-        2500,
-        null
-      );
+      const historyP: Promise<RaffleHistory | null> = fetchRaffleHistoryFromSubgraph(
+        normalizedAddress,
+        ac.signal
+      ).catch(() => null);
 
       try {
-        // ---- On-chain reads first (buy depends on these) ----
+        // --- Reads (with broader candidates so we don’t fall back to 0 on “new” raffles) ---
         const name = await readFirstOr(contract, "name", ["function name() view returns (string)"], "Unknown raffle");
+
         const statusU8 = await readFirstOr(contract, "status", ["function status() view returns (uint8)"], 255);
 
+        // ✅ IMPORTANT: some versions expose sold() instead of getSold()
         const sold = await readFirstOr(
           contract,
           "sold",
@@ -264,15 +255,39 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
           0n
         );
 
-        const ticketPrice = await readFirstOr(contract, "ticketPrice", ["function ticketPrice() view returns (uint256)"], 0n);
-        const winningPot = await readFirstOr(contract, "winningPot", ["function winningPot() view returns (uint256)"], 0n);
+        const ticketPrice = await readFirstOr(
+          contract,
+          "ticketPrice",
+          ["function ticketPrice() view returns (uint256)"],
+          0n
+        );
 
-        const minTickets = await readFirstOr(contract, "minTickets", ["function minTickets() view returns (uint64)"], 0);
-        const maxTickets = await readFirstOr(contract, "maxTickets", ["function maxTickets() view returns (uint64)"], 0);
+        const winningPot = await readFirstOr(
+          contract,
+          "winningPot",
+          ["function winningPot() view returns (uint256)"],
+          0n
+        );
+
+        const minTickets = await readFirstOr(
+          contract,
+          "minTickets",
+          ["function minTickets() view returns (uint64)"],
+          0
+        );
+
+        const maxTickets = await readFirstOr(
+          contract,
+          "maxTickets",
+          ["function maxTickets() view returns (uint64)"],
+          0
+        );
 
         const deadline = await readFirstOr(contract, "deadline", ["function deadline() view returns (uint64)"], 0);
+
         const paused = await readFirstOr(contract, "paused", ["function paused() view returns (bool)"], false);
 
+        // ✅ IMPORTANT: your ecosystem sometimes uses usdc() not usdcToken()
         const usdcToken = await readFirstOr(
           contract,
           "usdcToken",
@@ -280,6 +295,7 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
           ZERO
         );
 
+        // ✅ IMPORTANT: sometimes creator is owner()
         const creator = await readFirstOr(
           contract,
           "creator",
@@ -296,7 +312,12 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
           0n
         );
 
-        const feeRecipient = await readFirstOr(contract, "feeRecipient", ["function feeRecipient() view returns (address)"], ZERO);
+        const feeRecipient = await readFirstOr(
+          contract,
+          "feeRecipient",
+          ["function feeRecipient() view returns (address)"],
+          ZERO
+        );
 
         const protocolFeePercent = await readFirstOr(
           contract,
@@ -305,7 +326,12 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
           0n
         );
 
-        const ticketRevenue = await readFirstOr(contract, "ticketRevenue", ["function ticketRevenue() view returns (uint256)"], 0n);
+        const ticketRevenue = await readFirstOr(
+          contract,
+          "ticketRevenue",
+          ["function ticketRevenue() view returns (uint256)"],
+          0n
+        );
 
         const minPurchaseAmount = await readFirstOr(
           contract,
@@ -314,6 +340,7 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
           1
         );
 
+        // request IDs vary
         const finalizeRequestId = await readFirstOr(
           contract,
           "finalizeRequestId",
@@ -329,13 +356,21 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
         );
 
         const entropy = await readFirstOr(contract, "entropy", ["function entropy() view returns (address)"], ZERO);
-        const entropyProvider = await readFirstOr(contract, "entropyProvider", ["function entropyProvider() view returns (address)"], ZERO);
+
+        const entropyProvider = await readFirstOr(
+          contract,
+          "entropyProvider",
+          ["function entropyProvider() view returns (address)"],
+          ZERO
+        );
+
         const entropyRequestId = await readFirstOr(
           contract,
           "entropyRequestId",
           ["function entropyRequestId() view returns (uint64)"],
           0
         );
+
         const selectedProvider = await readFirstOr(
           contract,
           "selectedProvider",
@@ -343,15 +378,24 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
           ZERO
         );
 
+        const history = await historyP;
         if (!alive) return;
 
         const onchainStatus = statusFromUint8(Number(statusU8));
+        const subgraphStatus = statusFromSubgraph(history?.status);
 
-        // ✅ Set data immediately from RPC (buy UI will work even if subgraph is slow/down)
+        // Prefer terminal-ish subgraph statuses when present
+        const finalStatus: RaffleStatus =
+          subgraphStatus === "CANCELED" ||
+          subgraphStatus === "COMPLETED" ||
+          subgraphStatus === "DRAWING"
+            ? subgraphStatus
+            : onchainStatus;
+
         setData({
           address: normalizedAddress,
           name: String(name),
-          status: onchainStatus,
+          status: finalStatus,
 
           sold: String(sold),
           ticketRevenue: String(ticketRevenue),
@@ -382,31 +426,12 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
           entropyRequestId: String(entropyRequestId),
           selectedProvider: String(selectedProvider),
 
-          history: undefined,
+          history: history ?? undefined,
         });
 
-        // Helpful hint if critical values are still 0
-        if (BigInt(String(ticketPrice || "0")) === 0n) {
-          setNote("Live ticket price is still syncing. If it stays 0, check RPC response body (JSON-RPC error).");
-        } else {
-          setNote(null);
-        }
-
-        // ✅ Attach subgraph history later (never blocks buy flow)
-        const history = await historyPromise;
-        if (!alive) return;
-
-        if (history) {
-          const subgraphStatus = statusFromSubgraph(history?.status);
-          const finalStatus: RaffleStatus =
-            subgraphStatus === "CANCELED" || subgraphStatus === "COMPLETED" || subgraphStatus === "DRAWING"
-              ? subgraphStatus
-              : onchainStatus;
-
-          setData((prev) => {
-            if (!prev) return prev;
-            return { ...prev, history, status: finalStatus };
-          });
+        // Helpful hint if we’re clearly falling back
+        if (String(name) === "Unknown raffle" || String(usdcToken).toLowerCase() === ZERO) {
+          setNote("Some live fields could not be read yet, but the raffle is reachable.");
         }
       } catch (e: any) {
         if (!alive) return;
@@ -422,7 +447,9 @@ export function useRaffleDetails(raffleAddress: string | null, open: boolean) {
       alive = false;
       try {
         ac.abort();
-      } catch {}
+      } catch {
+        // ignore
+      }
     };
   }, [open, contract, normalizedAddress]);
 
