@@ -120,6 +120,17 @@ function clampTicketsUi(v: any) {
   return Math.max(1, n);
 }
 
+function prettyStatus(s: any) {
+  const v = String(s || "").toUpperCase().trim();
+  if (v === "OPEN") return "Open";
+  if (v === "FUNDING_PENDING") return "Getting ready";
+  if (v === "DRAWING") return "Drawing";
+  if (v === "COMPLETED") return "Completed";
+  if (v === "CANCELED") return "Canceled";
+  if (v) return v.charAt(0) + v.slice(1).toLowerCase();
+  return "Unknown";
+}
+
 export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: Props) {
   const { state, math, flags, actions } = useRaffleInteraction(raffleId, open);
   const account = useActiveAccount();
@@ -157,7 +168,9 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
   }, [raffleId, open, initialRaffle]);
 
   const displayData = (state.data || initialRaffle || metadata) as any;
-  const { participants, isLoading: loadingPart } = useRaffleParticipants(raffleId, Number(displayData?.sold || 0));
+
+  const soldForPct = Number(displayData?.sold || 0);
+  const { participants, isLoading: loadingPart } = useRaffleParticipants(raffleId, soldForPct);
 
   const timeline = useMemo(() => {
     if (!displayData) return [];
@@ -281,201 +294,157 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
   const meAddr = String(account?.address || "").toLowerCase();
   const isCreator = !!creatorAddr && !!meAddr && creatorAddr === meAddr;
 
-  // Keep UI tickets clamped into [1..maxBuy]
-  const maxBuy = Math.max(1, math.maxBuy);
+  const ticketPriceU = (() => {
+    try {
+      return BigInt(displayData?.ticketPrice || "0");
+    } catch {
+      return 0n;
+    }
+  })();
+
+  const affordableMaxBuy = useMemo(() => {
+    if (!state.usdcBal || ticketPriceU <= 0n) return Number.POSITIVE_INFINITY;
+    const max = state.usdcBal / ticketPriceU;
+    const capped = max > 10_000n ? 10_000 : Number(max);
+    return Math.max(0, capped);
+  }, [state.usdcBal, ticketPriceU]);
+
+  const remainingCap = Math.max(0, Number(math.maxBuy || 0));
+  const effectiveMaxBuy = Number.isFinite(affordableMaxBuy)
+    ? Math.max(0, Math.min(remainingCap, affordableMaxBuy))
+    : remainingCap;
+
+  const uiMaxForStepper = Math.max(1, effectiveMaxBuy);
   const uiTicket = clampTicketsUi(state.tickets);
-  const clampedUiTicket = Math.min(uiTicket, maxBuy);
+  const clampedUiTicket = Math.min(uiTicket, uiMaxForStepper);
 
   useEffect(() => {
     if (!open || !raffleId) return;
     if (String(clampedUiTicket) !== String(state.tickets)) {
       actions.setTickets(String(clampedUiTicket));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, raffleId, maxBuy]);
+  }, [open, raffleId, uiMaxForStepper]);
 
   if (!open) return null;
 
   const createdOnTs = timeline?.[0]?.date ?? null;
   const showRemainingNote = typeof (math as any).remainingTickets === "number" && (math as any).remainingTickets > 0;
 
-  // ✅ NEW: blur buy section if not connected
   const blurBuy = !state.isConnected;
-
-  // ✅ NEW: show clear balance warning when connected + allowance ok + not enough balance
   const showBalanceWarn = state.isConnected && flags.hasEnoughAllowance && !flags.hasEnoughBalance;
+
+  const soldNow = Number(displayData?.sold || 0);
+  const minTicketsN = Math.max(0, Number(displayData?.minTickets || 0));
+  const maxTicketsN = Math.max(0, Number(displayData?.maxTickets || 0));
+  const hasMax = maxTicketsN > 0;
+  const remaining = hasMax ? Math.max(0, maxTicketsN - soldNow) : null;
+  const minReached = minTicketsN > 0 ? soldNow >= minTicketsN : true;
+
+  const expectedOutcome = (() => {
+    const st = String(displayData?.status || "").toUpperCase();
+    if (st === "CANCELED") return "This raffle is canceled.";
+    if (st === "COMPLETED") return "This raffle is completed.";
+    if (st === "DRAWING") return "Winner selection is in progress.";
+    if (!minReached) {
+      if (minTicketsN <= 0) return "A winner will be selected at the deadline.";
+      return `Not enough tickets yet. If the minimum (${minTicketsN}) isn’t reached before the deadline, it will likely be canceled.`;
+    }
+    if (hasMax) {
+      return `Winner selected at deadline — or if the remaining ${remaining ?? 0} tickets sell out.`;
+    }
+    return "A winner will be selected at the deadline.";
+  })();
 
   return (
     <div className="rdm-overlay" onMouseDown={onClose}>
       <div className="rdm-card" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="rdm-header">
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="rdm-close-btn" onClick={actions.handleShare} title="Copy Link">
+        {/* ✅ Physical Notches at the tear line */}
+        <div className="rdm-notch left" />
+        <div className="rdm-notch right" />
+
+        {/* --- TOP: Ticket Body (Pink/Gradient) --- */}
+        <div className="rdm-ticket-body">
+          <div className="rdm-header">
+            <button className="rdm-icon-btn" onClick={actions.handleShare} title="Copy Link">
               🔗
             </button>
-          </div>
-          <div style={{ fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: 1 }}>
-            TICKET #{raffleId?.slice(2, 8).toUpperCase()}
-          </div>
-          <button className="rdm-close-btn" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-
-        <div className="rdm-hero">
-          <div className="rdm-hero-lbl">Total Prize Pool</div>
-
-          <div className="rdm-hero-val">
-            {math.fmtUsdc(displayData?.winningPot || "0")} <span className="rdm-hero-unit">USDC</span>
+            <div className="rdm-ticket-id">
+              TICKET #{raffleId?.slice(2, 8).toUpperCase()}
+            </div>
+            <button className="rdm-icon-btn" onClick={onClose}>
+              ✕
+            </button>
           </div>
 
-          <div className="rdm-hero-meta">
-            <div className="rdm-host">
-              <span>Created by</span>
-              <ExplorerLink
-                addr={String(displayData?.creator || "")}
-                label={math.short(String(displayData?.creator || ""))}
-              />
-            </div>
-            <div className="rdm-createdon">
-              <span>Created on</span>
-              <span className="rdm-createdon-val">{formatDate(createdOnTs)}</span>
-            </div>
-          </div>
-        </div>
-
-        {stats && (
-          <div className="rdm-stats-grid">
-            <div className="rdm-stat-box highlight">
-              <div className="rdm-sb-lbl">Net Payout</div>
-              <div className="rdm-sb-val rdm-roi-badge">{stats.roi}x</div>
+          <div className="rdm-hero">
+            <div className="rdm-hero-lbl">Prize Pool</div>
+            <div className="rdm-hero-val">
+              {math.fmtUsdc(displayData?.winningPot || "0")} <span className="rdm-hero-unit">USDC</span>
             </div>
 
-            <div className="rdm-stat-box">
-              <div className="rdm-sb-lbl">Win Odds</div>
-              <div className="rdm-sb-val">{stats.oddsPct}</div>
-            </div>
-
-            <div className="rdm-stat-box">
-              <div className="rdm-sb-lbl">Ticket price</div>
-              <div className="rdm-sb-val">
-                {stats.price} <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 800 }}>USDC</span>
+            <div className="rdm-hero-meta">
+              <div className="rdm-host">
+                <span>Created by</span>
+                <ExplorerLink addr={String(displayData?.creator || "")} label={math.short(String(displayData?.creator || ""))} />
+              </div>
+              <div className="rdm-createdon">
+                <span>on</span>
+                <span className="rdm-createdon-val">{formatDate(createdOnTs)}</span>
               </div>
             </div>
           </div>
-        )}
 
-        {distribution && (
-          <>
-            {distribution.isCanceled ? (
-              <div className="rdm-dist rdm-dist-canceled">
-                <div className="rdm-dist-title">Prize & sales distribution</div>
-                <div className="rdm-dist-note warn">
-                  This raffle was canceled. If you purchased tickets, you can reclaim your ticket cost from your dashboard.
+          {stats && (
+            <div className="rdm-stats-grid">
+              <div className="rdm-stat-box highlight">
+                <div className="rdm-sb-lbl">Net Payout</div>
+                <div className="rdm-sb-val rdm-roi-badge">{stats.roi}x</div>
+              </div>
+              <div className="rdm-stat-box">
+                <div className="rdm-sb-lbl">Win Odds</div>
+                <div className="rdm-sb-val">{stats.oddsPct}</div>
+              </div>
+              <div className="rdm-stat-box">
+                <div className="rdm-sb-lbl">Price</div>
+                <div className="rdm-sb-val">
+                  {stats.price} <span style={{ fontSize: 10, opacity: 0.7 }}>USDC</span>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ✅ Perforation Line */}
+        <div className="rdm-perforation-line" />
+
+        {/* --- BOTTOM: Ticket Stub (Paper) --- */}
+        <div className="rdm-ticket-stub">
+          {/* BUY SECTION */}
+          <div className="rdm-buy-section">
+            {!flags.raffleIsOpen ? (
+              <div className="rdm-closed-msg">
+                {state.displayStatus === "Finalizing" ? "Raffle is finalizing..." : "Raffle Closed"}
+              </div>
+            ) : isCreator ? (
+              <div className="rdm-buy-disabled">
+                Creator cannot participate.
               </div>
             ) : (
-              <div className="rdm-dist">
-                <div className="rdm-dist-title">Prize & sales distribution</div>
-
-                <div className={`rdm-dist-note ${distribution.isSettled ? "ok" : "warn"}`}>
-                  {distribution.isSettled
-                    ? "Settlement is complete — amounts below are final."
-                    : "Only valid once the raffle is settled (COMPLETED). Values shown are live projections."}
-                </div>
-
-                <div className="rdm-dist-subtitle">Prize distribution</div>
-                <div className="rdm-dist-grid">
-                  <div className="rdm-dist-row">
-                    <span className="rdm-dist-k">Winner (net)</span>
-                    <span className="rdm-dist-v">{fmtNum(distribution.winnerNet)} USDC</span>
-                  </div>
-
-                  <div className="rdm-dist-row">
-                    <span className="rdm-dist-k">Platform fee (prize)</span>
-                    <span className="rdm-dist-v">{fmtNum(distribution.platformPrizeFee)} USDC</span>
-                  </div>
-
-                  <div className="rdm-dist-row rdm-dist-total">
-                    <span className="rdm-dist-k">Total</span>
-                    <span className="rdm-dist-v">{fmtNum(distribution.prizeTotal)} USDC</span>
-                  </div>
-                </div>
-
-                <div className="rdm-dist-divider" />
-
-                <div className="rdm-dist-subtitle">Ticket sales distribution</div>
-                <div className="rdm-dist-grid">
-                  <div className="rdm-dist-row">
-                    <span className="rdm-dist-k">Creator (net)</span>
-                    <span className="rdm-dist-v">{fmtNum(distribution.creatorNet)} USDC</span>
-                  </div>
-
-                  <div className="rdm-dist-row">
-                    <span className="rdm-dist-k">Platform fee (sales)</span>
-                    <span className="rdm-dist-v">{fmtNum(distribution.platformSalesFee)} USDC</span>
-                  </div>
-
-                  <div className="rdm-dist-row rdm-dist-total">
-                    <span className="rdm-dist-k">Total</span>
-                    <span className="rdm-dist-v">{fmtNum(distribution.salesTotal)} USDC</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        <div className="rdm-tear" />
-
-        {/* BUY SECTION */}
-        <div className="rdm-buy-section">
-          {!flags.raffleIsOpen ? (
-            <div style={{ textAlign: "center", padding: 20, opacity: 0.6, fontWeight: 700 }}>
-              {state.displayStatus === "Finalizing" ? "Raffle is finalizing..." : "Raffle Closed"}
-            </div>
-          ) : isCreator ? (
-            <div className="rdm-buy-disabled">
-              {displayData?.name ? <b>{displayData.name}</b> : "This raffle"} can’t be entered by its creator.
-            </div>
-          ) : (
-            <div style={{ position: "relative" }}>
-              {/* ✅ Blur the interactive block if not connected */}
-              <div
-                style={{
-                  filter: blurBuy ? "blur(3px)" : undefined,
-                  opacity: blurBuy ? 0.65 : 1,
-                  pointerEvents: blurBuy ? "none" : "auto",
-                  transition: "filter 0.2s ease, opacity 0.2s ease",
-                }}
-              >
+              <div className={`rdm-buy-inner ${blurBuy ? "blurred" : ""}`}>
                 <div className="rdm-balance-row">
                   <span>Bal: {math.fmtUsdc(state.usdcBal?.toString() || "0")} USDC</span>
-                  <span>Max: {math.maxBuy} Tickets</span>
+                  <span>Cap: {uiMaxForStepper}</span>
                 </div>
 
                 {showRemainingNote && (
-                  <div style={{ textAlign: "center", fontSize: 11, fontWeight: 800, color: "#9a3412", marginBottom: 10 }}>
+                  <div className="rdm-warn-text">
                     Only {(math as any).remainingTickets} ticket{(math as any).remainingTickets === 1 ? "" : "s"} remaining
                   </div>
                 )}
 
-                {/* ✅ Balance warning */}
                 {showBalanceWarn && (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      fontSize: 12,
-                      fontWeight: 900,
-                      color: "#9a3412",
-                      background: "#fff7ed",
-                      border: "1px solid #fed7aa",
-                      borderRadius: 12,
-                      padding: "10px 12px",
-                      marginBottom: 10,
-                    }}
-                  >
-                    Your wallet balance isn’t enough for this purchase.
+                  <div className="rdm-warn-box">
+                    Insufficient balance.
                   </div>
                 )}
 
@@ -495,7 +464,7 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
                       value={String(clampedUiTicket)}
                       onChange={(e) => {
                         const v = clampTicketsUi(e.target.value);
-                        actions.setTickets(String(Math.min(v, maxBuy)));
+                        actions.setTickets(String(Math.min(v, uiMaxForStepper)));
                       }}
                       placeholder="1"
                     />
@@ -504,128 +473,150 @@ export function RaffleDetailsModal({ open, raffleId, onClose, initialRaffle }: P
 
                   <button
                     className="rdm-step-btn"
-                    onClick={() => actions.setTickets(String(Math.min(maxBuy, clampedUiTicket + 1)))}
-                    disabled={clampedUiTicket >= maxBuy}
+                    onClick={() => actions.setTickets(String(Math.min(uiMaxForStepper, clampedUiTicket + 1)))}
+                    disabled={clampedUiTicket >= uiMaxForStepper}
                   >
                     +
                   </button>
                 </div>
 
                 {!flags.hasEnoughAllowance ? (
-                  <button className="rdm-cta approve" onClick={actions.approve} disabled={state.isPending}>
+                  <button className="rdm-cta primary" onClick={actions.approve} disabled={state.isPending}>
                     {state.isPending ? "Preparing..." : "1. Prepare Wallet"}
                   </button>
                 ) : (
                   <button
-                    className="rdm-cta buy"
+                    className="rdm-cta primary"
                     onClick={actions.buy}
                     disabled={!flags.canBuy || state.isPending}
-                    title={!flags.hasEnoughBalance ? "Not enough USDC balance" : undefined}
                   >
-                    {state.isPending ? "Confirming..." : `Buy ${clampedUiTicket} Ticket${clampedUiTicket !== 1 ? "s" : ""}`}
+                    {state.isPending ? "Processing..." : `Buy ${clampedUiTicket} Ticket${clampedUiTicket !== 1 ? "s" : ""}`}
                   </button>
                 )}
 
-                {state.buyMsg && (
-                  <div style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: "#D32F2F", fontWeight: 700 }}>
-                    {state.buyMsg}
+                {state.buyMsg && <div className="rdm-error-msg">{state.buyMsg}</div>}
+
+                {blurBuy && (
+                  <div className="rdm-overlay-msg">
+                    <span>Connect Wallet to Buy</span>
                   </div>
                 )}
               </div>
+            )}
+          </div>
 
-              {/* ✅ Overlay message (not blurred) */}
-              {blurBuy && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "grid",
-                    placeItems: "center",
-                    padding: 16,
-                    pointerEvents: "none",
-                  }}
-                >
-                  <div
-                    style={{
-                      background: "rgba(15, 23, 42, 0.92)",
-                      border: "1px solid rgba(255,255,255,.10)",
-                      borderRadius: 14,
-                      padding: "12px 14px",
-                      color: "#e5e7eb",
-                      fontWeight: 900,
-                      textAlign: "center",
-                      maxWidth: 320,
-                    }}
-                  >
-                    Sign in with your wallet to buy tickets.
+          {/* DETAILS (RESTORED & ADDED MIN REQUIRED) */}
+          <div className="rdm-dist-section">
+            <div className="rdm-dist-header">Raffle Specs</div>
+            <div className="rdm-dist-note">{expectedOutcome}</div>
+
+            <div className="rdm-specs-grid">
+              <div className="rdm-spec-row">
+                <span>Status</span> <b>{prettyStatus(displayData?.status)}</b>
+              </div>
+              {/* ✅ ADDED: Explicitly show Min Required to explain potential cancellation */}
+              <div className="rdm-spec-row">
+                <span>Min Required</span> <b>{minTicketsN > 0 ? minTicketsN.toLocaleString("en-US") : "None"}</b>
+              </div>
+              <div className="rdm-spec-row">
+                <span>Sold / Max</span> <b>{soldNow} / {hasMax ? maxTicketsN : "∞"}</b>
+              </div>
+              <div className="rdm-spec-row">
+                <span>Deadline</span> <b>{formatDate(displayData?.deadline || "0")}</b>
+              </div>
+              
+              {/* ✅ ADDED: Progress to minimum if relevant */}
+              {!minReached && minTicketsN > 0 && (
+                <div className="rdm-spec-row">
+                  <span>Progress to Min</span>
+                  <b>{soldNow.toLocaleString("en-US")} / {minTicketsN.toLocaleString("en-US")}</b>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* DISTRIBUTION (RESTORED as "Payout Slip") */}
+          {distribution && (
+            <div className="rdm-dist-section">
+              <div className="rdm-dist-header">Payout Distribution</div>
+              {distribution.isCanceled ? (
+                <div className="rdm-dist-note warn">Canceled. Reclaim available on dashboard.</div>
+              ) : (
+                <div className="rdm-payout-slip">
+                  <div className="rdm-slip-row head">
+                    <span>Prize Breakdown</span>
+                  </div>
+                  <div className="rdm-slip-row">
+                    <span>Winner (Net)</span> <span>{fmtNum(distribution.winnerNet)} USDC</span>
+                  </div>
+                  <div className="rdm-slip-row">
+                    <span>Fee</span> <span>{fmtNum(distribution.platformPrizeFee)} USDC</span>
+                  </div>
+                  <div className="rdm-slip-divider" />
+                  
+                  <div className="rdm-slip-row head" style={{ marginTop: 8 }}>
+                    <span>Sales Breakdown</span>
+                  </div>
+                  <div className="rdm-slip-row">
+                    <span>Creator (Net)</span> <span>{fmtNum(distribution.creatorNet)} USDC</span>
+                  </div>
+                  <div className="rdm-slip-row">
+                    <span>Fee</span> <span>{fmtNum(distribution.platformSalesFee)} USDC</span>
                   </div>
                 </div>
               )}
             </div>
           )}
-        </div>
 
-        {/* TABS */}
-        <div className="rdm-tab-group">
-          <button className={`rdm-tab-btn ${tab === "receipt" ? "active" : ""}`} onClick={() => setTab("receipt")}>
-            Lifecycle
-          </button>
-          <button className={`rdm-tab-btn ${tab === "holders" ? "active" : ""}`} onClick={() => setTab("holders")}>
-            Top Holders
-          </button>
-        </div>
+          {/* TABS (Receipt Style) */}
+          <div className="rdm-tabs">
+            <button className={`rdm-tab ${tab === "receipt" ? "active" : ""}`} onClick={() => setTab("receipt")}>
+              Receipt Log
+            </button>
+            <button className={`rdm-tab ${tab === "holders" ? "active" : ""}`} onClick={() => setTab("holders")}>
+              Holders
+            </button>
+          </div>
 
-        {/* TAB CONTENT */}
-        <div className="rdm-scroll-content">
-          {tab === "receipt" && (
-            <div className="rdm-receipt">
-              <div className="rdm-receipt-title" style={{ marginBottom: 16 }}>
-                BLOCKCHAIN JOURNEY
-              </div>
-
-              <div className="rdm-timeline">
+          <div className="rdm-tab-content">
+            {tab === "receipt" && (
+              <div className="rdm-receipt">
+                <div className="rdm-receipt-line start">--- START OF LOG ---</div>
                 {timeline.map((step, i) => (
-                  <div key={i} className={`rdm-tl-item ${step.status}`}>
-                    <div className="rdm-tl-dot" />
-                    <div className="rdm-tl-title">{step.label}</div>
-                    <div className="rdm-tl-date">
-                      {formatDate(step.date)} <TxLink hash={step.tx} />
-                    </div>
-                    {step.winner && (
-                      <div className="rdm-tl-winner-box">
-                        <span>🏆 Winner:</span> <ExplorerLink addr={step.winner} />
+                  <div key={i} className={`rdm-tl-row ${step.status}`}>
+                    <div className="rdm-tl-time">{step.date ? formatDate(step.date).split(",")[0] : "--/--"}</div>
+                    <div className="rdm-tl-desc">
+                      <div className="rdm-tl-label">{step.label}</div>
+                      <div className="rdm-tl-sub">
+                        {step.tx && <TxLink hash={step.tx} />}
+                        {step.winner && (
+                          <div className="rdm-winner-hl">Winner: {<ExplorerLink addr={step.winner} label={step.winner.slice(0,6)+'...'} />}</div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))}
+                <div className="rdm-receipt-line end">--- END OF LOG ---</div>
               </div>
-            </div>
-          )}
+            )}
 
-          {tab === "holders" && (
-            <div className="rdm-leaderboard-section">
-              <div className="rdm-lb-header">
-                <span>Address</span>
-                <span>Holdings</span>
-              </div>
-              <div className="rdm-lb-list">
-                {loadingPart && <div className="rdm-lb-empty">Loading holders...</div>}
-                {!loadingPart && participants.length === 0 && <div className="rdm-lb-empty">No tickets sold yet.</div>}
-                {!loadingPart &&
+            {tab === "holders" && (
+              <div className="rdm-holders">
+                {loadingPart ? (
+                  <div className="rdm-empty">Loading...</div>
+                ) : participants.length === 0 ? (
+                  <div className="rdm-empty">No tickets sold.</div>
+                ) : (
                   participants.map((p, i) => (
-                    <div key={i} className="rdm-lb-row">
-                      <span className="rdm-lb-addr">
-                        <ExplorerLink addr={p.buyer} />
-                      </span>
-                      <div className="rdm-lb-stats">
-                        <span className="rdm-lb-count">{p.ticketsPurchased} 🎟</span>{" "}
-                        <span className="rdm-lb-pct">({p.percentage}%)</span>
-                      </div>
+                    <div key={i} className="rdm-holder-row">
+                      <ExplorerLink addr={p.buyer} />
+                      <b>{p.ticketsPurchased} ({p.percentage}%)</b>
                     </div>
-                  ))}
+                  ))
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

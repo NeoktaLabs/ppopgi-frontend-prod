@@ -55,7 +55,6 @@ function pluralTickets(n: number) {
   return x === 1 ? "ticket" : "tickets";
 }
 
-// ✅ safer BigInt parse (prevents weird "0.0" / null cases from breaking logic)
 function safeBigInt(v: any): bigint {
   try {
     if (v === null || v === undefined) return 0n;
@@ -67,9 +66,6 @@ function safeBigInt(v: any): bigint {
   }
 }
 
-/**
- * Fetch "ticketsPurchased" (historical total bought) for the current buyer
- */
 async function fetchTicketsPurchasedByRaffle(
   raffleIds: string[],
   buyer: string,
@@ -132,7 +128,7 @@ async function fetchTicketsPurchasedByRaffle(
 }
 
 /**
- * Multiplier Badge (Ticket Stub Style)
+ * Multiplier Badge (Premium Golden Ticket Style)
  */
 function MultiplierBadge({ count }: { count: number }) {
   const safe = Number.isFinite(count) ? Math.max(1, Math.floor(count)) : 1;
@@ -141,16 +137,12 @@ function MultiplierBadge({ count }: { count: number }) {
 
   return (
     <div className="db-mult-badge" aria-label={`${safe} tickets`}>
-      <span style={{ fontSize: "1.25em", marginRight: "4px" }}>{display}</span>
-      <span style={{ fontSize: "0.7em", opacity: 0.85, fontWeight: 700, textTransform: "uppercase" }}>{label}</span>
+      <span className="db-badge-count">{display}</span>
+      <span className="db-badge-label">{label}</span>
     </div>
   );
 }
 
-/**
- * RaffleCardPile
- * ✅ UPDATED: Hides badge if count is 0
- */
 function RaffleCardPile({
   raffle,
   ticketCount,
@@ -307,13 +299,9 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
     return /success|successful|claimed/i.test(data.msg);
   }, [data.msg]);
 
-  // ✅ FIXED: refunds should NOT depend on claimableUsdc being non-zero
   const getPrimaryMethod = (opts: { isRefund: boolean; hasUsdc: boolean; hasNative: boolean }): WithdrawMethod | null => {
     const { isRefund, hasUsdc, hasNative } = opts;
-
-    // refund path is a specific contract action; the amount can legitimately appear as "0" in UI
     if (isRefund) return "claimTicketRefund";
-
     if (hasUsdc) return "withdrawFunds";
     if (hasNative) return "withdrawNative";
     return null;
@@ -398,9 +386,11 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
       {data.msg && <div className={`db-msg-banner ${msgIsSuccess ? "success" : "error"}`}>{data.msg}</div>}
 
       <div className="db-section claim-section">
+        {/* ✅ Matching Subtitle Style */}
         <div className="db-section-header">
           <div className="db-section-title">Claimables</div>
           {hasClaims && <span className="db-pill pulse">Action Required</span>}
+          <div className="db-section-line" />
         </div>
 
         {!hasClaims ? (
@@ -429,65 +419,57 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
               const purchasedEver = getPurchasedEver(r.id);
               const displayTicketCount = ownedNow > 0 ? ownedNow : purchasedEver;
 
-              // ---- status detection (defensive)
+              const ticketPriceU6 = safeBigInt(r.ticketPrice);
+              const estimatedRefundU6 =
+                isRefund && displayTicketCount > 0 ? BigInt(displayTicketCount) * ticketPriceU6 : 0n;
+
+              const claimableU6 = safeBigInt(it.claimableUsdc);
+              const refundStep1Disabled = !isRefund || displayTicketCount <= 0 || data.isPending;
+              const refundStep2Disabled = !isRefund || claimableU6 <= 0n || data.isPending;
+
               const status = String(r.status || "").toUpperCase();
               const isCanceled = status === "CANCELED";
               const isSettled = status === "COMPLETED" || status === "SETTLED";
 
               const primaryMethod = getPrimaryMethod({ isRefund, hasUsdc, hasNative });
 
-              // Defaults
               let badgeTitle = "Claim";
               let message = "Funds available to claim.";
               let primaryLabel = "Claim";
               let badgeKind: "refund" | "winner" | "creator" | "claim" = "claim";
 
-              // 1) CANCELED + CREATOR => reclaim pot
               if (isCanceled && iAmCreator) {
                 badgeTitle = "Canceled";
                 badgeKind = "creator";
                 message = "Raffle canceled — reclaim your pot.";
                 primaryLabel = "Reclaim Pot";
-              }
-              // 2) CANCELED + BUYER => reclaim ticket refund
-              else if (isCanceled && (isRefund || !iAmCreator)) {
+              } else if (isCanceled && (isRefund || !iAmCreator)) {
                 badgeTitle = "Refund";
                 badgeKind = "refund";
                 message =
                   displayTicketCount > 0
-                    ? `Raffle canceled — reclaim your ticket refund (${displayTicketCount} ${pluralTickets(displayTicketCount)}).`
+                    ? `Raffle canceled — reclaim your ticket refund.`
                     : "Raffle canceled — reclaim your ticket refund.";
                 primaryLabel = "Reclaim Ticket Refund";
-              }
-              // 4) SETTLED + WINNER => reclaim prize
-              else if (isSettled && iAmWinner) {
+              } else if (isSettled && iAmWinner) {
                 badgeTitle = "Winner";
                 badgeKind = "winner";
                 message = "Congrats — you won! Reclaim your prize.";
                 primaryLabel = "Reclaim Prize";
-              }
-              // 3) SETTLED + CREATOR => reclaim ticket sale pot
-              else if (isSettled && iAmCreator) {
+              } else if (isSettled && iAmCreator) {
                 badgeTitle = "Creator";
                 badgeKind = "creator";
                 message = "Raffle settled — reclaim your ticket sale pot.";
                 primaryLabel = "Reclaim Ticket Sales";
-              }
-              // 5) SETTLED + LOSER => should reclaim nothing
-              else if (isSettled && !iAmWinner && !iAmCreator) {
+              } else if (isSettled && !iAmWinner && !iAmCreator) {
                 badgeTitle = "Settled";
                 badgeKind = "claim";
                 message = "Raffle settled — nothing to claim.";
                 primaryLabel = "Nothing to Claim";
-              }
-              // Fallbacks
-              else if (isRefund) {
+              } else if (isRefund) {
                 badgeTitle = "Refund";
                 badgeKind = "refund";
-                message =
-                  displayTicketCount > 0
-                    ? `Raffle canceled — reclaim the cost of your ${displayTicketCount} ${pluralTickets(displayTicketCount)}.`
-                    : "Raffle canceled — reclaim your refund.";
+                message = "Raffle canceled — reclaim your refund.";
                 primaryLabel = "Reclaim Ticket Refund";
               } else if (iAmWinner) {
                 badgeTitle = "Winner";
@@ -502,13 +484,14 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
               }
 
               const showDual = !isRefund && hasUsdc && hasNative;
-
-              // ✅ FIX: for refunds, the button should be enabled when user has tickets to refund
               const refundDisabled = isRefund && displayTicketCount <= 0;
 
               return (
                 <div key={r.id} className="db-claim-wrapper">
                   <RaffleCard raffle={r} onOpen={onOpenRaffle} onOpenSafety={onOpenSafety} nowMs={nowS * 1000} />
+
+                  {/* "Gift Voucher" style separator */}
+                  <div className="db-claim-cut-line" />
 
                   <div className="db-claim-box">
                     <div className="db-claim-header">
@@ -516,14 +499,16 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
                     </div>
 
                     <div className="db-claim-text">
-                      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "#334155" }}>{message}</div>
+                      <div className="db-claim-msg">{message}</div>
 
                       {isRefund ? (
                         <div className="db-refund-layout">
-                          {/* keep this optional: subgraph may not populate amounts */}
-                          {safeBigInt(it.claimableUsdc) > 0n && (
-                            <div className="db-refund-sub">
-                              Expected: <b>{fmt(it.claimableUsdc, 6)} USDC</b>
+                          <div className="db-refund-sub">
+                            Expected: <b>{estimatedRefundU6 > 0n ? fmt(estimatedRefundU6.toString(), 6) : "—"} USDC</b>
+                          </div>
+                          {claimableU6 > 0n && (
+                            <div className="db-refund-sub" style={{ marginTop: 6 }}>
+                              Available: <b>{fmt(claimableU6.toString(), 6)} USDC</b>
                             </div>
                           )}
                         </div>
@@ -546,17 +531,39 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
                     <div className="db-claim-actions">
                       {showDual ? (
                         <>
-                          <button className="db-btn primary" disabled={data.isPending} onClick={() => actions.withdraw(r.id, "withdrawFunds")}>
-                            {data.isPending ? "Processing..." : "Claim USDC"}
+                          <button
+                            className="db-btn primary"
+                            disabled={data.isPending}
+                            onClick={() => actions.withdraw(r.id, "withdrawFunds")}
+                          >
+                            {data.isPending ? "..." : "Claim USDC"}
                           </button>
                           <button
                             className="db-btn secondary"
                             disabled={data.isPending}
                             onClick={() => actions.withdraw(r.id, "withdrawNative")}
                           >
-                            {data.isPending ? "Processing..." : "Claim Native"}
+                            {data.isPending ? "..." : "Claim Native"}
                           </button>
                         </>
+                      ) : isRefund ? (
+                        <div style={{ display: "flex", gap: 10, width: "100%" }}>
+                          <button
+                            className="db-btn secondary"
+                            disabled={refundStep1Disabled}
+                            onClick={() => actions.withdraw(r.id, "claimTicketRefund")}
+                          >
+                            {data.isPending ? "..." : "1) Reclaim"}
+                          </button>
+
+                          <button
+                            className="db-btn primary"
+                            disabled={refundStep2Disabled}
+                            onClick={() => actions.withdraw(r.id, "withdrawFunds")}
+                          >
+                            {data.isPending ? "..." : "2) Withdraw"}
+                          </button>
+                        </div>
                       ) : (
                         <button
                           className={`db-btn ${isRefund ? "secondary" : "primary"}`}
@@ -580,8 +587,10 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
         )}
       </div>
 
+      {/* ✅ Matching Subtitle Style */}
       <div className="db-section-header">
         <div className="db-section-title">My Raffles</div>
+        <div className="db-section-line" />
       </div>
 
       <div className="db-tabs-container">
@@ -705,7 +714,13 @@ export function DashboardPage({ account: accountProp, onOpenRaffle, onOpenSafety
             )}
 
             {data.created.map((r: any) => (
-              <RaffleCard key={r.id} raffle={r} onOpen={onOpenRaffle} onOpenSafety={onOpenSafety} nowMs={nowS * 1000} />
+              <RaffleCard
+                key={r.id}
+                raffle={r}
+                onOpen={onOpenRaffle}
+                onOpenSafety={onOpenSafety}
+                nowMs={nowS * 1000}
+              />
             ))}
           </div>
         )}

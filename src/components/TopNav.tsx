@@ -35,6 +35,14 @@ function fmtBal(v?: string, maxDp = 4) {
   return n.toLocaleString("en-US", { maximumFractionDigits: maxDp });
 }
 
+function isHidden() {
+  try {
+    return typeof document !== "undefined" && document.hidden;
+  } catch {
+    return false;
+  }
+}
+
 export const TopNav = memo(function TopNav({
   page,
   account,
@@ -50,6 +58,9 @@ export const TopNav = memo(function TopNav({
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const burgerRef = useRef<HTMLButtonElement | null>(null);
+
+  // ✅ pause balance polling when tab hidden
+  const [pollEnabled, setPollEnabled] = useState(() => !isHidden());
 
   useEffect(() => {
     setMenuOpen(false);
@@ -83,6 +94,21 @@ export const TopNav = memo(function TopNav({
     };
   }, [menuOpen]);
 
+  // ✅ keep polling off in background tabs, and refresh once when returning
+  useEffect(() => {
+    const onVis = () => {
+      const enabled = !isHidden();
+      setPollEnabled(enabled);
+    };
+
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onVis);
+    };
+  }, []);
+
   const closeMenu = () => setMenuOpen(false);
 
   const handleNav = (action: () => void, targetPage?: Page) => {
@@ -91,6 +117,8 @@ export const TopNav = memo(function TopNav({
     closeMenu();
   };
 
+  const BALANCE_POLL_MS = 60_000;
+
   const xtzBal = useWalletBalance(
     {
       client: thirdwebClient,
@@ -98,8 +126,8 @@ export const TopNav = memo(function TopNav({
       address: account ?? undefined,
     },
     {
-      enabled: !!account,
-      refetchInterval: 15_000,
+      enabled: !!account && pollEnabled,
+      refetchInterval: BALANCE_POLL_MS,
     } as any
   );
 
@@ -111,10 +139,21 @@ export const TopNav = memo(function TopNav({
       tokenAddress: (ADDRESSES as any).USDC,
     },
     {
-      enabled: !!account,
-      refetchInterval: 15_000,
+      enabled: !!account && pollEnabled,
+      refetchInterval: BALANCE_POLL_MS,
     } as any
   );
+
+  // ✅ refresh balances immediately when tab becomes visible again
+  useEffect(() => {
+    if (!account) return;
+    if (!pollEnabled) return;
+    try {
+      xtzBal.refetch?.();
+      usdcBal.refetch?.();
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, pollEnabled]);
 
   const xtzText = fmtBal(xtzBal.data?.displayValue, 4);
   const xtzSym = xtzBal.data?.symbol || "XTZ";
@@ -154,7 +193,8 @@ export const TopNav = memo(function TopNav({
 
         <div className="topnav-right">
           <div className="desktop-actions">
-            {account && (
+            {account ? (
+              // If logged in, show Balances Pill (acts as cashier button)
               <button className="balances-pill" onClick={() => handleNav(onOpenCashier)} title="Open Cashier" type="button">
                 <div className="balances-rows">
                   <div className="bal-row">
@@ -167,21 +207,22 @@ export const TopNav = memo(function TopNav({
                   </div>
                 </div>
               </button>
+            ) : (
+              // If logged out, show generic Cashier button
+              <button className="nav-link cashier-btn" onClick={() => handleNav(onOpenCashier)} title="Open Cashier">
+                🏦 Cashier
+              </button>
             )}
 
-            <button className="nav-link cashier-btn" onClick={() => handleNav(onOpenCashier)} title="Open Cashier">
-              🏦 Cashier
-            </button>
-
             {!account ? (
-              <button className="nav-link signin-btn" onClick={() => handleNav(onOpenSignIn)}>
+              <button className="nav-link primary-pill-btn" onClick={() => handleNav(onOpenSignIn)}>
                 Sign In
               </button>
             ) : (
-              // ✅ removed the dot/avatar
+              // ✅ Updated Sign Out button to match Sign In style
               <button
                 type="button"
-                className="account-badge account-badge-stack"
+                className="nav-link primary-pill-btn"
                 onClick={() => handleNav(onSignOut)}
                 title="Log Off"
               >

@@ -1,5 +1,5 @@
 // src/components/CreateRaffleModal.tsx
-import React, { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { formatUnits } from "ethers";
 import { useActiveAccount } from "thirdweb/react";
 import { ADDRESSES } from "../config/contracts";
@@ -50,14 +50,12 @@ function clampDurationToBounds(seconds: number): number {
 }
 
 function secondsToBestUnitValue(seconds: number, unit: DurUnit): { value: number; unit: DurUnit } {
-  // Keep the chosen unit (don’t change design/UX unexpectedly), just clamp the value.
   const per = unitToSeconds(unit);
   const v = Math.max(1, Math.round(seconds / per));
   return { value: v, unit };
 }
 
 export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
-  // ✅ Hooks must be called unconditionally (even when open=false)
   const { fireConfetti } = useConfetti();
   const account = useActiveAccount();
   const isConnected = !!account?.address;
@@ -65,11 +63,29 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
   const [step, setStep] = useState<"form" | "success">("form");
   const [createdAddr, setCreatedAddr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-
-  // enables red highlights
   const [submitAttempted, setSubmitAttempted] = useState(false);
-
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const successTimerRef = useRef<number | null>(null);
+
+  const clearSuccessTimer = () => {
+    if (successTimerRef.current != null) {
+      window.clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
+    }
+  };
+
+  const goHome = useCallback(() => {
+    if (window.location.pathname !== "/") window.location.href = "/";
+    else window.location.reload();
+  }, []);
+
+  const handleFinalClose = useCallback(() => {
+    clearSuccessTimer();
+    if (onCreated && createdAddr) onCreated(createdAddr);
+    onClose();
+    goHome();
+  }, [onClose, onCreated, createdAddr, goHome]);
 
   const handleSuccess = (addr?: string) => {
     fireConfetti();
@@ -79,74 +95,58 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
     }
   };
 
-  const handleFinalClose = () => {
-    if (onCreated && createdAddr) onCreated(createdAddr);
-    onClose();
-    if (window.location.pathname !== "/") window.location.href = "/";
-  };
-
   const { form, validation, derived, status, helpers } = useCreateRaffleForm(open, handleSuccess);
 
-  // Reset internal state if modal is re-opened
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) {
       setStep("form");
       setCreatedAddr(null);
       setCopied(false);
       setSubmitAttempted(false);
       setAdvancedOpen(false);
+      clearSuccessTimer();
     }
   }, [open]);
 
-  // ---------------------------------------------
-  // ✅ Min/Max safeguard (UI auto-bump)
-  // - maxTickets: "0" means unlimited => NEVER change it automatically
-  // - if max > 0 and min > max => bump max up to min
-  // - if max > 0 and max < min => lower min down to max
-  // ---------------------------------------------
+  useEffect(() => {
+    clearSuccessTimer();
+    if (!open) return;
+    if (step !== "success") return;
+    successTimerRef.current = window.setTimeout(() => {
+      handleFinalClose();
+    }, 10_000);
+    return () => {
+      clearSuccessTimer();
+    };
+  }, [open, step, handleFinalClose]);
+
   const handleMinTicketsChange = (raw: string) => {
     const nextMinStr = helpers.sanitizeInt(raw);
     const nextMin = toInt(nextMinStr);
-
     const curMaxStr = form.maxTickets || "0";
     const curMax = toInt(curMaxStr);
-
-    // If max is limited and next min exceeds it => bump max up to min
     if (curMax > 0 && nextMin > curMax) {
       form.setMaxTickets(String(nextMin));
     }
-
     form.setMinTickets(nextMinStr);
   };
 
   const handleMaxTicketsChange = (raw: string) => {
     const nextMaxStr = helpers.sanitizeInt(raw);
     const nextMax = toInt(nextMaxStr);
-
-    // If user sets max back to 0 => unlimited, allow any min (no auto changes)
     if (nextMax === 0) {
       form.setMaxTickets(nextMaxStr);
       return;
     }
-
     const curMinStr = form.minTickets || "0";
     const curMin = toInt(curMinStr);
-
-    // If max becomes smaller than min => lower min down to max
     if (curMin > 0 && nextMax < curMin) {
       form.setMinTickets(String(nextMax));
     }
-
     form.setMaxTickets(nextMaxStr);
   };
 
-  // ---------------------------------------------
-  // ✅ Duration enforcement (10 min .. 365 days)
-  // - Clamp on blur (typing stays smooth)
-  // - Clamp when unit changes (prevents out-of-range instantly)
-  // ---------------------------------------------
   const durationSecondsN = validation.durationSecondsN;
-
   const durationTooShort = durationSecondsN > 0 && durationSecondsN < MIN_DURATION_SEC;
   const durationTooLong = durationSecondsN > 0 && durationSecondsN > MAX_DURATION_SEC;
   const durationOutOfBounds = durationTooShort || durationTooLong;
@@ -157,47 +157,27 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
     const seconds = rawVal * unitToSeconds(unit);
     const clamped = clampDurationToBounds(seconds);
     const { value } = secondsToBestUnitValue(clamped, unit);
-
-    // keep same unit, update value only
     form.setDurationValue(String(value));
     if (nextUnit) form.setDurationUnit(nextUnit);
   };
 
-  const handleDurationBlur = () => {
-    // If user left it empty/0, still clamp to minimum
-    clampDurationFromCurrentInputs();
-  };
+  const handleDurationBlur = () => clampDurationFromCurrentInputs();
+  const handleDurationUnitChange = (u: DurUnit) => clampDurationFromCurrentInputs(u);
 
-  const handleDurationUnitChange = (u: DurUnit) => {
-    // Switch unit, then clamp based on that new unit
-    clampDurationFromCurrentInputs(u);
-  };
-
-  // ---------------------------------------------
-  // Balance vs Winning Pot validation
-  // ---------------------------------------------
   const winningPotU6 = useMemo(() => toBigInt6(form.winningPot), [form.winningPot]);
   const usdcBalU6 = status.usdcBal ?? null;
-
   const hasBalanceInfo = usdcBalU6 !== null;
   const insufficientPrizeFunds = hasBalanceInfo ? winningPotU6 > usdcBalU6! : false;
 
-  // ---------------------------------------------
-  // Required field validation (UI only)
-  // ---------------------------------------------
   const invalidName = !form.name.trim();
   const invalidTicketPrice = Number(form.ticketPrice) <= 0;
   const invalidWinningPot = Number(form.winningPot) <= 0;
-
-  // keep your base invalidDuration, but also include bounds
   const invalidDurationBase = Number(form.durationValue) <= 0;
   const invalidDuration = invalidDurationBase || durationOutOfBounds;
-
   const showInvalid = submitAttempted;
 
   const fieldClass = (invalid: boolean) => `crm-input ${showInvalid && invalid ? "crm-input-invalid" : ""}`;
 
-  // ✅ Only allow create if connected + valid + enough balance + duration within bounds
   const canCreate =
     isConnected &&
     validation.canSubmit &&
@@ -206,13 +186,8 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
     !durationOutOfBounds &&
     !invalidDurationBase;
 
-  // ✅ button visuals when disabled
   const createDisabled = !canCreate;
-  const createBtnStyle: React.CSSProperties = createDisabled
-    ? { opacity: 0.45, cursor: "not-allowed", filter: "grayscale(0.35)" }
-    : {};
 
-  // Share links (success view)
   const shareLink = createdAddr ? `${window.location.origin}/?raffle=${createdAddr}` : "";
   const tweetText = `I just created a new raffle on Ppopgi! 🎟️\n\nPrize: ${form.winningPot} USDC\nCheck it out here:`;
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(shareLink)}`;
@@ -223,9 +198,7 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
       await navigator.clipboard.writeText(shareLink);
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
-    } catch {
-      // ignore
-    }
+    } catch {}
   };
 
   const previewRaffle = useMemo(
@@ -248,12 +221,17 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
     [form.name, derived, validation.durationSecondsN]
   );
 
-  // ✅ AFTER all hooks
   if (!open) return null;
 
   return (
-    <div className="crm-overlay" onMouseDown={handleFinalClose}>
-      <div className="crm-modal" onMouseDown={(e) => e.stopPropagation()}>
+    // ✅ FIX: close ONLY when clicking the backdrop itself (not any click inside modal)
+    <div
+      className="crm-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleFinalClose();
+      }}
+    >
+      <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="crm-header">
           <div className="crm-header-text">
@@ -265,34 +243,40 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
           </button>
         </div>
 
-        {/* SUCCESS */}
+        {/* SUCCESS VIEW */}
         {step === "success" ? (
           <div className="crm-success-view">
             <div className="crm-success-icon">✓</div>
             <div className="crm-success-title">Raffle Created!</div>
-            <div className="crm-success-sub">Your contract is live. Share the link below to start selling tickets.</div>
+            <div className="crm-success-sub">
+              Your contract is live. Share the link below to start selling tickets.
+              <br />
+              <span style={{ display: "inline-block", marginTop: 6, opacity: 0.75, fontWeight: 800 }}>
+                Redirecting to home in ~10s…
+              </span>
+            </div>
 
-            <div className="crm-share-box">
-              <label className="crm-label" style={{ textAlign: "left" }}>
-                Direct Link
-              </label>
-              <div className="crm-link-row">
-                <input
-                  className="crm-link-input"
-                  readOnly
-                  value={shareLink}
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
+            {/* ✅ "Ticket Stub" Share Box */}
+            <div className="crm-share-ticket">
+              <div className="crm-share-stub-left">
+                <label className="crm-label-ticket">Direct Link</label>
+                <div className="crm-ticket-code">{shareLink}</div>
+              </div>
+              <div className="crm-share-stub-right">
                 <button
-                  className={`crm-copy-btn ${copied ? "copied" : ""}`}
+                  className={`crm-stamp-btn ${copied ? "stamped" : ""}`}
                   onClick={handleCopy}
                   disabled={!shareLink}
-                  title={!shareLink ? "No link yet" : "Copy link"}
+                  title="Copy Link"
                 >
-                  {copied ? "Copied!" : "Copy"}
+                  {copied ? "COPIED" : "COPY"}
                 </button>
               </div>
             </div>
+
+            <button type="button" className="crm-done-btn" onClick={handleFinalClose}>
+              Close & go to Home →
+            </button>
 
             <div className="crm-social-row">
               <a href={tweetUrl} target="_blank" rel="noreferrer" className="crm-social-btn twitter">
@@ -302,15 +286,11 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                 Telegram
               </a>
             </div>
-
-            <button className="crm-done-btn" onClick={handleFinalClose}>
-              Skip and view dashboard →
-            </button>
           </div>
         ) : (
-          /* FORM */
+          /* FORM VIEW */
           <div className="crm-body">
-            {/* LEFT */}
+            {/* LEFT: Form */}
             <div className="crm-form-col">
               <div className="crm-bal-row">
                 <span className="crm-bal-label">My Balance</span>
@@ -356,21 +336,9 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                 </div>
               </div>
 
-              {/* ✅ Not enough balance + spacing */}
+              {/* Warning Messages */}
               {hasBalanceInfo && insufficientPrizeFunds && (
-                <div
-                  className="crm-status-msg"
-                  style={{
-                    marginTop: 10,
-                    marginBottom: 14,
-                    background: "#fff7ed",
-                    border: "1px solid #fed7aa",
-                    color: "#9a3412",
-                    fontWeight: 800,
-                  }}
-                >
-                  Your wallet balance isn’t enough to fund this prize.
-                </div>
+                <div className="crm-warning-msg">⚠️ Your wallet balance isn’t enough to fund this prize.</div>
               )}
 
               <div className="crm-grid-dur">
@@ -399,20 +367,9 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                 </div>
               </div>
 
-              {/* ✅ Duration bounds helper (matches contract rules) */}
               {durationOutOfBounds && (
-                <div
-                  className="crm-status-msg"
-                  style={{
-                    marginTop: 10,
-                    marginBottom: 14,
-                    background: "#fff7ed",
-                    border: "1px solid #fed7aa",
-                    color: "#9a3412",
-                    fontWeight: 800,
-                  }}
-                >
-                  Duration must be between <b>10 minutes</b> and <b>365 days</b>.
+                <div className="crm-warning-msg">
+                  Duration must be between <b>10m</b> and <b>365d</b>.
                 </div>
               )}
 
@@ -426,11 +383,19 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                   <div className="crm-adv-content">
                     <div className="crm-grid-2">
                       <div className="crm-input-group">
-                        <label>Min Tickets to Draw</label>
-                        <input className="crm-input" value={form.minTickets} onChange={(e) => handleMinTicketsChange(e.target.value)} />
+                        <label>Min Tickets</label>
+                        <input
+                          className="crm-input"
+                          value={form.minTickets}
+                          onChange={(e) => handleMinTicketsChange(e.target.value)}
+                          // ✅ Hardening: if user clears it, restore to 1 (prevents "empty => 1" surprises at submit)
+                          onBlur={() => {
+                            if (!form.minTickets || toInt(form.minTickets) <= 0) form.setMinTickets("1");
+                          }}
+                        />
                       </div>
                       <div className="crm-input-group">
-                        <label>Max Capacity (Opt)</label>
+                        <label>Max Capacity</label>
                         <input
                           className="crm-input"
                           value={form.maxTickets}
@@ -443,47 +408,48 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                 )}
               </div>
 
-              {/* Actions */}
-              <div className="crm-actions">
-                <div className="crm-steps">
+              {/* ✅ COMMAND CENTER DOCK */}
+              <div className="crm-command-center">
+                <div className="crm-dock-glass">
                   {/* STEP 1 */}
                   <button
-                    className={`crm-step-btn ${status.isReady ? "done" : "active"}`}
+                    className={`crm-dock-btn ${status.isReady ? "done" : "active"}`}
                     onClick={status.approve}
                     disabled={!isConnected || status.isReady}
                   >
-                    <span className="crm-step-icon">{status.isReady ? "✓" : "1"}</span>
-                    <span>{status.isReady ? "Wallet Prepared" : "Prepare Wallet"}</span>
+                    <span className="crm-dock-icon">{status.isReady ? "✓" : "1"}</span>
+                    <span className="crm-dock-label">{status.isReady ? "Wallet Ready" : "Prepare"}</span>
                   </button>
 
-                  <div className="crm-step-line" />
+                  <div className="crm-dock-sep" />
 
                   {/* STEP 2 */}
                   <button
-                    className={`crm-step-btn ${status.isReady ? "active primary" : ""}`}
+                    className={`crm-dock-btn primary ${!status.isReady || status.isPending ? "disabled" : "active"}`}
                     onClick={() => {
                       setSubmitAttempted(true);
+                      // Optional debugging line (remove once confirmed):
+                      // console.log("MIN TICKETS RIGHT BEFORE CREATE:", form.minTickets);
                       if (canCreate) status.create();
                     }}
                     disabled={createDisabled}
-                    style={createBtnStyle}
                   >
-                    <span className="crm-step-icon">{status.isPending ? "⏳" : "2"}</span>
-                    <span>{status.isPending ? "Creating..." : "Create Raffle"}</span>
+                    <span className="crm-dock-icon">{status.isPending ? "⏳" : "2"}</span>
+                    <span className="crm-dock-label">{status.isPending ? "Creating..." : "Create"}</span>
                   </button>
                 </div>
-
                 {status.msg && <div className="crm-status-msg">{status.msg}</div>}
               </div>
             </div>
 
-            {/* RIGHT */}
+            {/* RIGHT: Holographic Preview */}
             <div className="crm-preview-col">
               <div className="crm-preview-label">Live Preview</div>
-              <div className="crm-card-wrapper">
+              <div className="crm-levitate-wrapper">
                 {/* @ts-ignore */}
                 <RaffleCard raffle={previewRaffle} onOpen={() => {}} />
               </div>
+              <div className="crm-preview-shadow" />
               <div className="crm-network-tip">Network: Etherlink Mainnet</div>
             </div>
           </div>

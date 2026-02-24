@@ -64,7 +64,6 @@ export function InfraStatusPill() {
     return s.bot.label || "Unknown";
   }, [s.bot]);
 
-  const overallDot = useMemo(() => dotLevel(s.overall.level), [s.overall.level]);
   const idxDot = useMemo(() => dotLevel(s.indexer.level), [s.indexer.level]);
   const rpcDot = useMemo(() => dotLevel(s.rpc.level), [s.rpc.level]);
   const botDot = useMemo(() => dotLevel(s.bot?.level || "unknown"), [s.bot?.level]);
@@ -72,11 +71,7 @@ export function InfraStatusPill() {
   return (
     <div className="isp-notch" aria-label="Ppopgi systems status">
       <div className="isp-notch-inner">
-        {/* Notch Title */}
-        <div className="isp-notch-title">
-          <span className={`isp-dot ${overallDot}`} aria-hidden="true" />
-          <span style={{ marginLeft: 6 }}>System Status</span>
-        </div>
+        {/* ✅ Title Removed for compactness */}
 
         {/* 3-Column Grid */}
         <div className="isp-notch-grid">
@@ -136,7 +131,7 @@ export function InfraStatusPill() {
             </div>
             <div className="isp-item-data">
               <div className="isp-item-val">{botLabel}</div>
-              {/* Last/Next on one line (now includes seconds) */}
+              {/* Last/Next on one line */}
               <div className="isp-item-sub">
                 Last: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)}{" "}
                 <span style={{ opacity: 0.5 }}>|</span>{" "}

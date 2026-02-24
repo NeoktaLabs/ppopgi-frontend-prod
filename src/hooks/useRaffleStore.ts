@@ -2,19 +2,6 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { fetchRafflesFromSubgraph, type RaffleListItem } from "../indexer/subgraph";
 
-/**
- * Shared raffle store
- * - Single indexer poller for the whole app
- * - Dedupes requests
- * - Backs off on 429 / rate limits
- * - Slows down when tab is hidden
- * - Stops polling when unused
- *
- * Exports:
- *  1) Store functions: startRaffleStore/refresh/getSnapshot/subscribe
- *  2) React hook: useRaffleStore(consumerKey, pollMs)
- */
-
 export type StoreState = {
   items: RaffleListItem[] | null;
   isLoading: boolean;
@@ -25,8 +12,6 @@ export type StoreState = {
 
 type Listener = () => void;
 
-// IMPORTANT: snapshot must be referentially stable.
-// We keep `state` as an immutable object reference and replace it on changes.
 let state: StoreState = {
   items: null,
   isLoading: false,
@@ -36,7 +21,6 @@ let state: StoreState = {
 };
 
 const listeners = new Set<Listener>();
-
 let subscribers = 0;
 
 // Polling control
@@ -50,6 +34,15 @@ let backoffStep = 0;
 
 // Each consumer requests a poll interval; we use the minimum
 const requestedPolls = new Map<string, number>();
+
+// ✅ Revalidate burst control
+let lastFetchStartedMs = 0;
+let pendingRefreshAfterFlight = false;
+let revalidateDebounceTimer: number | null = null;
+
+// ✅ Optimistic patch dedupe (don’t apply same patch twice)
+const appliedPatchIds = new Set<string>();
+let patchGcTimer: number | null = null;
 
 function emit() {
   listeners.forEach((fn) => fn());
@@ -67,9 +60,8 @@ function shallowEqual(a: any, b: any) {
 
 function setState(patch: Partial<StoreState>) {
   const next: StoreState = { ...state, ...patch };
-  // Avoid emitting if nothing actually changed (prevents extra renders)
   if (shallowEqual(state, next)) return;
-  state = next; // ✅ replace reference
+  state = next;
   emit();
 }
 
@@ -89,8 +81,7 @@ function clearTimer() {
 }
 
 function computePollMs() {
-  const minRequested =
-    requestedPolls.size > 0 ? Math.min(...requestedPolls.values()) : 20_000;
+  const minRequested = requestedPolls.size > 0 ? Math.min(...requestedPolls.values()) : 20_000;
 
   // Foreground minimum is 10s (protect indexer)
   const fg = Math.max(10_000, minRequested);
@@ -135,12 +126,9 @@ function isRateLimitError(err: any) {
 }
 
 function applyBackoff(err: any) {
-  // Don’t backoff on aborts (normal during navigation/unmount)
   if (isAbortError(err)) return;
 
   const rateLimited = isRateLimitError(err);
-
-  // steps: grow faster when rate-limited, slower otherwise
   backoffStep = Math.min(backoffStep + 1, rateLimited ? 6 : 3);
 
   const base = rateLimited ? 10_000 : 5_000;
@@ -150,9 +138,7 @@ function applyBackoff(err: any) {
   backoffUntilMs = Date.now() + delay;
 
   setState({
-    note: rateLimited
-      ? "Indexer rate-limited. Retrying shortly…"
-      : "Indexer temporarily unavailable.",
+    note: rateLimited ? "Indexer rate-limited. Retrying shortly…" : "Indexer temporarily unavailable.",
     lastErrorMs: Date.now(),
   });
 }
@@ -162,15 +148,165 @@ function resetBackoff() {
   backoffUntilMs = 0;
 }
 
+// -----------------------------
+// ✅ Optimistic patch helpers
+// -----------------------------
+type OptimisticEvent =
+  | {
+      kind: "BUY";
+      patchId?: string;
+      raffleId: string;
+      deltaSold: number;
+      tsMs?: number;
+    }
+  | {
+      kind: "CREATE";
+      patchId?: string;
+      raffle: Partial<RaffleListItem> & { id: string; name: string; creator: string };
+      tsMs?: number;
+    };
+
+function normHex(v: string) {
+  return String(v || "").toLowerCase();
+}
+
+function ensurePatchGc() {
+  if (patchGcTimer != null) return;
+  patchGcTimer = window.setInterval(() => {
+    // Cheap “GC”: just cap set size
+    if (appliedPatchIds.size > 500) {
+      appliedPatchIds.clear();
+    }
+  }, 60_000);
+}
+
+function applyOptimisticBuy(e: OptimisticEvent & { kind: "BUY" }) {
+  const rid = normHex(e.raffleId);
+  const delta = Math.max(0, Math.floor(Number(e.deltaSold || 0)));
+  if (!rid || delta <= 0) return;
+
+  const items = state.items;
+  if (!items || items.length === 0) return;
+
+  const next = items.map((r) => {
+    if (normHex(r.id) !== rid) return r;
+
+    const soldN = Number((r as any).sold || 0);
+    const nextSold = String(Math.max(0, soldN + delta));
+
+    // bump lastUpdatedTimestamp so it floats up (your query sorts by lastUpdatedTimestamp desc)
+    const nowSec = Math.floor(Date.now() / 1000);
+    const bumpedTs = String(Math.max(nowSec, Number((r as any).lastUpdatedTimestamp || 0)));
+
+    return {
+      ...r,
+      sold: nextSold,
+      lastUpdatedTimestamp: bumpedTs,
+    } as any;
+  });
+
+  // Optional: re-sort by lastUpdatedTimestamp desc to keep UI consistent
+  next.sort((a: any, b: any) => Number(b.lastUpdatedTimestamp || 0) - Number(a.lastUpdatedTimestamp || 0));
+
+  setState({ items: next });
+}
+
+function applyOptimisticCreate(e: OptimisticEvent & { kind: "CREATE" }) {
+  const r = e.raffle;
+  if (!r?.id || !r?.name) return;
+
+  const id = normHex(r.id);
+  const creator = normHex(r.creator || "");
+  if (!id || !creator) return;
+
+  const nowSec = String(Math.floor(Date.now() / 1000));
+
+  const newItem: RaffleListItem = {
+    // required fields — fill best-effort defaults
+    id,
+    name: String(r.name),
+    status: (r.status as any) ?? "FUNDING_PENDING",
+
+    deployer: (r.deployer as any) ?? null,
+    registry: (r.registry as any) ?? null,
+    typeId: (r.typeId as any) ?? null,
+    registryIndex: (r.registryIndex as any) ?? null,
+    isRegistered: Boolean((r as any).isRegistered ?? false),
+    registeredAt: (r.registeredAt as any) ?? null,
+
+    creator,
+    createdAtBlock: String((r as any).createdAtBlock ?? "0"),
+    createdAtTimestamp: String((r as any).createdAtTimestamp ?? nowSec),
+    creationTx: String((r as any).creationTx ?? "0x"),
+
+    usdc: String((r as any).usdc ?? "0x"),
+    entropy: String((r as any).entropy ?? "0x"),
+    entropyProvider: String((r as any).entropyProvider ?? "0x"),
+    feeRecipient: String((r as any).feeRecipient ?? "0x"),
+    protocolFeePercent: String((r as any).protocolFeePercent ?? "0"),
+    callbackGasLimit: String((r as any).callbackGasLimit ?? "0"),
+    minPurchaseAmount: String((r as any).minPurchaseAmount ?? "1"),
+
+    winningPot: String((r as any).winningPot ?? "0"),
+    ticketPrice: String((r as any).ticketPrice ?? "0"),
+    deadline: String((r as any).deadline ?? "0"),
+    minTickets: String((r as any).minTickets ?? "1"),
+    maxTickets: String((r as any).maxTickets ?? "0"),
+    sold: String((r as any).sold ?? "0"),
+    ticketRevenue: String((r as any).ticketRevenue ?? "0"),
+    paused: Boolean((r as any).paused ?? false),
+
+    finalizeRequestId: (r.finalizeRequestId as any) ?? null,
+    finalizedAt: (r.finalizedAt as any) ?? null,
+    selectedProvider: (r.selectedProvider as any) ?? null,
+    winner: (r.winner as any) ?? null,
+    winningTicketIndex: (r.winningTicketIndex as any) ?? null,
+    completedAt: (r.completedAt as any) ?? null,
+    canceledReason: (r.canceledReason as any) ?? null,
+    canceledAt: (r.canceledAt as any) ?? null,
+    soldAtCancel: (r.soldAtCancel as any) ?? null,
+
+    lastUpdatedBlock: String((r as any).lastUpdatedBlock ?? "0"),
+    lastUpdatedTimestamp: String((r as any).lastUpdatedTimestamp ?? nowSec),
+  };
+
+  const items = state.items ?? [];
+  const exists = items.some((x) => normHex(x.id) === id);
+  if (exists) return;
+
+  const next = [newItem, ...items];
+  // keep it consistent with your list ordering
+  next.sort((a: any, b: any) => Number(b.lastUpdatedTimestamp || 0) - Number(a.lastUpdatedTimestamp || 0));
+
+  setState({ items: next });
+}
+
+function handleOptimisticEvent(ev: OptimisticEvent) {
+  ensurePatchGc();
+
+  const patchId = String((ev as any).patchId || "");
+  if (patchId) {
+    if (appliedPatchIds.has(patchId)) return;
+    appliedPatchIds.add(patchId);
+  }
+
+  if (ev.kind === "BUY") applyOptimisticBuy(ev);
+  if (ev.kind === "CREATE") applyOptimisticCreate(ev);
+}
+
+// -----------------------------
+// Fetching
+// -----------------------------
 async function doFetch(isBackground: boolean) {
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
     if (!isBackground) setState({ isLoading: true });
 
-    // cancel any previous request
     aborter?.abort();
     aborter = new AbortController();
+
+    lastFetchStartedMs = Date.now();
 
     try {
       const data = await fetchRafflesFromSubgraph({
@@ -187,7 +323,6 @@ async function doFetch(isBackground: boolean) {
 
       resetBackoff();
     } catch (err) {
-      // If aborted, treat as neutral (no error UI/backoff)
       if (isAbortError(err)) {
         if (!isBackground) setState({ isLoading: false });
       } else {
@@ -198,7 +333,15 @@ async function doFetch(isBackground: boolean) {
       }
     } finally {
       inFlight = null;
-      scheduleNext();
+
+      // ✅ if something requested refresh during flight, do one more (once)
+      if (pendingRefreshAfterFlight) {
+        pendingRefreshAfterFlight = false;
+        // background refresh, but forced
+        void refresh(true, true);
+      } else {
+        scheduleNext();
+      }
     }
   })();
 
@@ -218,12 +361,10 @@ export async function refresh(isBackground = false, force = false) {
   await doFetch(isBackground);
 }
 
-// ✅ CRITICAL: return the SAME reference until state changes
 export function getSnapshot(): StoreState {
   return state;
 }
 
-// for SSR / fallback (same shape, stable)
 function getServerSnapshot(): StoreState {
   return state;
 }
@@ -233,29 +374,90 @@ export function subscribe(listener: Listener) {
   return () => listeners.delete(listener);
 }
 
+// -----------------------------
+// Store lifecycle
+// -----------------------------
+function clearRevalidateDebounce() {
+  if (revalidateDebounceTimer != null) {
+    window.clearTimeout(revalidateDebounceTimer);
+    revalidateDebounceTimer = null;
+  }
+}
+
+/**
+ * When UI emits "ppopgi:revalidate", we:
+ * - don’t spam (min gap)
+ * - don’t overlap (if inFlight => queue one refresh)
+ */
+function requestRevalidate(force = false) {
+  if (subscribers <= 0) return;
+
+  // if hidden, don’t thrash — let normal background polling handle it
+  if (isHidden()) return;
+
+  const now = Date.now();
+  const minGap = 2500;
+
+  // already fetching => queue one refresh after it finishes
+  if (inFlight) {
+    pendingRefreshAfterFlight = true;
+    return;
+  }
+
+  // burst dedupe (double ping from buy etc.)
+  const since = now - lastFetchStartedMs;
+  if (!force && since >= 0 && since < minGap) {
+    clearRevalidateDebounce();
+    revalidateDebounceTimer = window.setTimeout(() => {
+      void refresh(true, true);
+    }, minGap - since);
+    return;
+  }
+
+  void refresh(true, true);
+}
+
 export function startRaffleStore(consumerKey: string, pollMs: number) {
   subscribers += 1;
   requestedPolls.set(consumerKey, pollMs);
 
-  // Attach lifecycle listeners once
   if (subscribers === 1) {
-    const onFocus = () => refresh(true, true);
+    const onFocus = () => requestRevalidate(true);
     const onVis = () => {
-      if (!isHidden()) refresh(true, true);
+      if (!isHidden()) requestRevalidate(true);
+    };
+
+    // ✅ app-wide revalidate event
+    const onReval = () => requestRevalidate(false);
+
+    // ✅ optimistic event
+    const onOpt = (e: Event) => {
+      const ce = e as CustomEvent;
+      const detail = ce?.detail;
+      if (!detail || typeof detail !== "object") return;
+      handleOptimisticEvent(detail as any);
     };
 
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("ppopgi:revalidate", onReval as any);
+    window.addEventListener("ppopgi:optimistic", onOpt as any);
 
     (startRaffleStore as any)._cleanup = () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("ppopgi:revalidate", onReval as any);
+      window.removeEventListener("ppopgi:optimistic", onOpt as any);
+      clearRevalidateDebounce();
+      if (patchGcTimer != null) {
+        window.clearInterval(patchGcTimer);
+        patchGcTimer = null;
+      }
     };
 
     // initial fetch
     void refresh(false, true);
   } else {
-    // if we already have data, don’t force; otherwise, fetch once
     if (!state.items) void refresh(false, true);
     scheduleNext();
   }
@@ -269,6 +471,8 @@ export function startRaffleStore(consumerKey: string, pollMs: number) {
       aborter?.abort();
       aborter = null;
       inFlight = null;
+      pendingRefreshAfterFlight = false;
+      clearRevalidateDebounce();
       (startRaffleStore as any)._cleanup?.();
     } else {
       scheduleNext();
@@ -276,12 +480,6 @@ export function startRaffleStore(consumerKey: string, pollMs: number) {
   };
 }
 
-/**
- * React Hook wrapper around the store.
- * - starts store on mount
- * - stops store on unmount
- * - returns current snapshot
- */
 export function useRaffleStore(consumerKey: string, pollMs: number) {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 

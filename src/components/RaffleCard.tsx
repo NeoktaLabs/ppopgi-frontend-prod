@@ -2,7 +2,6 @@
 import React, { useMemo } from "react";
 import type { RaffleListItem } from "../indexer/subgraph";
 import { useRaffleCard } from "../hooks/useRaffleCard";
-import { useInfraStatus } from "../hooks/useInfraStatus";
 import "./RaffleCard.css";
 
 const EXPLORER_URL = "https://explorer.etherlink.com/address/";
@@ -22,6 +21,12 @@ export type UserEntryStats = {
   percentage: string;
 };
 
+type FinalizerInfo = {
+  running: boolean;
+  secondsToNextRun: number | null;
+  tsMs: number;
+};
+
 type Props = {
   raffle: RaffleListItem;
   onOpen: (id: string) => void;
@@ -30,6 +35,7 @@ type Props = {
   nowMs?: number;
   hatch?: HatchUI | null;
   userEntry?: UserEntryStats;
+  finalizer?: FinalizerInfo | null;
 };
 
 const short = (addr: string) => (addr ? `${addr.slice(0, 5)}...${addr.slice(-4)}` : "Unknown");
@@ -41,7 +47,6 @@ function clampPct(p: number) {
   return p < 1 ? `${p.toFixed(2)}%` : `${p.toFixed(1)}%`;
 }
 
-// "Xm Ys" (always includes seconds)
 function fmtMinSec(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
   const m = Math.floor(s / 60);
@@ -49,15 +54,18 @@ function fmtMinSec(sec: number): string {
   return `${m}m ${r}s`;
 }
 
-export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.now(), hatch, userEntry }: Props) {
+export function RaffleCard({
+  raffle,
+  onOpen,
+  onOpenSafety,
+  ribbon,
+  nowMs = Date.now(),
+  hatch,
+  userEntry,
+  finalizer,
+}: Props) {
   const { ui, actions } = useRaffleCard(raffle, nowMs);
-  const infra = useInfraStatus();
 
-  // -----------------------------
-  // Finalizing rules (card-level)
-  // - Max reached => Finalizing
-  // - Deadline passed while still OPEN => Finalizing
-  // -----------------------------
   const statusRaw = String((raffle as any).status || "");
   const isOpenStatus = statusRaw === "OPEN";
 
@@ -68,60 +76,33 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
   const deadlineSec = Number((raffle as any).deadline ?? 0);
   const deadlinePassed = deadlineSec > 0 && nowMs >= deadlineSec * 1000;
 
-  const shouldFinalizing = isOpenStatus && (maxReached || deadlinePassed);
+  const endConditionReached = isOpenStatus && (maxReached || deadlinePassed);
 
-  // ✅ Freeze at 0 once it hits 0, until refreshed
-  // We approximate "refreshed" by when infra.tsMs changes (the last poll completion time).
-  // If your bot hook triggers a refresh at 0, infra.tsMs will update and this will reset properly.
-  const finalizingSec = useMemo(() => {
-    const to = infra.bot?.secondsToNextRun ?? null;
+  const minTicketsN = Number((raffle as any).minTickets ?? 0);
+  const hasMin = (ui as any)?.hasMin ?? (minTicketsN > 0);
+  const minReached =
+    (ui as any)?.minReached ?? (hasMin ? soldN >= Math.max(0, minTicketsN) : true);
+
+  type EndMode = "CANCELING" | "DRAWING";
+  const endMode: EndMode | null = endConditionReached ? (minReached ? "DRAWING" : "CANCELING") : null;
+
+  const endCountdownSec = useMemo(() => {
+    const to = finalizer?.secondsToNextRun ?? null;
     if (to === null) return null;
-
-    // clamp to >=0 always
     const sec = Math.max(0, Math.floor(to));
-
-    // once it hits 0, keep showing 0 until next infra refresh (tsMs changes)
-    // (because this memo re-runs when infra.tsMs changes)
     return sec === 0 ? 0 : sec;
-  }, [infra.bot?.secondsToNextRun, infra.tsMs]);
+  }, [finalizer?.secondsToNextRun, finalizer?.tsMs]);
 
-  const finalizingChipNode = useMemo(() => {
-    if (!shouldFinalizing) return null;
+  const endChipNode = useMemo(() => {
+    if (!endMode) return null;
+    const title = endMode === "CANCELING" ? "Canceling" : "Drawing winner";
+    if (finalizer?.running) return <>{title}<br />~ now</>;
+    if (endCountdownSec === null) return <>{title}<br />~ soon</>;
+    return <>{title}<br />~ {fmtMinSec(endCountdownSec)}</>;
+  }, [endMode, finalizer?.running, endCountdownSec]);
 
-    if (infra.bot?.running) {
-      return (
-        <>
-          Finalizing
-          <br />
-          ~ now
-        </>
-      );
-    }
-
-    if (finalizingSec === null) {
-      return (
-        <>
-          Finalizing
-          <br />
-          ~ soon
-        </>
-      );
-    }
-
-    return (
-      <>
-        Finalizing
-        <br />
-        ~ {fmtMinSec(finalizingSec)}
-      </>
-    );
-  }, [shouldFinalizing, infra.bot?.running, finalizingSec]);
-
-  const displayStatus = shouldFinalizing ? "Finalizing" : ui.displayStatus;
-
-  // Hide quick-buy if not truly live (also hide on finalizing rules)
-  const isLiveForCard = ui.isLive && !shouldFinalizing;
-
+  const displayStatus = endMode ? (endMode === "CANCELING" ? "Canceling" : "Drawing") : ui.displayStatus;
+  const isLiveForCard = ui.isLive && !endConditionReached;
   const statusClass = displayStatus.toLowerCase().replace(" ", "-");
   const cardClass = `rc-card ${ribbon || ""}`;
   const hostAddr = (raffle as any).owner || (raffle as any).creator;
@@ -129,13 +110,29 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
   const winRateLabel = useMemo(() => {
     const max = Number((raffle as any).maxTickets ?? 0);
     const sold = Number((raffle as any).sold ?? 0);
-
     const denom = max > 0 ? max : sold + 1;
     if (!isFinite(denom) || denom <= 0) return "0%";
-
-    const pct = (1 / denom) * 100;
-    return clampPct(pct);
+    return clampPct((1 / denom) * 100);
   }, [raffle.maxTickets, raffle.sold]);
+
+  const endInfoBlock = useMemo(() => {
+    if (!endMode) return null;
+    if (endMode === "CANCELING") {
+      return (
+        <div className="rc-end-note">
+          <div style={{ marginBottom: 6 }}>Canceling raffle</div>
+          <div className="rc-end-sub">Min tickets not reached.<br/>Reclaim available.</div>
+        </div>
+      );
+    }
+    const reason = maxReached ? "Sold Out" : "Time's Up";
+    return (
+      <div className="rc-end-note">
+        <div style={{ marginBottom: 6 }}>Drawing Winner ({reason})</div>
+        <div className="rc-end-sub">Selection pending...<br/>Check back soon.</div>
+      </div>
+    );
+  }, [endMode, maxReached]);
 
   return (
     <div className={cardClass} onClick={() => onOpen(raffle.id)} role="button" tabIndex={0}>
@@ -143,34 +140,22 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
       <div className="rc-notch right" />
       {ui.copyMsg && <div className="rc-toast">{ui.copyMsg}</div>}
 
-      {/* Header */}
+      {/* --- HEADER SECTION --- */}
       <div className="rc-header">
-        {/* ✅ Chip: show 2-line "Finalizing ~ Xm Ys" when finalizing */}
-        <div className={`rc-chip ${statusClass}`}>{shouldFinalizing ? finalizingChipNode : displayStatus}</div>
-
-        <div className="rc-winrate-badge" title="Win chance per ticket">
-          🎲 Win: {winRateLabel}
-        </div>
-
+        <div className={`rc-chip ${statusClass}`}>{endMode ? endChipNode : ui.displayStatus}</div>
+        <div className="rc-winrate-badge" title="Win chance per ticket">🎲 Win: {winRateLabel}</div>
         <div className="rc-actions">
           <button
             className="rc-shield-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenSafety?.(raffle.id);
-            }}
+            onClick={(e) => { e.stopPropagation(); onOpenSafety?.(raffle.id); }}
             title="Verified Contract"
             disabled={!onOpenSafety}
           >
             🛡
           </button>
-
           <button
             className="rc-btn-icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              actions.handleShare(e);
-            }}
+            onClick={(e) => { e.stopPropagation(); actions.handleShare(e); }}
             title="Share"
           >
             🔗
@@ -187,73 +172,43 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
       <div className="rc-host">
         <span>Created by</span>
         {hostAddr ? (
-          <a
-            href={`${EXPLORER_URL}${hostAddr}`}
-            target="_blank"
-            rel="noreferrer"
-            className="rc-host-link"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <a href={`${EXPLORER_URL}${hostAddr}`} target="_blank" rel="noreferrer" className="rc-host-link" onClick={(e) => e.stopPropagation()}>
             {short(hostAddr)}
           </a>
-        ) : (
-          <span>PPOPGI</span>
-        )}
+        ) : <span>PPOPGI</span>}
       </div>
 
-      <div className="rc-title" title={raffle.name}>
-        {raffle.name}
-      </div>
+      <div className="rc-title" title={raffle.name}>{raffle.name}</div>
 
-      {/* Prize Section */}
-      <div className="rc-prize-lbl">Current Prize Pool</div>
-
-      <div className="rc-prize-row">
+      {/* --- PRIZE (Holographic) --- */}
+      <div className="rc-prize-section">
+        <div className="rc-prize-lbl">Prize Pool</div>
         <div className="rc-prize-val">
           <span className="rc-prize-num">{ui.formattedPot}</span>
           <span className="rc-prize-unit">USDC</span>
         </div>
       </div>
 
-      <div className="rc-prize-note">*See details for prize distribution</div>
-
-      <div className="rc-quick-buy-wrapper">
-        <div className="rc-perforation" />
-        {isLiveForCard && (
-          <button
-            className="rc-quick-buy-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen(raffle.id);
-            }}
-          >
-            ⚡ Buy Ticket
-          </button>
-        )}
-      </div>
-
+      {/* --- STATS GRID (Moved Up) --- */}
       <div className="rc-grid">
         <div className="rc-stat">
           <div className="rc-stat-lbl">Ticket Price</div>
           <div className="rc-stat-val">{ui.formattedPrice} USDC</div>
         </div>
         <div className="rc-stat">
-          <div className="rc-stat-lbl">Sold</div>
-          <div className="rc-stat-val">
-            {ui.sold} {ui.hasMax && `/ ${ui.max}`}
-          </div>
+          <div className="rc-stat-lbl">Tickets Sold</div>
+          <div className="rc-stat-val">{ui.sold} {ui.hasMax && `/ ${ui.max}`}</div>
         </div>
       </div>
 
+      {/* --- LIQUID BARS (Moved Up) --- */}
       {isLiveForCard && ui.hasMin && (
         <div className="rc-bar-group">
           {!ui.minReached ? (
             <>
               <div className="rc-bar-row">
-                <span>Min To Draw</span>
-                <span>
-                  {ui.sold} / {ui.min}
-                </span>
+                <span>Min Target</span>
+                <span>{ui.sold} / {ui.min}</span>
               </div>
               <div className="rc-track">
                 <div className="rc-fill blue" style={{ width: ui.progressMinPct }} />
@@ -268,9 +223,8 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
               <div className="rc-track">
                 <div className="rc-fill green" style={{ width: "100%" }} />
               </div>
-
               <div className="rc-bar-row" style={{ marginTop: 8 }}>
-                <span>Capacity</span>
+                <span>Total Capacity</span>
                 <span>{ui.hasMax ? `${ui.sold} / ${ui.max}` : "Unlimited"}</span>
               </div>
               <div className="rc-track">
@@ -284,39 +238,44 @@ export function RaffleCard({ raffle, onOpen, onOpenSafety, ribbon, nowMs = Date.
       {hatch && hatch.show && (
         <div className="rc-hatch" onClick={(e) => e.stopPropagation()}>
           <div className="rc-bar-row">
-            <span>⚠️ Emergency Hatch</span>
+            <span>⚠️ Emergency</span>
             <span>{hatch.label}</span>
           </div>
-          <button
-            className={`rc-hatch-btn ${hatch.ready ? "ready" : ""}`}
-            disabled={hatch.disabled || hatch.busy}
-            onClick={hatch.onClick}
-          >
-            {hatch.busy ? "CONFIRMING..." : hatch.ready ? "HATCH (CANCEL)" : "LOCKED"}
+          <button className={`rc-hatch-btn ${hatch.ready ? "ready" : ""}`} disabled={hatch.disabled || hatch.busy} onClick={hatch.onClick}>
+            {hatch.busy ? "..." : hatch.ready ? "HATCH (CANCEL)" : "LOCKED"}
           </button>
-          {hatch.note && (
-            <div style={{ fontSize: 10, marginTop: 4, textAlign: "center", fontWeight: 800, textTransform: "uppercase" }}>
-              {hatch.note}
-            </div>
-          )}
         </div>
       )}
 
-      {/* Footer */}
-      <div className="rc-footer-new">
-        <div className="rc-footer-left">{isLiveForCard ? `Ends: ${ui.timeLeft}` : displayStatus}</div>
-        <div className="rc-footer-right">
-          <div className="rc-barcode-div" />
-          <a
-            href={`${EXPLORER_URL}${raffle.id}`}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="rc-id-link"
-            title="View Contract"
-          >
-            #{raffle.id.slice(2, 8).toUpperCase()}
-          </a>
+      {/* --- TEAR-OFF STUB (Footer Action) --- */}
+      <div className="rc-stub-container">
+        <div className="rc-perforation-line" />
+        
+        <div className="rc-stub-content">
+          {/* Action Button */}
+          {isLiveForCard ? (
+            <button className="rc-quick-buy-btn" onClick={(e) => { e.stopPropagation(); onOpen(raffle.id); }}>
+              ⚡ Buy Ticket
+            </button>
+          ) : (
+            endInfoBlock
+          )}
+
+          {/* Metadata */}
+          <div className="rc-stub-meta">
+            <div className="rc-meta-left">{isLiveForCard ? `Ends: ${ui.timeLeft}` : displayStatus}</div>
+            <div className="rc-meta-right">
+              <a
+                href={`${EXPLORER_URL}${raffle.id}`}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="rc-id-link"
+              >
+                #{raffle.id.slice(2, 8).toUpperCase()}
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>

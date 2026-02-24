@@ -1,5 +1,6 @@
 // src/hooks/useInfraStatus.ts
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRevalidate } from "../hooks/useRevalidateTick";
 
 type IndexerLevel = "healthy" | "degraded" | "late" | "down";
 type RpcLevel = "healthy" | "degraded" | "slow" | "down";
@@ -29,11 +30,10 @@ type InfraStatus = {
     level: BotLevel;
     label: string;
     running: boolean;
-
     lastRunMs: number | null;
 
     /**
-     * ✅ Derived schedule (UI truth):
+     * Derived schedule (UI truth):
      * nextRunMs = lastRunMs + finalizerEverySec*1000
      */
     nextRunMs: number | null;
@@ -187,17 +187,11 @@ async function rpcEthBlockNumber(rpcUrl: string, timeoutMs: number): Promise<{ b
   return { block, latencyMs };
 }
 
+// ✅ use Worker /meta endpoint instead of POSTing _meta through /graphql
 async function subgraphIndexedBlock(subgraphUrl: string, timeoutMs: number): Promise<number> {
-  const query = `query __Meta { _meta { block { number } } }`;
-  const res = await withTimeout(
-    fetch(subgraphUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ query }),
-    }),
-    timeoutMs,
-    "subgraph_timeout"
-  );
+  const metaUrl = subgraphUrl.endsWith("/graphql") ? subgraphUrl.replace(/\/graphql$/, "/meta") : subgraphUrl;
+
+  const res = await withTimeout(fetch(metaUrl, { method: "GET", cache: "no-store" }), timeoutMs, "subgraph_timeout");
 
   if (!res.ok) throw new Error(`subgraph_http_${res.status}`);
   const json = await res.json().catch(() => null);
@@ -216,18 +210,32 @@ async function fetchBotStatus(statusUrl: string, timeoutMs: number) {
   return json;
 }
 
+function isHidden() {
+  try {
+    return typeof document !== "undefined" && document.hidden;
+  } catch {
+    return false;
+  }
+}
+
 export function useInfraStatus() {
   const subgraphUrl = useMemo(() => mustEnv("VITE_SUBGRAPH_URL"), []);
   const rpcUrl = useMemo(() => mustEnv("VITE_ETHERLINK_RPC_URL"), []);
   const botUrl = useMemo(() => env("VITE_FINALIZER_STATUS_URL"), []);
 
+  // revalidate tick (app can "poke" infra refresh after actions)
+  const rvTick = useRevalidate();
+  const lastRvAtRef = useRef<number>(0);
+
   const pollMs = useMemo(() => {
     const v = env("VITE_INFRA_POLL_MS");
-    const n = v ? Number(v) : 30000;
-    return Number.isFinite(n) ? Math.max(5000, Math.floor(n)) : 30000;
+    // ✅ default 60s
+    const n = v ? Number(v) : 60_000;
+    // ✅ never poll faster than 60s (prevents accidental hammering)
+    return Number.isFinite(n) ? Math.max(60_000, Math.floor(n)) : 60_000;
   }, []);
 
-  // ✅ 3 minutes by default, configurable
+  // 3 minutes by default, configurable
   const finalizerEverySec = useMemo(() => {
     const v = env("VITE_FINALIZER_EVERY_SEC");
     const n = v ? Number(v) : 180;
@@ -236,8 +244,10 @@ export function useInfraStatus() {
 
   const aliveRef = useRef(true);
   const fetchingRef = useRef(false);
-  const zeroKickArmedRef = useRef(true);
-  const zeroKickTimerRef = useRef<any>(null);
+
+  // ✅ When bot "Next" hits 0, we bot-poll every 5s until it becomes > 0 (bot-only; no RPC/_meta spam)
+  const botZeroModeRef = useRef(false);
+  const botZeroIntervalRef = useRef<any>(null);
 
   const [nowTick, setNowTick] = useState(() => Date.now());
   useEffect(() => {
@@ -245,11 +255,21 @@ export function useInfraStatus() {
     return () => clearInterval(t);
   }, []);
 
+  const stopBotZeroMode = () => {
+    botZeroModeRef.current = false;
+    try {
+      clearInterval(botZeroIntervalRef.current);
+    } catch {}
+    botZeroIntervalRef.current = null;
+  };
+
   useEffect(() => {
     aliveRef.current = true;
     return () => {
       aliveRef.current = false;
+      stopBotZeroMode();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [state, setState] = useState<InfraStatus>(() => ({
@@ -276,6 +296,75 @@ export function useInfraStatus() {
     secondsToNextPoll: Math.floor(pollMs / 1000),
   }));
 
+  const runBotOnlyOnce = async () => {
+    if (!botUrl) return;
+    if (isHidden()) return;
+
+    try {
+      const w = await fetchBotStatus(botUrl.trim(), 5000);
+
+      const bs = botStatusFromWire(w);
+      const botLevel = bs.level;
+      const botLabel = bs.label;
+      const botRunning = !!w?.running;
+
+      const lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
+
+      const sinceWire = clampSec(w?.secondsSinceLastRun);
+      const toWire = clampSec(w?.secondsToNextRun);
+      const lastError = w?.lastError ? String(w.lastError) : null;
+
+      let nextRunMs: number | null = null;
+      if (lastRunMs !== null) nextRunMs = lastRunMs + finalizerEverySec * 1000;
+      else nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
+
+      const now = Date.now();
+      const liveSince = lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : sinceWire;
+      const liveTo = nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : toWire;
+
+      if (!aliveRef.current) return;
+
+      setState((prev) => {
+        const overall = worstOverall(prev.indexer.level, prev.rpc.level, botLevel);
+        return {
+          ...prev,
+          tsMs: now, // optional: makes “Updated HH:MM” tick during bot-only refresh
+          bot: {
+            ...prev.bot,
+            level: botLevel,
+            label: botLabel,
+            running: botRunning,
+            lastRunMs,
+            nextRunMs,
+            finalizerEverySec,
+            secondsSinceLastRunWire: sinceWire,
+            secondsToNextRunWire: toWire,
+            secondsSinceLastRun: liveSince ?? null,
+            secondsToNextRun: liveTo ?? null,
+            lastError,
+            error: undefined,
+          },
+          overall,
+        };
+      });
+    } catch (e: any) {
+      if (!aliveRef.current) return;
+      setState((prev) => {
+        const overall = worstOverall(prev.indexer.level, prev.rpc.level, "unknown");
+        return {
+          ...prev,
+          bot: {
+            ...prev.bot,
+            level: "unknown",
+            label: "Unknown",
+            error: String(e?.message || e || "bot_error"),
+          },
+          overall,
+        };
+      });
+    }
+  };
+
   const runOnce = async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
@@ -284,14 +373,15 @@ export function useInfraStatus() {
     const nextPollAt = fetchedAtMs + pollMs;
 
     try {
-      // ---- RPC (median of 3) ----
+      // ---- RPC ----
       let rpcOk = false;
       let rpcLatency: number | null = null;
       let headBlock: number | null = null;
       let rpcErr: string | undefined;
 
       try {
-        const tries = 3;
+        // ✅ single call per poll
+        const tries = 1;
         const latencies: number[] = [];
         let latestBlock = 0;
 
@@ -325,7 +415,7 @@ export function useInfraStatus() {
 
       const idxS = indexerStatus(behind);
 
-      // ---- Bot status ----
+      // ---- Bot status (only once per poll) ----
       let botLevel: BotLevel = "unknown";
       let botLabel = "Unknown";
       let botRunning = false;
@@ -354,7 +444,7 @@ export function useInfraStatus() {
           toWire = clampSec(w?.secondsToNextRun);
           lastError = w?.lastError ? String(w.lastError) : null;
 
-          // ✅ NEW TRUTH: next = last + 3min (or env-defined)
+          // next = last + finalizerEverySec
           if (lastRunMs !== null) {
             nextRunMs = lastRunMs + finalizerEverySec * 1000;
           } else {
@@ -413,9 +503,6 @@ export function useInfraStatus() {
         nextPollMs: nextPollAt,
         secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - Date.now()) / 1000)),
       });
-
-      // ✅ re-arm after successful fetch
-      zeroKickArmedRef.current = true;
     } finally {
       fetchingRef.current = false;
     }
@@ -440,11 +527,24 @@ export function useInfraStatus() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollMs, rpcUrl, subgraphUrl, botUrl, finalizerEverySec]);
 
-  // every second: recompute live countdowns + force refresh at 0s
+  // revalidate-driven "poke" (throttled)
+  useEffect(() => {
+    if (!rvTick) return;
+    if (isHidden()) return;
+
+    const now = Date.now();
+    // ✅ was 3s — too aggressive for infra checks
+    if (now - lastRvAtRef.current < 15_000) return;
+    lastRvAtRef.current = now;
+
+    void runOnce();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rvTick]);
+
+  // every second: recompute live countdowns + bot-only refresh at 0s
   useEffect(() => {
     const now = nowTick;
 
-    // update live countdowns (and refresh-in)
     setState((prev) => {
       const nextPollMs = prev.nextPollMs || now + prev.pollMs;
       const secondsToNextPoll = Math.max(0, Math.floor((nextPollMs - now) / 1000));
@@ -476,24 +576,27 @@ export function useInfraStatus() {
       };
     });
 
-    // ✅ Force refresh when countdown hits 0
+    // ✅ Smart: when Next == 0, bot-poll every 5s until it changes (bot-only; no RPC/_meta spam)
     const secToNext = state.bot.secondsToNextRun;
-    if (secToNext === 0 && zeroKickArmedRef.current) {
-      zeroKickArmedRef.current = false;
+    const shouldZeroPoll = !!botUrl && secToNext === 0 && !isHidden();
 
-      try {
-        clearTimeout(zeroKickTimerRef.current);
-      } catch {}
+    if (shouldZeroPoll && !botZeroModeRef.current) {
+      botZeroModeRef.current = true;
 
-      // small delay so the worker has time to update KV
-      zeroKickTimerRef.current = setTimeout(() => {
-        void runOnce();
-      }, 800);
+      // fire immediately, then every 5s
+      void runBotOnlyOnce();
+      botZeroIntervalRef.current = setInterval(() => {
+        void runBotOnlyOnce();
+      }, 5_000);
+    }
+
+    if (!shouldZeroPoll && botZeroModeRef.current) {
+      stopBotZeroMode();
     }
 
     return () => {};
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nowTick]);
+  }, [nowTick, state.bot.secondsToNextRun, botUrl, finalizerEverySec]);
 
   return state;
 }

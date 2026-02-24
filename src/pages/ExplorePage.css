@@ -3,18 +3,14 @@
 /* --- Container --- */
 .xp-container {
   max-width: 1400px;
-  
-  /* ✅ CHANGED: Margin creates the physical gap from the top */
   margin: 20px auto 0 auto;
-  
-  /* ✅ CHANGED: Reduced padding since we now have external margin */
   padding: 40px 20px 80px 20px;
   
-  /* ✅ ADDED: Rounded top corners for a "sheet" look */
+  /* Soft rounded sheet look */
   border-radius: 32px 32px 0 0;
   
   color: #4A0F2B;
-  min-height: calc(100vh - 120px); /* Ensure it fills the rest of screen */
+  min-height: calc(100vh - 120px);
   
   /* Breathing Background */
   background: linear-gradient(-45deg, rgba(255,255,255,0.9), #fff0f5, #fce7f3, #ffffff);
@@ -31,14 +27,14 @@
 /* --- Header Section --- */
 .xp-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 50px;
 }
 
 .xp-title {
   font-size: 48px;
-  font-weight: 1000;
-  margin: 0 0 16px 0;
-  letter-spacing: -1.5px;
+  font-weight: 900; /* Fixed to 900 */
+  margin: 0 0 12px 0;
+  letter-spacing: -2px; /* Tighter letter spacing */
   
   background: linear-gradient(180deg, #4A0F2B 0%, #9A2A58 100%);
   -webkit-background-clip: text;
@@ -50,24 +46,26 @@
   font-size: 18px;
   font-weight: 600;
   color: #4A0F2B;
-  opacity: 0.7;
+  opacity: 0.8;
   max-width: 600px;
   margin: 0 auto 24px auto;
 }
 
 .xp-stats-pill {
   display: inline-block;
-  padding: 8px 16px;
+  padding: 8px 18px;
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(74, 15, 43, 0.1);
   border-radius: 99px;
-  font-size: 13px;
+  font-size: 12px;
   color: #64748b;
   backdrop-filter: blur(4px);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .xp-stats-pill strong {
   color: #4A0F2B;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 /* --- Glass Toolbar --- */
@@ -81,12 +79,13 @@
 }
 
 .xp-toolbar {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 
-    0 20px 40px -10px rgba(74, 15, 43, 0.1), 
-    0 0 0 1px rgba(74, 15, 43, 0.05); /* Outline */
+    0 20px 40px -10px rgba(74, 15, 43, 0.08), 
+    0 4px 10px -2px rgba(74, 15, 43, 0.02);
   
   border-radius: 24px;
   padding: 16px 24px;
@@ -115,9 +114,9 @@
   border-top: 1px solid rgba(0,0,0,0.06);
 }
 
-/* Search Input */
+/* Search Input (Pill Shape) */
 .xp-search-group {
-  flex: 2; /* Takes more space */
+  flex: 2; 
   min-width: 280px;
   position: relative;
   display: flex;
@@ -126,7 +125,7 @@
 
 .xp-search-icon {
   position: absolute;
-  left: 16px;
+  left: 20px;
   font-size: 16px;
   opacity: 0.5;
   pointer-events: none;
@@ -134,10 +133,10 @@
 
 .xp-search-input {
   width: 100%;
-  padding: 14px 16px 14px 44px; /* Room for icon */
-  border-radius: 14px;
+  padding: 14px 16px 14px 50px; 
+  border-radius: 99px; /* Pill Shape */
   border: 1px solid rgba(74, 15, 43, 0.1);
-  background: #ffffff;
+  background: #f8fafc;
   font-size: 15px;
   font-weight: 600;
   color: #4A0F2B;
@@ -146,21 +145,30 @@
 }
 
 .xp-search-input:focus {
+  background: #ffffff;
   border-color: #9A2A58;
-  box-shadow: 0 0 0 3px rgba(154, 42, 88, 0.1);
+  box-shadow: 0 0 0 4px rgba(154, 42, 88, 0.1);
 }
 
 .xp-clear-btn {
   position: absolute;
-  right: 12px;
-  background: transparent;
+  right: 16px;
+  background: #e2e8f0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   border: none;
-  color: #999;
+  color: #64748b;
   cursor: pointer;
   font-weight: 800;
+  font-size: 10px;
+  display: grid;
+  place-items: center;
+  transition: 0.2s;
 }
+.xp-clear-btn:hover { background: #cbd5e1; color: #1e293b; }
 
-/* Select Dropdowns */
+/* Select Dropdowns (Pill Shape) */
 .xp-select-group {
   flex: 1;
   display: flex;
@@ -176,24 +184,32 @@
 .xp-select {
   width: 100%;
   appearance: none;
-  background: #ffffff;
+  background: #f8fafc;
   border: 1px solid rgba(74, 15, 43, 0.1);
-  border-radius: 12px;
-  padding: 14px 36px 14px 14px; /* Room for arrow */
+  border-radius: 99px; /* Pill Shape */
+  padding: 14px 36px 14px 20px;
   font-size: 14px;
   font-weight: 700;
   color: #4A0F2B;
   cursor: pointer;
   outline: none;
+  transition: all 0.2s;
 }
+
 .xp-select:hover {
-  background: #fffafa;
+  background: #ffffff;
   border-color: rgba(74, 15, 43, 0.2);
+}
+
+.xp-select:focus {
+  background: #ffffff;
+  border-color: #9A2A58;
+  box-shadow: 0 0 0 4px rgba(154, 42, 88, 0.1);
 }
 
 .xp-select-arrow {
   position: absolute;
-  right: 14px;
+  right: 16px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 10px;
@@ -211,7 +227,7 @@
 .xp-toggle-btn {
   background: transparent;
   border: 1px solid transparent;
-  padding: 8px 16px;
+  padding: 8px 18px;
   border-radius: 99px;
   font-size: 13px;
   font-weight: 700;
@@ -251,26 +267,43 @@
 .xp-results {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 32px; /* Nicer gap */
+  gap: 32px;
   justify-items: center;
 }
 
-/* Ensure cards stretch properly */
+/* Staggered Animation & Hover Lift */
 .xp-card-shell {
   width: 100%;
-  max-width: 340px; /* Slightly wider max to fit grid nicely */
+  max-width: 340px;
   justify-self: center;
+  
+  /* Initial state for animation */
+  opacity: 0;
+  transform: translateY(20px);
+  animation: xp-fade-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  
+  transition: transform 0.3s ease;
+}
+
+.xp-card-shell:hover {
+  transform: translateY(-6px); /* Interactive lift */
+}
+
+@keyframes xp-fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* --- Emotive Empty States --- */
 .xp-empty-state {
-  grid-column: 1 / -1; /* Center across full width */
+  grid-column: 1 / -1;
   text-align: center;
   padding: 80px 20px;
-  background: rgba(255,255,255,0.4);
-  border: 2px dashed rgba(74, 15, 43, 0.1);
+  background: linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%);
+  border: 1px dashed rgba(74, 15, 43, 0.15);
   border-radius: 24px;
   margin-top: 20px;
+  box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05);
 }
 
 .xp-empty-icon {
@@ -302,11 +335,14 @@
   border-radius: 99px;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
 .xp-empty-action:hover {
   background: #4A0F2B;
   color: white;
   border-color: #4A0F2B;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(74, 15, 43, 0.2);
 }
 
 /* --- Mobile Responsiveness --- */
@@ -328,7 +364,7 @@
   }
 
   .xp-select-group {
-    flex-direction: row; /* Keep selects side-by-side */
+    flex-direction: row;
   }
 
   .xp-toolbar-row.secondary {

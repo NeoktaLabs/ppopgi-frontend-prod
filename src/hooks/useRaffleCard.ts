@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { formatUnits } from "ethers";
 import type { RaffleListItem } from "../indexer/subgraph";
+import { useRevalidate } from "../hooks/useRevalidateTick";
 
 // --- Helpers ---
 const toNum = (v: any) => {
@@ -60,6 +61,10 @@ function normalizeMaxTickets(maxTickets: any) {
 }
 
 export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
+  // ✅ Revalidate tick: forces a rerender on relevant events.
+  // This helps in cases where upstream data might be updated in-place.
+  const rvTick = useRevalidate();
+
   const [copyMsg, setCopyMsg] = useState<string | null>(null);
   const clearMsgTimerRef = useRef<number | null>(null);
 
@@ -74,17 +79,29 @@ export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
 
   // 1) Status & Time
   const displayStatus = useMemo(
-    () => getDisplayStatus(raffle.status, raffle.deadline, nowMs),
-    [raffle.status, raffle.deadline, nowMs]
+    () => getDisplayStatus(String(raffle.status || ""), String(raffle.deadline || "0"), nowMs),
+    // include rvTick so the card recomputes on revalidate events even if raffle ref is stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [raffle.status, raffle.deadline, nowMs, rvTick]
   );
-  const timeLeft = useMemo(() => formatEndsIn(raffle.deadline, nowMs), [raffle.deadline, nowMs]);
+
+  const timeLeft = useMemo(
+    () => formatEndsIn(String(raffle.deadline || "0"), nowMs),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [raffle.deadline, nowMs, rvTick]
+  );
+
   const isLive = displayStatus === "Open" || displayStatus === "Getting ready";
 
   // 2) Math (Progress)
-  const sold = toNum(raffle.sold);
+  const sold = useMemo(() => toNum((raffle as any).sold), [raffle, rvTick]);
 
-  const min = toNum((raffle as any).minTickets);
-  const max = normalizeMaxTickets((raffle as any).maxTickets ?? raffle.maxTickets);
+  const min = useMemo(() => toNum((raffle as any).minTickets), [raffle, rvTick]);
+
+  const max = useMemo(
+    () => normalizeMaxTickets((raffle as any).maxTickets ?? (raffle as any).maxTickets),
+    [raffle, rvTick]
+  );
 
   const hasMin = min > 0;
   const hasMax = max > 0;
@@ -132,6 +149,9 @@ export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
     clearMsgTimerRef.current = window.setTimeout(() => setCopyMsg(null), 1500);
   };
 
+  const formattedPot = useMemo(() => fmtUsdc((raffle as any).winningPot), [raffle, rvTick]);
+  const formattedPrice = useMemo(() => fmtUsdc((raffle as any).ticketPrice), [raffle, rvTick]);
+
   return {
     ui: {
       displayStatus,
@@ -139,8 +159,8 @@ export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
       isLive,
       copyMsg,
 
-      formattedPot: fmtUsdc(raffle.winningPot),
-      formattedPrice: fmtUsdc(raffle.ticketPrice),
+      formattedPot,
+      formattedPrice,
 
       sold,
       min,

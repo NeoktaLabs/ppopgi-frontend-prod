@@ -19,49 +19,18 @@
   -webkit-backdrop-filter: blur(16px);
 
   border: 1px solid rgba(74, 15, 43, 0.08); 
-  border-radius: 16px; /* Slightly tighter border radius */
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 
-  /* ✅ THINNER PADDING */
-  padding: 10px 16px; 
-}
-
-/* The little pointing arrow at the top */
-.isp-notch-inner::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  transform: translateX(-50%) rotate(45deg);
-
-  width: 12px;
-  height: 12px;
-  background: #ffffff;
-  border-left: 1px solid rgba(74, 15, 43, 0.08);
-  border-top: 1px solid rgba(74, 15, 43, 0.08);
-  border-top-left-radius: 3px;
-}
-
-/* Title */
-.isp-notch-title {
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: #4A0F2B; /* Brand Pink */
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* ✅ THINNER MARGIN */
-  margin-bottom: 8px; 
+  /* Thinner padding since title is gone */
+  padding: 8px 12px; 
 }
 
 /* 3-Column Grid */
 .isp-notch-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px; /* ✅ TIGHTER GAP */
+  gap: 8px;
 }
 
 /* Each block */
@@ -69,11 +38,10 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  /* ✅ THINNER BOX PADDING */
-  padding: 8px 12px; 
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px; /* Close the gap between title and data */
+  gap: 2px;
 }
 
 .isp-item-header {
@@ -83,7 +51,7 @@
 }
 
 .isp-item-name {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   color: #64748b;
   text-transform: uppercase;
@@ -95,30 +63,35 @@
 }
 
 .isp-item-val {
-  font-size: 14px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 700;
   color: #0f172a;
   line-height: 1.2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .isp-item-sub {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   color: #94a3b8;
   margin-top: 2px;
   line-height: 1.3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 /* Footer */
 .isp-notch-foot {
-  /* ✅ THINNER MARGINS/PADDING */
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid #f1f5f9;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  color: #94a3b8;
+  
+  /* ✅ Changed from grey to Black for readability */
+  color: #000000;
+  
   text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* Tooltip Logic */
@@ -135,6 +108,7 @@
   font-weight: 900;
   cursor: help;
   position: relative;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .isp-q:hover {
@@ -162,6 +136,7 @@
   transition: all 0.2s ease;
   z-index: 100;
   pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .isp-tip::after {
@@ -190,7 +165,17 @@
   box-shadow: 0 0 0 2px rgba(0,0,0,0.04);
 }
 
-.isp-dot.healthy { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2); }
+@keyframes isp-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  70% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.isp-dot.healthy { 
+  background: #22c55e; 
+  animation: isp-pulse 2s infinite;
+}
+
 .isp-dot.degraded { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
 .isp-dot.late { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
 .isp-dot.slow { background: #f59e0b; }
@@ -198,7 +183,7 @@
 .isp-dot.unknown { background: #94a3b8; }
 
 /* =========================================
-   ✅ MOBILE RESPONSIVENESS (Compact)
+   MOBILE RESPONSIVENESS
    ========================================= */
 @media (max-width: 700px) {
   .isp-notch {
@@ -211,13 +196,9 @@
     border-radius: 14px;
   }
 
-  .isp-notch-title {
-    margin-bottom: 6px;
-  }
-
   .isp-notch-grid {
     grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
+    gap: 4px;
   }
   
   .isp-item {
@@ -233,16 +214,12 @@
   }
   
   .isp-item-name {
-    font-size: 10px;
+    font-size: 9px;
     letter-spacing: 0;
   }
   
-  .isp-item-data {
-    margin-top: 0;
-  }
-  
   .isp-item-val {
-    font-size: 11px;
+    font-size: 10px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -255,8 +232,8 @@
   }
 
   .isp-notch-foot {
-    margin-top: 6px;
-    padding-top: 6px;
-    font-size: 9px;
+    margin-top: 4px;
+    padding-top: 4px;
+    font-size: 8px;
   }
 }

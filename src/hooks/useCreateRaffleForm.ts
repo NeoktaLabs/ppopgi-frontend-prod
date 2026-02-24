@@ -8,14 +8,14 @@ import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 import { ADDRESSES } from "../config/contracts";
 
 function sanitizeInt(raw: string) {
-  return raw.replace(/[^\d]/g, "");
+  return String(raw ?? "").replace(/[^\d]/g, "");
 }
 function toInt(raw: string, fallback = 0) {
   const n = Number(sanitizeInt(raw));
   return Number.isFinite(n) ? Math.floor(n) : fallback;
 }
 
-// Minimal ERC20 ABI
+// Minimal ERC20 ABI (for typed thirdweb contract)
 const ERC20_ABI = [
   {
     type: "function",
@@ -46,6 +46,70 @@ const ERC20_ABI = [
   },
 ] as const;
 
+// ✅ Factory ABI (typed) — prevents “no function defined” wallet UI + encoding issues
+const FACTORY_ABI = [
+  {
+    type: "function",
+    name: "createSingleWinnerLottery",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "name", type: "string" },
+      { name: "ticketPrice", type: "uint256" },
+      { name: "winningPot", type: "uint256" },
+      { name: "minTickets", type: "uint64" },
+      { name: "maxTickets", type: "uint64" },
+      { name: "durationSeconds", type: "uint64" },
+      { name: "minPurchaseAmount", type: "uint32" },
+    ],
+    outputs: [{ name: "raffle", type: "address" }],
+  },
+] as const;
+
+// ✅ optimistic + revalidate events (Home responsiveness without hammering indexer)
+type OptimisticCreateDetail = {
+  kind: "CREATE";
+  patchId?: string;
+  raffleId: string;
+  name: string;
+  creator: string;
+  createdAtTimestamp: string;
+  creationTx?: string | null;
+  winningPot: string;
+  ticketPrice: string;
+  deadline: string;
+  minTickets: string;
+  maxTickets: string;
+  sold: string;
+  lastUpdatedTimestamp: string;
+};
+
+function emitOptimisticCreate(detail: OptimisticCreateDetail) {
+  try {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("ppopgi:optimistic", { detail }));
+  } catch {
+    // ignore
+  }
+}
+
+function emitRevalidate(withDelayedPing = true) {
+  try {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
+  } catch {}
+
+  if (!withDelayedPing) return;
+
+  try {
+    if (typeof window === "undefined") return;
+    window.setTimeout(() => {
+      try {
+        window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
+      } catch {}
+    }, 7000); // give indexer time to ingest
+  } catch {}
+}
+
 export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string) => void) {
   const account = useActiveAccount();
   const me = account?.address ?? null;
@@ -60,7 +124,7 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
 
   // Limits
   const [minTickets, setMinTickets] = useState("1");
-  const [maxTickets, setMaxTickets] = useState("");
+  const [maxTickets, setMaxTickets] = useState(""); // "" => treat as 0 (unlimited)
   const [minPurchaseAmount, setMinPurchaseAmount] = useState("1");
 
   // --- Web3 State ---
@@ -79,6 +143,7 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
         client: thirdwebClient,
         chain: ETHERLINK_CHAIN,
         address: ADDRESSES.SingleWinnerDeployer,
+        abi: FACTORY_ABI, // ✅ important
       }),
     []
   );
@@ -118,11 +183,11 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
   }, [winningPotInt]);
 
   const minT = BigInt(Math.max(1, toInt(minTickets, 1)));
-  const maxT = BigInt(Math.max(0, toInt(maxTickets, 0)));
+  const maxT = BigInt(Math.max(0, toInt(maxTickets, 0))); // 0 => unlimited
   const minPurchaseU32 = Math.max(1, toInt(minPurchaseAmount, 1));
 
   // --- Validation ---
-  const durOk = durationSecondsN >= 60; // Min 1 min
+  const durOk = durationSecondsN >= 60; // Min 1 min (UI); your modal enforces 10m separately
   const hasEnoughAllowance = allowance !== null && allowance >= winningPotU;
   const hasEnoughBalance = usdcBal !== null && usdcBal >= winningPotU;
 
@@ -158,7 +223,6 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
       setUsdcBal(BigInt(bal ?? 0n));
       setAllowance(BigInt(a ?? 0n));
     } catch (e) {
-      // don't spam errors, just log once per refresh attempt
       console.error("USDC refresh failed", e);
     } finally {
       if (reqId === reqIdRef.current) setAllowLoading(false);
@@ -182,6 +246,8 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
       await sendAndConfirm(tx);
       setMsg("Approval successful!");
       await refreshAllowance();
+
+      emitRevalidate(false);
     } catch (e) {
       console.error("Approve failed", e);
       setMsg("Approval failed.");
@@ -196,11 +262,19 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
     try {
       setMsg("Please confirm creation in wallet...");
 
+      // ✅ method by NAME (typed), not signature string
       const tx = prepareContractCall({
         contract: factoryContract,
-        method:
-          "function createSingleWinnerLottery(string,uint256,uint256,uint64,uint64,uint64,uint32) returns (address)",
-        params: [name.trim(), ticketPriceU, winningPotU, minT, maxT, BigInt(durationSecondsN), minPurchaseU32],
+        method: "createSingleWinnerLottery",
+        params: [
+          name.trim(),
+          ticketPriceU,
+          winningPotU,
+          minT,
+          maxT,
+          BigInt(durationSecondsN),
+          minPurchaseU32,
+        ],
       });
 
       const receipt = await sendAndConfirm(tx);
@@ -217,9 +291,34 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
         }
       }
 
+      // ✅ optimistic Home update: show new raffle immediately
+      if (newAddr && me) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const deadlineSec = nowSec + Math.max(0, durationSecondsN);
+
+        emitOptimisticCreate({
+          kind: "CREATE",
+          patchId: `create:${newAddr}:${nowSec}`,
+          raffleId: newAddr.toLowerCase(),
+          name: name.trim(),
+          creator: me.toLowerCase(),
+          createdAtTimestamp: String(nowSec),
+          creationTx: null,
+          winningPot: String(winningPotU.toString()),
+          ticketPrice: String(ticketPriceU.toString()),
+          deadline: String(deadlineSec),
+          minTickets: String(minT.toString()),
+          maxTickets: String(maxT.toString()),
+          sold: "0",
+          lastUpdatedTimestamp: String(nowSec),
+        });
+      }
+
       setMsg("🎉 Success!");
-      // refresh balances/allowance after creation (pot got transferred/locked)
       await refreshAllowance();
+
+      emitRevalidate(true);
+
       onCreated?.(newAddr || undefined);
     } catch (e) {
       console.error("Create failed", e);
@@ -230,7 +329,7 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
   /**
    * Reduced polling strategy:
    * - refresh immediately on open
-   * - refresh on focus / visibility changes (feels instant to user)
+   * - refresh on focus / visibility changes
    * - light polling every 15s only while open AND only if not ready yet
    * - stop polling once allowance is sufficient
    */
@@ -248,11 +347,9 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVis);
 
-    // Poll less frequently, and only if still not ready
     const intervalMs = 15000;
     const t = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
-      // only poll if user still needs allowance/balance to proceed
       const needs = !hasEnoughAllowance || !hasEnoughBalance;
       if (needs) refreshAllowance();
     }, intervalMs);
@@ -305,11 +402,10 @@ export function useCreateRaffleForm(isOpen: boolean, onCreated?: (addr?: string)
       isPending,
       allowLoading,
       usdcBal,
-      // UI uses this to disable "Approve" button (true when allowance is enough)
       isReady: hasEnoughAllowance,
       approve,
       create,
-      refresh: refreshAllowance, // handy for a manual refresh button
+      refresh: refreshAllowance,
     },
     helpers: { sanitizeInt },
   };

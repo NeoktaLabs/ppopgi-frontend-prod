@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAutoConnect, useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { thirdwebClient } from "./thirdweb/client";
@@ -26,6 +26,9 @@ import { useSession } from "./state/useSession";
 import { useAppRouting } from "./hooks/useAppRouting";
 import { useRaffleDetails } from "./hooks/useRaffleDetails";
 
+// ✅ NEW: bring the shared store into App so the modal can use the same data as cards
+import { useRaffleStore } from "./hooks/useRaffleStore";
+
 type Page = "home" | "explore" | "dashboard" | "about" | "faq";
 
 export default function App() {
@@ -42,6 +45,16 @@ export default function App() {
   // 3. Routing & Navigation
   const [page, setPage] = useState<Page>("home");
   const { selectedRaffleId, openRaffle, closeRaffle } = useAppRouting();
+
+  // ✅ Shared store subscription (gives us the same RaffleListItem as your cards)
+  // Poll doesn’t matter much here; it dedupes globally anyway.
+  const store = useRaffleStore("app-modal", 20_000);
+
+  const selectedRaffleFromStore = useMemo(() => {
+    const id = (selectedRaffleId || "").toLowerCase();
+    if (!id) return null;
+    return (store.items || []).find((r: any) => String(r.id || "").toLowerCase() === id) ?? null;
+  }, [store.items, selectedRaffleId]);
 
   // 4. Modal States
   const [signInOpen, setSignInOpen] = useState(false);
@@ -161,7 +174,13 @@ export default function App() {
 
         <CashierModal open={cashierOpen} onClose={() => setCashierOpen(false)} />
 
-        <RaffleDetailsModal open={!!selectedRaffleId} raffleId={selectedRaffleId} onClose={closeRaffle} />
+        {/* ✅ IMPORTANT: pass the store item so modal matches cards (no more 0s) */}
+        <RaffleDetailsModal
+          open={!!selectedRaffleId}
+          raffleId={selectedRaffleId}
+          onClose={closeRaffle}
+          initialRaffle={selectedRaffleFromStore as any}
+        />
 
         {safetyId && safetyData && (
           <SafetyProofModal open={!!safetyId} onClose={() => setSafetyId(null)} raffle={safetyData} />

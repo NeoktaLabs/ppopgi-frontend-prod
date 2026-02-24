@@ -180,11 +180,29 @@ const RAFFLE_FIELDS = `
   lastUpdatedTimestamp
 `;
 
+// ✅ Minimal fields for Home/Explore cards
+const RAFFLE_CARD_FIELDS = `
+  id
+  name
+  status
+  creator
+  winningPot
+  ticketPrice
+  deadline
+  minTickets
+  maxTickets
+  sold
+  paused
+  lastUpdatedTimestamp
+`;
+
 export async function fetchRafflesFromSubgraph(
   opts: FetchRafflesOptions = {}
 ): Promise<RaffleListItem[]> {
   const url = mustEnv("VITE_SUBGRAPH_URL");
-  const first = Math.min(Math.max(opts.first ?? 200, 1), 1000);
+
+  // ✅ Reduce default list load
+  const first = Math.min(Math.max(opts.first ?? 50, 1), 200);
   const skip = Math.max(opts.skip ?? 0, 0);
 
   const query = `
@@ -195,7 +213,7 @@ export async function fetchRafflesFromSubgraph(
         orderBy: lastUpdatedTimestamp
         orderDirection: desc
       ) {
-        ${RAFFLE_FIELDS}
+        ${RAFFLE_CARD_FIELDS}
       }
     }
   `;
@@ -565,7 +583,9 @@ export async function fetchMyJoinedRaffleIds(
   opts: { first?: number; skip?: number; signal?: AbortSignal } = {}
 ): Promise<string[]> {
   const url = mustEnv("VITE_SUBGRAPH_URL");
-  const first = Math.min(Math.max(opts.first ?? 1000, 1), 1000);
+
+  // ✅ Reduce default load (paginate if needed)
+  const first = Math.min(Math.max(opts.first ?? 300, 1), 1000);
   const skip = Math.max(opts.skip ?? 0, 0);
 
   const query = `
@@ -605,7 +625,9 @@ export async function fetchMyJoinedRaffleIdsFromEvents(
   opts: { first?: number; skip?: number; signal?: AbortSignal } = {}
 ): Promise<string[]> {
   const url = mustEnv("VITE_SUBGRAPH_URL");
-  const first = Math.min(Math.max(opts.first ?? 1000, 1), 1000);
+
+  // ✅ Reduce default load (paginate if needed)
+  const first = Math.min(Math.max(opts.first ?? 300, 1), 1000);
   const skip = Math.max(opts.skip ?? 0, 0);
 
   const query = `

@@ -4,6 +4,7 @@ import type { RaffleListItem } from "../indexer/subgraph";
 import { fetchRafflesOnChainFallback } from "../onchain/fallbackRaffles";
 
 import { useRaffleStore, refresh as refreshRaffleStore } from "./useRaffleStore";
+import { useRevalidate } from "../hooks/useRevalidateTick";
 
 type Mode = "indexer" | "live";
 
@@ -38,6 +39,9 @@ export function useHomeRaffles() {
   // ✅ Shared store snapshot (indexer)
   const store = useRaffleStore("home", 20_000);
 
+  // ✅ Revalidate tick (event-based refresh)
+  const rvTick = useRevalidate();
+
   // Local override (live fallback)
   const [mode, setMode] = useState<Mode>("indexer");
   const [note, setNote] = useState<string | null>(null);
@@ -48,10 +52,36 @@ export function useHomeRaffles() {
   const lastLiveAtRef = useRef<number>(0);
   const LIVE_CACHE_MS = 20_000;
 
+  // Prevent hammering indexer revalidations (even if multiple events fire)
+  const lastRvAtRef = useRef<number>(0);
+  const RV_MIN_GAP_MS = 3_000;
+
   // Store-derived state
   const indexerItems = store.items ?? null;
   const isIndexerLoading = !!store.isLoading;
   const indexerNote = store.note ?? null;
+
+  // Manual refetch:
+  // - Always ask store to refresh (deduped)
+  // - Also clear live so we can snap back to indexer if it recovers
+  const refetch = useCallback(() => {
+    setLiveItems(null);
+    setLiveLoading(false);
+    setMode("indexer");
+    setNote(null);
+    void refreshRaffleStore(false, true);
+  }, []);
+
+  // ✅ Background refresh on revalidate tick (throttled)
+  useEffect(() => {
+    if (!rvTick) return;
+
+    const now = Date.now();
+    if (now - lastRvAtRef.current < RV_MIN_GAP_MS) return;
+    lastRvAtRef.current = now;
+
+    refetch();
+  }, [rvTick, refetch]);
 
   // If we have indexer data, always prefer it and exit live mode
   useEffect(() => {
@@ -168,17 +198,6 @@ export function useHomeRaffles() {
 
     return { totalRaffles, settledVolume, activeVolume };
   }, [all, active]);
-
-  // Manual refetch:
-  // - Always ask store to refresh (deduped)
-  // - Also clear live so we can snap back to indexer if it recovers
-  const refetch = useCallback(() => {
-    setLiveItems(null);
-    setLiveLoading(false);
-    setMode("indexer");
-    setNote(null);
-    void refreshRaffleStore(false, true);
-  }, []);
 
   return {
     items,
