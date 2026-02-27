@@ -1,73 +1,20 @@
-# React + TypeScript + Vite
+# Ppopgi (뽑기) Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Ppopgi Frontend is the **user interface** of the Ppopgi on-chain raffle protocol, built to provide a smooth and intuitive experience for creating lotteries, buying tickets and tracking outcomes on **Etherlink**.
 
-Currently, two official plugins are available:
+The app is a modern React + TypeScript single-page application powered by Vite. It integrates directly with the deployed smart contracts for all state-changing interactions while leveraging the Ppopgi subgraph for fast reads, activity feeds and historical data.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Key features include:
+- Lottery discovery and detail views
+- Ticket purchasing with wallet preparation and allowance flow
+- Real-time activity feed and timeline tracking
+- Participant distribution and ticket range visualization
+- Creator dashboard and refund/claim flows
+- Shareable lottery deep links and explorer integrations
 
-## React Compiler
+The frontend follows a **trust-minimized architecture** where:
+- Writes always go directly to smart contracts
+- Reads are hydrated from both on-chain calls and indexed data
+- All balances and critical states are verified against contracts
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+The interface is designed to feel playful and engaging while preserving transparency, deterministic behavior and clear lifecycle visibility for every lottery.
