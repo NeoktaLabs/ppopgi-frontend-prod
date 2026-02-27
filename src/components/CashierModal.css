@@ -11,7 +11,7 @@
   justify-content: center;
   align-items: flex-start;
 
-  padding-top: 250px;
+  padding-top: 100px;
   padding-bottom: 40px;
   padding-left: 20px;
   padding-right: 20px;
@@ -46,7 +46,6 @@
   to { transform: scale(1); opacity: 1; }
 }
 
-/* --- Header --- */
 .cm-header {
   display: flex;
   justify-content: space-between;
@@ -84,7 +83,6 @@
   overflow-y: auto;
 }
 
-/* --- Address Row --- */
 .cm-address-row {
   display: flex;
   align-items: center;
@@ -147,7 +145,6 @@
 }
 .cm-refresh-btn:active { transform: rotate(180deg); }
 
-/* --- Balances --- */
 .cm-section-label {
   font-size: 12px;
   font-weight: 800;
@@ -214,7 +211,6 @@
   font-weight: 700;
 }
 
-/* --- Tabs --- */
 .cm-tabs3 {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -249,7 +245,6 @@
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
 
-/* --- Widget Wrapper --- */
 .cm-widget-shell {
   display: flex;
   justify-content: center;
@@ -267,7 +262,6 @@
   overflow: hidden;
 }
 
-/* --- Bridge box --- */
 .cm-bridge-box {
   width: 100%;
   max-width: 360px;
@@ -350,7 +344,6 @@
   font-weight: 600;
 }
 
-/* Mobile */
 @media (max-width: 520px) {
   .cm-overlay {
     padding-top: 100px;

@@ -22,6 +22,9 @@ type Props = {
   onOpenCreate: () => void;
   onOpenCashier: () => void;
   onSignOut: () => void;
+
+  // ✅ NEW: hide TopNav/Footer when a modal is open
+  hideChrome?: boolean;
 };
 
 export function MainLayout({
@@ -33,6 +36,7 @@ export function MainLayout({
   onOpenCreate,
   onOpenCashier,
   onSignOut,
+  hideChrome = false,
 }: Props) {
   // Pick a random background once on mount
   const chosenBg = useMemo(() => BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)], []);
@@ -43,24 +47,26 @@ export function MainLayout({
       <div className="layout-bg" style={{ backgroundImage: `url(${chosenBg})` }} />
       <div className="layout-overlay" />
 
-      {/* 2. Navigation */}
-      <TopNav
-        page={page as any} // TopNav doesn't include "faq/about" in its Page union, so keep safe cast
-        account={account}
-        onNavigate={onNavigate as any}
-        onOpenExplore={() => onNavigate("explore")}
-        onOpenDashboard={() => onNavigate("dashboard")}
-        onOpenCreate={onOpenCreate}
-        onOpenCashier={onOpenCashier}
-        onOpenSignIn={onOpenSignIn}
-        onSignOut={onSignOut}
-      />
+      {/* 2. Navigation (hidden when modal open) */}
+      {!hideChrome && (
+        <TopNav
+          page={page as any} // TopNav doesn't include "faq/about" in its Page union, so keep safe cast
+          account={account}
+          onNavigate={onNavigate as any}
+          onOpenExplore={() => onNavigate("explore")}
+          onOpenDashboard={() => onNavigate("dashboard")}
+          onOpenCreate={onOpenCreate}
+          onOpenCashier={onOpenCashier}
+          onOpenSignIn={onOpenSignIn}
+          onSignOut={onSignOut}
+        />
+      )}
 
       {/* 3. Page Content */}
       <main className="layout-content">{children}</main>
 
-      {/* 4. Footer */}
-      <Footer onNavigate={onNavigate} />
+      {/* 4. Footer (hidden when modal open) */}
+      {!hideChrome && <Footer onNavigate={onNavigate} />}
     </div>
   );
 }

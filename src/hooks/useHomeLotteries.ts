@@ -1,16 +1,23 @@
-// src/hooks/useHomeRaffles.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RaffleListItem } from "../indexer/subgraph";
-import { fetchRafflesOnChainFallback } from "../onchain/fallbackRaffles";
+// src/hooks/useHomeLotteries.ts
 
-import { useRaffleStore, refresh as refreshRaffleStore } from "./useRaffleStore";
-import { useRevalidate } from "../hooks/useRevalidateTick";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { LotteryListItem } from "../indexer/subgraph";
+import { fetchLotteriesOnChainFallback } from "../onchain/fallbackLotteries";
+
+import { useLotteryStore, refresh as refreshLotteryStore } from "./useLotteryStore";
+import { useRevalidate } from "./useRevalidateTick";
 
 type Mode = "indexer" | "live";
 
 function numOr0(v?: string | null) {
   const n = Number(v || "0");
   return Number.isFinite(n) ? n : 0;
+}
+
+// Sort helper: treat 0 / missing deadlines as "far future" so they don't appear as "ending soon"
+function deadlineSortKey(deadline?: string | null) {
+  const d = numOr0(deadline);
+  return d > 0 ? d : Number.MAX_SAFE_INTEGER;
 }
 
 function isRateLimitNote(note: string) {
@@ -22,7 +29,7 @@ function shouldFallback(note: string | null) {
   if (!note) return false;
   const s = note.toLowerCase();
 
-  // We only want to fallback for genuine “indexer is down / unreachable” scenarios.
+  // Only fallback for genuine “indexer down/unreachable” cases.
   // For rate-limits, better to wait/backoff than hammer on-chain + indexer.
   if (isRateLimitNote(note)) return false;
 
@@ -35,9 +42,9 @@ function shouldFallback(note: string | null) {
   );
 }
 
-export function useHomeRaffles() {
+export function useHomeLotteries() {
   // ✅ Shared store snapshot (indexer)
-  const store = useRaffleStore("home", 20_000);
+  const store = useLotteryStore("home", 20_000);
 
   // ✅ Revalidate tick (event-based refresh)
   const rvTick = useRevalidate();
@@ -45,7 +52,7 @@ export function useHomeRaffles() {
   // Local override (live fallback)
   const [mode, setMode] = useState<Mode>("indexer");
   const [note, setNote] = useState<string | null>(null);
-  const [liveItems, setLiveItems] = useState<RaffleListItem[] | null>(null);
+  const [liveItems, setLiveItems] = useState<LotteryListItem[] | null>(null);
   const [liveLoading, setLiveLoading] = useState(false);
 
   // Prevent hammering live fallback
@@ -61,18 +68,28 @@ export function useHomeRaffles() {
   const isIndexerLoading = !!store.isLoading;
   const indexerNote = store.note ?? null;
 
-  // Manual refetch:
-  // - Always ask store to refresh (deduped)
-  // - Also clear live so we can snap back to indexer if it recovers
+  /**
+   * ✅ Soft refresh (used for global revalidate ticks):
+   * - refreshes the shared store
+   * - does NOT reset mode/live/note (prevents UI "snapping")
+   */
+  const softRefetch = useCallback(() => {
+    void refreshLotteryStore(true, true);
+  }, []);
+
+  /**
+   * ✅ Hard/manual refetch (user-driven):
+   * - clears live mode and forces indexer attempt
+   */
   const refetch = useCallback(() => {
     setLiveItems(null);
     setLiveLoading(false);
     setMode("indexer");
     setNote(null);
-    void refreshRaffleStore(false, true);
+    void refreshLotteryStore(false, true);
   }, []);
 
-  // ✅ Background refresh on revalidate tick (throttled)
+  // ✅ Background refresh on revalidate tick (throttled) — use soft refresh to avoid UI snapping
   useEffect(() => {
     if (!rvTick) return;
 
@@ -80,8 +97,8 @@ export function useHomeRaffles() {
     if (now - lastRvAtRef.current < RV_MIN_GAP_MS) return;
     lastRvAtRef.current = now;
 
-    refetch();
-  }, [rvTick, refetch]);
+    softRefetch();
+  }, [rvTick, softRefetch]);
 
   // If we have indexer data, always prefer it and exit live mode
   useEffect(() => {
@@ -93,6 +110,13 @@ export function useHomeRaffles() {
     }
   }, [indexerItems]);
 
+  // If indexer is rate-limited, surface the note but do NOT flip to live
+  useEffect(() => {
+    if (indexerNote && isRateLimitNote(indexerNote)) {
+      setNote(indexerNote);
+    }
+  }, [indexerNote]);
+
   // Fallback trigger (only when indexer has no data AND looks down, and only occasionally)
   useEffect(() => {
     const canTry =
@@ -101,14 +125,13 @@ export function useHomeRaffles() {
       shouldFallback(indexerNote);
 
     if (!canTry) {
-      // If it’s rate-limited, show the store note but don’t flip to live
-      setNote(indexerNote);
+      // if store has an error note, show it (but don't constantly overwrite)
+      if (indexerNote && !isRateLimitNote(indexerNote)) setNote(indexerNote);
       return;
     }
 
     const now = Date.now();
     if (now - lastLiveAtRef.current < LIVE_CACHE_MS) {
-      // already fetched live recently
       setMode("live");
       setNote("Indexer unavailable. Showing live blockchain data.");
       return;
@@ -119,17 +142,17 @@ export function useHomeRaffles() {
     setMode("live");
     setNote("Indexer unavailable. Showing live blockchain data.");
 
-    fetchRafflesOnChainFallback(50)
+    fetchLotteriesOnChainFallback(50)
       .then((data) => setLiveItems(data))
       .catch((e) => {
         console.error("Home fallback failed", e);
-        setNote("Could not load raffles. Please refresh.");
+        setNote("Could not load lotteries. Please refresh.");
       })
       .finally(() => setLiveLoading(false));
   }, [indexerItems, isIndexerLoading, indexerNote]);
 
   // Final items/loading state exposed to UI
-  const items: RaffleListItem[] | null = mode === "live" ? liveItems : indexerItems;
+  const items: LotteryListItem[] | null = mode === "live" ? liveItems : indexerItems;
   const isLoading = mode === "live" ? liveLoading : isIndexerLoading;
 
   // ----------------- Derived lists -----------------
@@ -153,7 +176,7 @@ export function useHomeRaffles() {
   const endingSoon = useMemo(() => {
     return [...active]
       .filter((r) => r.status === "OPEN")
-      .sort((a, b) => numOr0(a.deadline) - numOr0(b.deadline))
+      .sort((a, b) => deadlineSortKey(a.deadline) - deadlineSortKey(b.deadline))
       .slice(0, 5);
   }, [active]);
 
@@ -161,8 +184,8 @@ export function useHomeRaffles() {
    * ✅ Recently Finalized (Settled + Canceled)
    * - Indexer only (live mode returns [])
    * - Sorted by the most recent "final action" timestamp we can find:
-   *   completedAt -> finalizedAt -> lastUpdatedTimestamp
-   * - Shows the 5 most recent (leftmost should be most recent in your strip)
+   *   drawingRequestedAt -> canceledAt -> registeredAt
+   * - Shows the 5 most recent
    */
   const recentlyFinalized = useMemo(() => {
     if (mode === "live") return [];
@@ -172,22 +195,22 @@ export function useHomeRaffles() {
     return [...finalized]
       .sort((a, b) => {
         const aKey =
-          numOr0((a as any).completedAt) ||
-          numOr0((a as any).finalizedAt) ||
-          numOr0((a as any).lastUpdatedTimestamp);
+          numOr0((a as any).drawingRequestedAt) ||
+          numOr0((a as any).canceledAt) ||
+          numOr0((a as any).registeredAt);
 
         const bKey =
-          numOr0((b as any).completedAt) ||
-          numOr0((b as any).finalizedAt) ||
-          numOr0((b as any).lastUpdatedTimestamp);
+          numOr0((b as any).drawingRequestedAt) ||
+          numOr0((b as any).canceledAt) ||
+          numOr0((b as any).registeredAt);
 
-        return bKey - aKey; // most recent first
+        return bKey - aKey;
       })
       .slice(0, 5);
   }, [all, mode]);
 
   const stats = useMemo(() => {
-    const totalRaffles = all.length;
+    const totalLotteries = all.length;
 
     const settledVolume = all.reduce((acc, r) => {
       if (r.status === "COMPLETED") return acc + BigInt(r.winningPot || "0");
@@ -196,7 +219,7 @@ export function useHomeRaffles() {
 
     const activeVolume = active.reduce((acc, r) => acc + BigInt(r.winningPot || "0"), 0n);
 
-    return { totalRaffles, settledVolume, activeVolume };
+    return { totalLotteries, settledVolume, activeVolume };
   }, [all, active]);
 
   return {
@@ -208,6 +231,6 @@ export function useHomeRaffles() {
     mode,
     note,
     isLoading,
-    refetch,
+    refetch, // manual/hard refresh
   };
 }

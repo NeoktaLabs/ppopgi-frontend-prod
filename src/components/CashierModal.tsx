@@ -1,5 +1,5 @@
 // src/components/CashierModal.tsx
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useCashierData } from "../hooks/useCashierData";
 import "./CashierModal.css";
 
@@ -7,6 +7,7 @@ import { BuyWidget } from "thirdweb/react";
 import { NATIVE_TOKEN_ADDRESS } from "thirdweb";
 import { thirdwebClient } from "../thirdweb/client";
 import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
+import { ADDRESSES } from "../config/contracts";
 
 type Props = {
   open: boolean;
@@ -20,15 +21,25 @@ export function CashierModal({ open, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<Tab>("buy_usdc");
 
-  const handleCopy = () => {
-    if (state.me) {
-      navigator.clipboard.writeText(state.me);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
+  // ✅ Keep as Address (do NOT .toLowerCase(); it turns it into plain string)
+  const USDC_ADDRESS = useMemo(() => ADDRESSES.USDC, []);
 
-  const USDC_ADDRESS = "0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9";
+  const handleCopy = useCallback(() => {
+    const addr = state.me;
+    if (!addr) return;
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(addr);
+      } else {
+        window.prompt("Copy address:", addr);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
+    }
+  }, [state.me]);
 
   // ✅ Provide explicit token info so the widget doesn't need to fetch metadata
   const supportedTokens = useMemo(() => {
@@ -38,7 +49,7 @@ export function CashierModal({ open, onClose }: Props) {
         { address: USDC_ADDRESS, symbol: "USDC", name: "USD Coin" },
       ],
     };
-  }, []);
+  }, [USDC_ADDRESS]);
 
   const ETHERLINK_BRIDGE_URL = "https://bridge.etherlink.com/";
 
@@ -49,7 +60,9 @@ export function CashierModal({ open, onClose }: Props) {
       <div className="cm-card" onMouseDown={(e) => e.stopPropagation()}>
         <div className="cm-header">
           <h3 className="cm-title">Cashier</h3>
-          <button className="cm-close-btn" onClick={onClose}>✕</button>
+          <button className="cm-close-btn" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         <div className="cm-body">
@@ -66,9 +79,9 @@ export function CashierModal({ open, onClose }: Props) {
 
             <div className="cm-address-info">
               <div className="cm-label">Connected Account</div>
-              <div className="cm-addr-val" onClick={handleCopy} title="Click to Copy">
+              <div className="cm-addr-val" onClick={handleCopy} title={state.me ? "Click to Copy" : ""}>
                 {display.shortAddr}
-                <span className="cm-copy-icon">{copied ? "Copied" : "Copy"}</span>
+                {state.me && <span className="cm-copy-icon">{copied ? "Copied" : "Copy"}</span>}
               </div>
             </div>
 
@@ -89,7 +102,7 @@ export function CashierModal({ open, onClose }: Props) {
                   <div className="cm-asset-amount">{display.usdc}</div>
                   <div className="cm-asset-name">USDC</div>
                 </div>
-                <div className="cm-asset-tag">Raffle Funds</div>
+                <div className="cm-asset-tag">Lottery Funds</div>
               </div>
 
               <div className="cm-asset-card secondary">
@@ -162,7 +175,8 @@ export function CashierModal({ open, onClose }: Props) {
 
                 <div className="cm-bridge-title">Deposit Funds</div>
                 <div className="cm-bridge-text">
-                  Already have funds on Ethereum Mainnet? Use the official bridge to move <b>USDC</b> or <b>XTZ</b> over to Etherlink.
+                  Already have funds on Ethereum Mainnet? Use the official bridge to move <b>USDC</b> or <b>XTZ</b> over
+                  to Etherlink.
                 </div>
 
                 <a className="cm-bridge-btn" href={ETHERLINK_BRIDGE_URL} target="_blank" rel="noreferrer">

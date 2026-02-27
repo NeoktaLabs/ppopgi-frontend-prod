@@ -7,18 +7,39 @@
   z-index: 300;
 
   display: flex;
-  flex-direction: column; 
+  flex-direction: column;
   align-items: center;
 
-  padding: 0 16px; 
+  padding: 0 16px;
   pointer-events: none;
 }
 
-/* 2. The Glass Pill */
-.topnav-pill {
+/* ✅ NEW: one single glass container for BOTH nav + infra */
+.topnav-shell {
   pointer-events: auto;
   width: 100%;
   max-width: 1000px;
+
+  /* Premium Glassmorphism (moved from .topnav-pill) */
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 28px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 10px 15px -3px rgba(0, 0, 0, 0.05),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+
+  overflow: hidden; /* makes it feel like one “unit” */
+
+  /* ✅ anchor for the mobile menu */
+  position: relative;
+}
+
+/* 2. NAV ROW (now just layout, no glass styling here) */
+.topnav-pill {
+  width: 100%;
   height: 60px;
 
   display: flex;
@@ -26,25 +47,25 @@
   justify-content: space-between;
   padding: 6px 12px 6px 18px;
 
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 99px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.05),
-    0 10px 15px -3px rgba(0, 0, 0, 0.05),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-/* 3. The Notch Slot */
-.topnav-notch-slot {
+/* ✅ NEW: Infra row lives inside the same shell */
+.topnav-infra {
   width: 100%;
   display: flex;
   justify-content: center;
-  pointer-events: auto; 
+  padding: 0 12px 12px 12px; /* keeps your overall padding consistent */
+  pointer-events: auto;
 }
 
+/* Kill old notch-slot (no longer used) */
+.topnav-notch-slot {
+  display: none;
+}
 
 /* --- BRAND --- */
 .topnav-brand {
@@ -145,15 +166,6 @@
   transform: translateY(-1px);
 }
 
-.balances-title {
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: #64748b;
-  line-height: 1;
-}
-
 .balances-rows {
   display: grid;
   gap: 2px;
@@ -200,15 +212,13 @@
 /* Sign In & Sign Out Unified Style */
 .primary-pill-btn {
   background: linear-gradient(135deg, #ffe4ec, #ffd1df);
-  color: #4A0F2B !important; /* Force color over generic nav-link */
+  color: #4A0F2B !important;
   font-weight: 900;
   padding: 8px 20px;
   border-radius: 999px;
   border: 1px solid rgba(190, 24, 93, 0.25);
   box-shadow: 0 4px 12px rgba(190, 24, 93, 0.25), inset 0 0 0 1px rgba(255,255,255,0.6);
   transition: all 0.2s ease;
-  
-  /* Flex centering for content */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,11 +231,10 @@
   box-shadow: 0 6px 18px rgba(190, 24, 93, 0.35), inset 0 0 0 1px rgba(255,255,255,0.7);
 }
 
-/* Account Stack (Inside the new button style) */
 .acct-stack {
   display: flex;
   flex-direction: column;
-  align-items: center; /* Center aligned for the pill look */
+  align-items: center;
   line-height: 1;
 }
 
@@ -241,7 +250,6 @@
   font-size: 13px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
-
 
 /* --- MOBILE BURGER --- */
 .mobile-burger {
@@ -288,8 +296,10 @@
 /* --- MOBILE MENU --- */
 .mobile-menu {
   position: absolute;
-  /* Push menu down to clear the notch */
-  top: 130px; 
+
+  /* ✅ anchor to the bottom of the entire shell (nav + infra), no magic numbers */
+  top: calc(100% + 10px);
+
   left: 0;
   right: 0;
   display: flex;
@@ -301,13 +311,7 @@
   z-index: 350;
 }
 
-@media (max-width: 700px) {
-  .mobile-menu {
-     /* Push slightly less down on smaller screens */
-     top: 120px;
-  }
-}
-
+/* ✅ remove the old fixed offsets (150px/140px) */
 .mobile-menu.visible {
   opacity: 1;
   transform: translateY(0);
@@ -339,7 +343,6 @@
 
 .mobile-menu-inner button:hover { background: #f8fafc; }
 
-/* Mobile balances card */
 .mobile-balances {
   margin: 6px 6px 2px;
   padding: 12px 12px;
@@ -375,7 +378,6 @@
   opacity: 0.85;
 }
 
-/* Highlight create */
 .mobile-menu-inner button.highlight {
   background: #fff0f5;
   color: #4A0F2B;

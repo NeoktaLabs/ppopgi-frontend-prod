@@ -1,16 +1,16 @@
 // src/pages/HomePage.tsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { formatUnits } from "ethers";
-import { useHomeRaffles } from "../hooks/useHomeRaffles";
+import { useHomeLotteries } from "../hooks/useHomeLotteries"; // (you can rename later)
 import { useInfraStatus } from "../hooks/useInfraStatus";
-import { RaffleCard } from "../components/RaffleCard";
-import { RaffleCardSkeleton } from "../components/RaffleCardSkeleton";
+import { LotteryCard } from "../components/LotteryCard";
+import { LotteryCardSkeleton } from "../components/LotteryCardSkeleton";
 import { ActivityBoard } from "../components/ActivityBoard";
 import "./HomePage.css";
 
 type Props = {
   nowMs: number;
-  onOpenRaffle: (id: string) => void;
+  onOpenLottery: (id: string) => void; // you can rename later to onOpenLottery
   onOpenSafety: (id: string) => void;
 };
 
@@ -65,7 +65,7 @@ function navigateFromHome(page: "home" | "explore" | "dashboard" | "about" | "fa
   } catch {}
 }
 
-// ✅ 1. NEW SLIDING BANNER COMPONENT
+// Sliding banner
 const BANNER_MESSAGES = [
   {
     id: "cashier",
@@ -74,7 +74,7 @@ const BANNER_MESSAGES = [
   },
   {
     id: "explore",
-    text: "🔎 Discover all raffles from the Explore page",
+    text: "🔎 Discover all lotteries from the Explore page",
     action: () => navigateFromHome("explore"),
   },
   {
@@ -98,7 +98,6 @@ function BannerSlider() {
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
-    // 3000ms (3s) per slide for readability
     const timer = setInterval(() => {
       setIdx((prev) => (prev + 1) % BANNER_MESSAGES.length);
     }, 3000);
@@ -107,10 +106,7 @@ function BannerSlider() {
 
   return (
     <div className="hp-banner-wrapper">
-      <div
-        className="hp-banner-track"
-        style={{ transform: `translateX(-${idx * 100}%)` }}
-      >
+      <div className="hp-banner-track" style={{ transform: `translateX(-${idx * 100}%)` }}>
         {BANNER_MESSAGES.map((msg) => (
           <div key={msg.id} className="hp-banner-slide">
             <button className="hp-banner-btn" onClick={msg.action}>
@@ -123,13 +119,13 @@ function BannerSlider() {
   );
 }
 
-export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
+export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
   useEffect(() => {
     document.title = "Ppopgi 뽑기 — Home";
   }, []);
 
   const infra = useInfraStatus();
-  const { bigPrizes, endingSoon, recentlyFinalized, stats, isLoading, refetch } = useHomeRaffles();
+  const { bigPrizes, endingSoon, recentlyFinalized, stats, isLoading, refetch } = useHomeLotteries();
 
   const finalizerForCards = useMemo(
     () => ({
@@ -140,22 +136,14 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
     [infra.bot?.running, infra.bot?.secondsToNextRun, infra.tsMs]
   );
 
-  const revalTimerRef = useRef<number | null>(null);
   useEffect(() => {
-    const onRevalidate = () => {
-      if (revalTimerRef.current != null) window.clearTimeout(revalTimerRef.current);
-      revalTimerRef.current = window.setTimeout(() => {
-        try {
-          refetch();
-        } catch {}
-      }, 900);
+    const onFocus = () => {
+      try {
+        refetch();
+      } catch {}
     };
-
-    window.addEventListener("ppopgi:revalidate" as any, onRevalidate);
-    return () => {
-      window.removeEventListener("ppopgi:revalidate" as any, onRevalidate);
-      if (revalTimerRef.current != null) window.clearTimeout(revalTimerRef.current);
-    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [refetch]);
 
   const endingRef = useRef<HTMLDivElement | null>(null);
@@ -172,7 +160,7 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
     setSettledEdges(computeEdges(settledRef.current));
   }, []);
 
-  // Podium Logic
+  // Podium
   const podium = useMemo(() => {
     if (!bigPrizes || bigPrizes.length === 0) return { gold: null, silver: null, bronze: null };
     const sorted = [...bigPrizes].sort((a, b) => {
@@ -210,29 +198,26 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
 
   return (
     <>
-      {/* ✅ New Sliding Banner */}
       <div className="hp-announcement-bar">
         <BannerSlider />
       </div>
 
-      {/* Activity Board */}
       <div className="hp-board-section">
         <ActivityBoard />
       </div>
 
       <div className="hp-container">
-        {/* 1. HERO */}
         <div className="hp-hero">
           <h1 className="hp-hero-title">Welcome to Ppopgi (뽑기)</h1>
           <div className="hp-hero-sub">
-            Where fun meets fairness. Experience the thrill of fully transparent, on-chain raffles. No tricks — just luck.
+            Where fun meets fairness. Experience the thrill of fully transparent, on-chain lotteries. No tricks — just
+            luck.
           </div>
 
-          {/* STATS BAR */}
           <div className="hp-stats-bar">
             <div className="hp-stat-item">
-              <div className="hp-stat-val">{isLoading ? "..." : stats.totalRaffles}</div>
-              <div className="hp-stat-lbl">Raffles Created</div>
+              <div className="hp-stat-val">{isLoading ? "..." : stats.totalLotteries}</div>
+              <div className="hp-stat-lbl">Lotteries Created</div>
             </div>
             <div className="hp-stat-sep" />
             <div className="hp-stat-item">
@@ -247,7 +232,7 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
           </div>
         </div>
 
-        {/* 2. PODIUM */}
+        {/* PODIUM */}
         <div className="hp-podium-section">
           <div className="hp-section-header" style={{ justifyContent: "center", marginBottom: 50 }}>
             <div className="hp-section-title">🏆 Top Active Prizepools</div>
@@ -256,18 +241,24 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
           <div className="hp-podium">
             {isLoading && (
               <>
-                <div className="pp-silver-wrapper"><RaffleCardSkeleton /></div>
-                <div className="pp-gold-wrapper"><RaffleCardSkeleton /></div>
-                <div className="pp-bronze-wrapper"><RaffleCardSkeleton /></div>
+                <div className="pp-silver-wrapper">
+                  <LotteryCardSkeleton />
+                </div>
+                <div className="pp-gold-wrapper">
+                  <LotteryCardSkeleton />
+                </div>
+                <div className="pp-bronze-wrapper">
+                  <LotteryCardSkeleton />
+                </div>
               </>
             )}
 
             {!isLoading && podium.silver && (
               <div className="pp-silver-wrapper">
                 <div className="pp-rank-badge silver">2</div>
-                <RaffleCard
-                  raffle={podium.silver}
-                  onOpen={onOpenRaffle}
+                <LotteryCard
+                  lottery={podium.silver}
+                  onOpen={onOpenLottery}
                   onOpenSafety={onOpenSafety}
                   ribbon="silver"
                   nowMs={nowMs}
@@ -278,9 +269,9 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
             {!isLoading && podium.gold && (
               <div className="pp-gold-wrapper">
                 <div className="pp-rank-badge gold">1</div>
-                <RaffleCard
-                  raffle={podium.gold}
-                  onOpen={onOpenRaffle}
+                <LotteryCard
+                  lottery={podium.gold}
+                  onOpen={onOpenLottery}
                   onOpenSafety={onOpenSafety}
                   ribbon="gold"
                   nowMs={nowMs}
@@ -291,9 +282,9 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
             {!isLoading && podium.bronze && (
               <div className="pp-bronze-wrapper">
                 <div className="pp-rank-badge bronze">3</div>
-                <RaffleCard
-                  raffle={podium.bronze}
-                  onOpen={onOpenRaffle}
+                <LotteryCard
+                  lottery={podium.bronze}
+                  onOpen={onOpenLottery}
                   onOpenSafety={onOpenSafety}
                   ribbon="bronze"
                   nowMs={nowMs}
@@ -304,13 +295,13 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
             {!isLoading && !podium.gold && !podium.silver && !podium.bronze && (
               <div className="hp-empty-msg">
                 <div className="hp-empty-icon">🍃</div>
-                <div>No active raffles to display.</div>
+                <div>No active lotteries to display.</div>
               </div>
             )}
           </div>
         </div>
 
-        {/* 3. ENDING SOON */}
+        {/* ENDING SOON */}
         <div>
           <div className="hp-section-header">
             <div className="hp-section-title">⏳ Ending Soon</div>
@@ -319,38 +310,42 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
 
           <div className="hp-strip-wrap">
             {!endingEdges.atLeft && (
-              <button className="hp-strip-arrow left" onClick={() => scrollStrip(endingRef.current, "left")}>‹</button>
+              <button className="hp-strip-arrow left" onClick={() => scrollStrip(endingRef.current, "left")}>
+                ‹
+              </button>
             )}
             {!endingEdges.atRight && (
-              <button className="hp-strip-arrow right" onClick={() => scrollStrip(endingRef.current, "right")}>›</button>
+              <button className="hp-strip-arrow right" onClick={() => scrollStrip(endingRef.current, "right")}>
+                ›
+              </button>
             )}
 
             <div className="hp-strip" ref={endingRef} onScroll={updateEndingEdges}>
-              {isLoading && Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="hp-strip-item"><RaffleCardSkeleton /></div>
-              ))}
-              {!isLoading && endingSoonSorted.map((r) => (
-                <div key={r.id} className="hp-strip-item">
-                  <RaffleCard
-                    raffle={r}
-                    onOpen={onOpenRaffle}
-                    onOpenSafety={onOpenSafety}
-                    nowMs={nowMs}
-                    finalizer={finalizerForCards}
-                  />
-                </div>
-              ))}
+              {isLoading &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="hp-strip-item">
+                    <LotteryCardSkeleton />
+                  </div>
+                ))}
+
+              {!isLoading &&
+                endingSoonSorted.map((r) => (
+                  <div key={r.id} className="hp-strip-item">
+                    <LotteryCard lottery={r} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} nowMs={nowMs} finalizer={finalizerForCards} />
+                  </div>
+                ))}
+
               {!isLoading && endingSoonSorted.length === 0 && (
                 <div className="hp-empty-msg">
                   <div className="hp-empty-icon">😴</div>
-                  <div>No raffles ending soon.</div>
+                  <div>No lotteries ending soon.</div>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* 4. RECENTLY SETTLED */}
+        {/* RECENTLY SETTLED */}
         <div>
           <div className="hp-section-header">
             <div className="hp-section-title">✅ Recently Settled</div>
@@ -359,31 +354,35 @@ export function HomePage({ nowMs, onOpenRaffle, onOpenSafety }: Props) {
 
           <div className="hp-strip-wrap">
             {!settledEdges.atLeft && (
-              <button className="hp-strip-arrow left" onClick={() => scrollStrip(settledRef.current, "left")}>‹</button>
+              <button className="hp-strip-arrow left" onClick={() => scrollStrip(settledRef.current, "left")}>
+                ‹
+              </button>
             )}
             {!settledEdges.atRight && (
-              <button className="hp-strip-arrow right" onClick={() => scrollStrip(settledRef.current, "right")}>›</button>
+              <button className="hp-strip-arrow right" onClick={() => scrollStrip(settledRef.current, "right")}>
+                ›
+              </button>
             )}
 
             <div className="hp-strip" ref={settledRef} onScroll={updateSettledEdges}>
-              {isLoading && Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="hp-strip-item"><RaffleCardSkeleton /></div>
-              ))}
-              {!isLoading && recentlySettledSorted.map((r) => (
-                <div key={r.id} className="hp-strip-item">
-                  <RaffleCard
-                    raffle={r}
-                    onOpen={onOpenRaffle}
-                    onOpenSafety={onOpenSafety}
-                    nowMs={nowMs}
-                    finalizer={finalizerForCards}
-                  />
-                </div>
-              ))}
+              {isLoading &&
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="hp-strip-item">
+                    <LotteryCardSkeleton />
+                  </div>
+                ))}
+
+              {!isLoading &&
+                recentlySettledSorted.map((r) => (
+                  <div key={r.id} className="hp-strip-item">
+                    <LotteryCard lottery={r} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} nowMs={nowMs} finalizer={finalizerForCards} />
+                  </div>
+                ))}
+
               {!isLoading && recentlySettledSorted.length === 0 && (
                 <div className="hp-empty-msg">
                   <div className="hp-empty-icon">📂</div>
-                  <div>No recently settled raffles yet.</div>
+                  <div>No recently settled lotteries yet.</div>
                 </div>
               )}
             </div>

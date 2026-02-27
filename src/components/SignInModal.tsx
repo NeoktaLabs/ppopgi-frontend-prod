@@ -141,7 +141,7 @@ export function SignInModal({ open, onClose }: Props) {
           {/* Footer */}
           <div className="sim-footer">
             <div className="sim-note">
-              By connecting, you agree to the rules of the raffle.
+              By connecting, you agree to the rules of the lottery.
               <br />
               Always check the URL before signing.
             </div>

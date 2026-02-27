@@ -1,9 +1,9 @@
-// src/hooks/useRaffleCard.ts
+// src/hooks/useLotteryCard.ts
 import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { formatUnits } from "ethers";
-import type { RaffleListItem } from "../indexer/subgraph";
-import { useRevalidate } from "../hooks/useRevalidateTick";
+import type { LotteryListItem } from "../indexer/subgraph";
+import { useRevalidate } from "./useRevalidateTick";
 
 // --- Helpers ---
 const toNum = (v: any) => {
@@ -60,7 +60,7 @@ function normalizeMaxTickets(maxTickets: any) {
   return n > 0 ? n : 0;
 }
 
-export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
+export function useLotteryCard(lottery: LotteryListItem, nowMs: number) {
   // ✅ Revalidate tick: forces a rerender on relevant events.
   // This helps in cases where upstream data might be updated in-place.
   const rvTick = useRevalidate();
@@ -79,29 +79,24 @@ export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
 
   // 1) Status & Time
   const displayStatus = useMemo(
-    () => getDisplayStatus(String(raffle.status || ""), String(raffle.deadline || "0"), nowMs),
-    // include rvTick so the card recomputes on revalidate events even if raffle ref is stable
+    () => getDisplayStatus(String(lottery.status || ""), String(lottery.deadline || "0"), nowMs),
+    // include rvTick so the card recomputes on revalidate events even if lottery ref is stable
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [raffle.status, raffle.deadline, nowMs, rvTick]
+    [lottery.status, lottery.deadline, nowMs, rvTick]
   );
 
   const timeLeft = useMemo(
-    () => formatEndsIn(String(raffle.deadline || "0"), nowMs),
+    () => formatEndsIn(String(lottery.deadline || "0"), nowMs),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [raffle.deadline, nowMs, rvTick]
+    [lottery.deadline, nowMs, rvTick]
   );
 
   const isLive = displayStatus === "Open" || displayStatus === "Getting ready";
 
   // 2) Math (Progress)
-  const sold = useMemo(() => toNum((raffle as any).sold), [raffle, rvTick]);
-
-  const min = useMemo(() => toNum((raffle as any).minTickets), [raffle, rvTick]);
-
-  const max = useMemo(
-    () => normalizeMaxTickets((raffle as any).maxTickets ?? (raffle as any).maxTickets),
-    [raffle, rvTick]
-  );
+  const sold = useMemo(() => toNum((lottery as any).sold), [lottery, rvTick]);
+  const min = useMemo(() => toNum((lottery as any).minTickets), [lottery, rvTick]);
+  const max = useMemo(() => normalizeMaxTickets((lottery as any).maxTickets), [lottery, rvTick]);
 
   const hasMin = min > 0;
   const hasMax = max > 0;
@@ -117,26 +112,26 @@ export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
     e.stopPropagation();
 
     const url = new URL(window.location.href);
-    url.searchParams.set("raffle", raffle.id);
+
+    // If your router still uses `?raffle=`, switch back. Otherwise `?lottery=` matches the new naming.
+    url.searchParams.set("lottery", lottery.id);
+
     const link = url.toString();
 
     try {
-      // iOS Safari can be picky: navigator.share exists only in secure contexts and on some versions.
       const canShare =
         typeof navigator !== "undefined" &&
         "share" in navigator &&
         typeof (navigator as any).share === "function";
 
       if (canShare) {
-        await (navigator as any).share({ url: link, title: raffle.name });
+        await (navigator as any).share({ url: link, title: lottery.name });
         setCopyMsg("Shared!");
       } else {
-        // Clipboard API can also be restricted on iOS; fallback to copy attempt.
         if (navigator?.clipboard?.writeText) {
           await navigator.clipboard.writeText(link);
           setCopyMsg("Link copied!");
         } else {
-          // Last resort: prompt (works on older iOS)
           window.prompt("Copy this link:", link);
           setCopyMsg("Link ready!");
         }
@@ -149,8 +144,8 @@ export function useRaffleCard(raffle: RaffleListItem, nowMs: number) {
     clearMsgTimerRef.current = window.setTimeout(() => setCopyMsg(null), 1500);
   };
 
-  const formattedPot = useMemo(() => fmtUsdc((raffle as any).winningPot), [raffle, rvTick]);
-  const formattedPrice = useMemo(() => fmtUsdc((raffle as any).ticketPrice), [raffle, rvTick]);
+  const formattedPot = useMemo(() => fmtUsdc((lottery as any).winningPot), [lottery, rvTick]);
+  const formattedPrice = useMemo(() => fmtUsdc((lottery as any).ticketPrice), [lottery, rvTick]);
 
   return {
     ui: {

@@ -123,9 +123,9 @@ export function InfraStatusPill() {
               <span className="isp-q" tabIndex={0} aria-label="What is the finalizer bot?">
                 ?
                 <span className="isp-tip" role="tooltip">
-                  Auto-finalizes ended raffles.
+                  Auto-finalizes ended lotteries.
                   <br />
-                  Runs every ~5 mins.
+                  Runs every ~3 mins.
                 </span>
               </span>
             </div>

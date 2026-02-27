@@ -1,8 +1,8 @@
-// src/components/RaffleCardSkeleton.tsx
+// src/components/LotteryCardSkeleton.tsx
 
-import "./RaffleCardSkeleton.css";
+import "./LotteryCardSkeleton.css";
 
-export function RaffleCardSkeleton() {
+export function LotteryCardSkeleton() {
   return (
     <div className="rc-skeleton">
       {/* Notches */}

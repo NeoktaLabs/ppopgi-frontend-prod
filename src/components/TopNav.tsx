@@ -94,7 +94,7 @@ export const TopNav = memo(function TopNav({
     };
   }, [menuOpen]);
 
-  // ✅ keep polling off in background tabs, and refresh once when returning
+  // ✅ keep polling off in background tabs
   useEffect(() => {
     const onVis = () => {
       const enabled = !isHidden();
@@ -107,6 +107,13 @@ export const TopNav = memo(function TopNav({
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);
     };
+  }, []);
+
+  // (optional UX) close mobile menu when tab loses focus
+  useEffect(() => {
+    const onBlur = () => setMenuOpen(false);
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
   }, []);
 
   const closeMenu = () => setMenuOpen(false);
@@ -131,12 +138,14 @@ export const TopNav = memo(function TopNav({
     } as any
   );
 
+  const usdcTokenAddr = (ADDRESSES as any).USDC?.toLowerCase?.() ?? (ADDRESSES as any).USDC;
+
   const usdcBal = useWalletBalance(
     {
       client: thirdwebClient,
       chain: ETHERLINK_CHAIN as any,
       address: account ?? undefined,
-      tokenAddress: (ADDRESSES as any).USDC,
+      tokenAddress: usdcTokenAddr,
     },
     {
       enabled: !!account && pollEnabled,
@@ -163,94 +172,102 @@ export const TopNav = memo(function TopNav({
 
   return (
     <div className="topnav-wrapper">
-      <div className="topnav-pill">
-        <div className="topnav-brand" onClick={() => handleNav(() => {}, "home")}>
-          <img className="topnav-logo" src="/ppopgi-logo.png" alt="Ppopgi logo" draggable={false} />
-          <span className="brand-text">Ppopgi</span>
-        </div>
-
-        <nav className="topnav-desktop-links">
-          <button
-            className={`nav-link ${page === "explore" ? "active" : ""}`}
-            onClick={() => handleNav(onOpenExplore, "explore")}
-          >
-            Explore
-          </button>
-
-          {account && (
-            <button
-              className={`nav-link ${page === "dashboard" ? "active" : ""}`}
-              onClick={() => handleNav(onOpenDashboard, "dashboard")}
-            >
-              Dashboard
-            </button>
-          )}
-
-          <button className="nav-link create-btn" onClick={() => handleNav(onOpenCreate)}>
-            Create
-          </button>
-        </nav>
-
-        <div className="topnav-right">
-          <div className="desktop-actions">
-            {account ? (
-              // If logged in, show Balances Pill (acts as cashier button)
-              <button className="balances-pill" onClick={() => handleNav(onOpenCashier)} title="Open Cashier" type="button">
-                <div className="balances-rows">
-                  <div className="bal-row">
-                    <span className="bal-sym">{xtzSym}</span>
-                    <span className="bal-val">{xtzText}</span>
-                  </div>
-                  <div className="bal-row">
-                    <span className="bal-sym">{usdcSym}</span>
-                    <span className="bal-val">{usdcText}</span>
-                  </div>
-                </div>
-              </button>
-            ) : (
-              // If logged out, show generic Cashier button
-              <button className="nav-link cashier-btn" onClick={() => handleNav(onOpenCashier)} title="Open Cashier">
-                🏦 Cashier
-              </button>
-            )}
-
-            {!account ? (
-              <button className="nav-link primary-pill-btn" onClick={() => handleNav(onOpenSignIn)}>
-                Sign In
-              </button>
-            ) : (
-              // ✅ Updated Sign Out button to match Sign In style
-              <button
-                type="button"
-                className="nav-link primary-pill-btn"
-                onClick={() => handleNav(onSignOut)}
-                title="Log Off"
-              >
-                <div className="acct-stack">
-                  <div className="acct-top">Log Off</div>
-                  <div className="acct-bottom">{short(account)}</div>
-                </div>
-              </button>
-            )}
+      {/* ✅ ONE single “header shell” (nav + infra are inside the same glass container) */}
+      <div className="topnav-shell">
+        {/* NAV ROW */}
+        <div className="topnav-pill">
+          <div className="topnav-brand" onClick={() => handleNav(() => {}, "home")}>
+            <img className="topnav-logo" src="/ppopgi-logo.png" alt="Ppopgi logo" draggable={false} />
+            <span className="brand-text">Ppopgi</span>
           </div>
 
-          <button
-            ref={burgerRef}
-            className={`mobile-burger ${menuOpen ? "open" : ""}`}
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Toggle menu"
-            aria-expanded={menuOpen}
-          >
-            <span />
-            <span />
-          </button>
+          <nav className="topnav-desktop-links">
+            <button
+              className={`nav-link ${page === "explore" ? "active" : ""}`}
+              onClick={() => handleNav(onOpenExplore, "explore")}
+            >
+              Explore
+            </button>
+
+            {account && (
+              <button
+                className={`nav-link ${page === "dashboard" ? "active" : ""}`}
+                onClick={() => handleNav(onOpenDashboard, "dashboard")}
+              >
+                Dashboard
+              </button>
+            )}
+
+            <button className="nav-link create-btn" onClick={() => handleNav(onOpenCreate)}>
+              Create
+            </button>
+          </nav>
+
+          <div className="topnav-right">
+            <div className="desktop-actions">
+              {account ? (
+                <button
+                  className="balances-pill"
+                  onClick={() => handleNav(onOpenCashier)}
+                  title="Open Cashier"
+                  type="button"
+                >
+                  <div className="balances-rows">
+                    <div className="bal-row">
+                      <span className="bal-sym">{xtzSym}</span>
+                      <span className="bal-val">{xtzText}</span>
+                    </div>
+                    <div className="bal-row">
+                      <span className="bal-sym">{usdcSym}</span>
+                      <span className="bal-val">{usdcText}</span>
+                    </div>
+                  </div>
+                </button>
+              ) : (
+                <button className="nav-link cashier-btn" onClick={() => handleNav(onOpenCashier)} title="Open Cashier">
+                  🏦 Cashier
+                </button>
+              )}
+
+              {!account ? (
+                <button className="nav-link primary-pill-btn" onClick={() => handleNav(onOpenSignIn)}>
+                  Sign In
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="nav-link primary-pill-btn"
+                  onClick={() => handleNav(onSignOut)}
+                  title="Log Off"
+                >
+                  <div className="acct-stack">
+                    <div className="acct-top">Log Off</div>
+                    <div className="acct-bottom">{short(account)}</div>
+                  </div>
+                </button>
+              )}
+            </div>
+
+            <button
+              ref={burgerRef}
+              className={`mobile-burger ${menuOpen ? "open" : ""}`}
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Toggle menu"
+              aria-expanded={menuOpen}
+            >
+              <span />
+              <span />
+            </button>
+          </div>
+        </div>
+
+        {/* INFRA ROW (now “wired” inside the same header shell) */}
+        <div className="topnav-infra">
+          <InfraStatusPill />
         </div>
       </div>
 
-      <div className="topnav-notch-slot">
-        <InfraStatusPill />
-      </div>
-
+      {/* MOBILE MENU (still anchored to the whole header shell) */}
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
           {account && (
@@ -273,7 +290,7 @@ export const TopNav = memo(function TopNav({
           {account && <button onClick={() => handleNav(onOpenDashboard, "dashboard")}>👤 Dashboard</button>}
 
           <button className="highlight" onClick={() => handleNav(onOpenCreate)}>
-            ✨ Create Raffle
+            ✨ Create Lottery
           </button>
 
           <div className="mobile-divider" />

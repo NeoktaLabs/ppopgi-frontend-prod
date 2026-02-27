@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useAutoConnect, useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { thirdwebClient } from "./thirdweb/client";
@@ -15,97 +15,82 @@ import { FaqPage } from "./pages/FaqPage";
 
 // --- Components (Modals) ---
 import { SignInModal } from "./components/SignInModal";
-import { CreateRaffleModal } from "./components/CreateRaffleModal";
-import { RaffleDetailsModal } from "./components/RaffleDetailsModal";
+import { CreateLotteryModal } from "./components/CreateLotteryModal";
+import { LotteryDetailsModal } from "./components/LotteryDetailsModal";
 import { CashierModal } from "./components/CashierModal";
 import { SafetyProofModal } from "./components/SafetyProofModal";
 import { DisclaimerGate } from "./components/DisclaimerGate";
 
-// --- Hooks ---
+// ✅ global sync refresher
+import { GlobalDataRefresher } from "./components/GlobalDataRefresher";
+
+// --- Hooks / State ---
 import { useSession } from "./state/useSession";
 import { useAppRouting } from "./hooks/useAppRouting";
-import { useRaffleDetails } from "./hooks/useRaffleDetails";
-
-// ✅ NEW: bring the shared store into App so the modal can use the same data as cards
-import { useRaffleStore } from "./hooks/useRaffleStore";
+import { useLotteryDetails } from "./hooks/useLotteryDetails";
+import { useLotteryStore } from "./hooks/useLotteryStore";
 
 type Page = "home" | "explore" | "dashboard" | "about" | "faq";
 
-export default function App() {
-  // 1. Thirdweb Config
-  useAutoConnect({ client: thirdwebClient, chain: ETHERLINK_CHAIN, wallets: [createWallet("io.metamask")] });
+function isValidPage(p: any): p is Page {
+  return p === "home" || p === "explore" || p === "dashboard" || p === "about" || p === "faq";
+}
 
-  // 2. Global State
+function getPageFromUrl(): Page {
+  try {
+    const u = new URL(window.location.href);
+    const p = (u.searchParams.get("page") || "").toLowerCase();
+    return isValidPage(p) ? p : "home";
+  } catch {
+    return "home";
+  }
+}
+
+function setPageInUrl(next: Page) {
+  const u = new URL(window.location.href);
+
+  if (!next || next === "home") u.searchParams.delete("page");
+  else u.searchParams.set("page", next);
+
+  // ✅ preserve everything else (including ?lottery=...)
+  window.history.pushState({}, "", u.toString());
+}
+
+export default function App() {
+  // 1) Thirdweb
+  useAutoConnect({
+    client: thirdwebClient,
+    chain: ETHERLINK_CHAIN,
+    wallets: [createWallet("io.metamask")],
+  });
+
+  // 2) Global session
   const activeAccount = useActiveAccount();
   const account = activeAccount?.address ?? null;
   const setSession = useSession((s) => s.set);
   const { disconnect } = useDisconnect();
   const activeWallet = useActiveWallet();
 
-  // 3. Routing & Navigation
-  const [page, setPage] = useState<Page>("home");
-  const { selectedRaffleId, openRaffle, closeRaffle } = useAppRouting();
+  // 3) Routing (page + lottery deep-link)
+  const [page, setPage] = useState<Page>(() => (typeof window !== "undefined" ? getPageFromUrl() : "home"));
+  const { selectedLotteryId, openLottery, closeLottery } = useAppRouting(); // keep name for URL param compatibility
 
-  // ✅ Shared store subscription (gives us the same RaffleListItem as your cards)
-  // Poll doesn’t matter much here; it dedupes globally anyway.
-  const store = useRaffleStore("app-modal", 20_000);
+  // ✅ store (same items used by cards)
+  const store = useLotteryStore("app-modal", 20_000);
 
-  const selectedRaffleFromStore = useMemo(() => {
-    const id = (selectedRaffleId || "").toLowerCase();
+  const selectedFromStore = useMemo(() => {
+    const id = (selectedLotteryId || "").toLowerCase();
     if (!id) return null;
     return (store.items || []).find((r: any) => String(r.id || "").toLowerCase() === id) ?? null;
-  }, [store.items, selectedRaffleId]);
+  }, [store.items, selectedLotteryId]);
 
-  // 4. Modal States
+  // 4) Modal states
   const [signInOpen, setSignInOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [cashierOpen, setCashierOpen] = useState(false);
 
-  // ✅ Global events (HomePage banner actions)
-  useEffect(() => {
-    const onOpenCashier = () => {
-      if (account) setCashierOpen(true);
-      else setSignInOpen(true);
-    };
-
-    const onNavigate = (e: Event) => {
-      const ce = e as CustomEvent<{ page?: Page }>;
-      const next = ce?.detail?.page;
-      if (!next) return;
-
-      // gate dashboard behind wallet (same rule you already enforce)
-      if (next === "dashboard" && !account) {
-        setPage("home");
-        setSignInOpen(true);
-        return;
-      }
-
-      setPage(next);
-    };
-
-    window.addEventListener("ppopgi:open-cashier", onOpenCashier);
-    window.addEventListener("ppopgi:navigate", onNavigate as EventListener);
-
-    return () => {
-      window.removeEventListener("ppopgi:open-cashier", onOpenCashier);
-      window.removeEventListener("ppopgi:navigate", onNavigate as EventListener);
-    };
-  }, [account]);
-
-  // GATE STATE
+  // 5) Disclaimer gate
   const [showGate, setShowGate] = useState(false);
-
-  // Safety Modal Logic
-  const [safetyId, setSafetyId] = useState<string | null>(null);
-
-  // 5. Global Clock (One tick for the whole app)
-  const [nowMs, setNowMs] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  // CHECK DISCLAIMER STATUS ON LOAD
   useEffect(() => {
     const hasAccepted = localStorage.getItem("ppopgi_terms_accepted");
     if (!hasAccepted) setShowGate(true);
@@ -116,74 +101,172 @@ export default function App() {
     setShowGate(false);
   };
 
-  // Sync Session
+  // 6) Clock
+  const [nowMs, setNowMs] = useState(Date.now());
   useEffect(() => {
-    setSession({ account, connector: account ? "thirdweb" : null });
-    if (page === "dashboard" && !account) setPage("home");
-  }, [account, page, setSession]);
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   // Actions
   const handleSignOut = () => {
     if (activeWallet) disconnect(activeWallet);
   };
 
+  // Safety modal
+  const [safetyId, setSafetyId] = useState<string | null>(null);
+
   const handleOpenSafety = (id: string) => {
-    closeRaffle();
+    closeLottery();
     setSafetyId(id);
   };
 
-  // Data for Safety Modal
-  const { data: safetyData } = useRaffleDetails(safetyId, !!safetyId);
+  // ✅ Lottery details for safety modal
+  const { data: safetyData } = useLotteryDetails(safetyId, !!safetyId);
+
+  // ✅ NEW: single flag to hide layout chrome when any modal/gate is open
+  const anyModalOpen = showGate || signInOpen || createOpen || cashierOpen || !!selectedLotteryId || !!safetyId;
+
+  // ✅ OPTIONAL: prevent background scroll while a modal is open
+  useEffect(() => {
+    document.body.style.overflow = anyModalOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [anyModalOpen]);
+
+  /**
+   * ✅ Navigate helper:
+   * - updates React state
+   * - updates URL (?page=...)
+   * - gates dashboard behind wallet
+   */
+  const navigateTo = useCallback(
+    (next: Page) => {
+      // gate dashboard behind wallet
+      if (next === "dashboard" && !account) {
+        setPage("home");
+        setPageInUrl("home");
+        setSignInOpen(true);
+        return;
+      }
+
+      setPage(next);
+      setPageInUrl(next);
+    },
+    [account]
+  );
+
+  /**
+   * ✅ Sync page from URL on:
+   * - first load
+   * - browser back/forward
+   */
+  const didInitRef = useRef(false);
+  useEffect(() => {
+    const applyFromUrl = () => {
+      const next = getPageFromUrl();
+
+      // gate dashboard behind wallet if needed
+      if (next === "dashboard" && !account) {
+        setPage("home");
+        // keep URL consistent too
+        setPageInUrl("home");
+        setSignInOpen(true);
+        return;
+      }
+
+      setPage(next);
+    };
+
+    // initial sync
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      applyFromUrl();
+    }
+
+    // popstate (back/forward)
+    window.addEventListener("popstate", applyFromUrl);
+    return () => window.removeEventListener("popstate", applyFromUrl);
+  }, [account]);
+
+  // 8) Session sync
+  useEffect(() => {
+    setSession({ account, connector: account ? "thirdweb" : null });
+
+    // if user disconnects while on dashboard, bounce home + keep URL correct
+    if (page === "dashboard" && !account) {
+      setPage("home");
+      setPageInUrl("home");
+    }
+  }, [account, page, setSession]);
+
+  // 9) Global events (Home banner + external navigation)
+  useEffect(() => {
+    const onOpenCashier = () => {
+      if (account) setCashierOpen(true);
+      else setSignInOpen(true);
+    };
+
+    const onNavigate = (e: Event) => {
+      const ce = e as CustomEvent<{ page?: Page }>;
+      const next = ce?.detail?.page;
+      if (!next || !isValidPage(next)) return;
+      navigateTo(next);
+    };
+
+    window.addEventListener("ppopgi:open-cashier", onOpenCashier);
+    window.addEventListener("ppopgi:navigate", onNavigate as EventListener);
+
+    return () => {
+      window.removeEventListener("ppopgi:open-cashier", onOpenCashier);
+      window.removeEventListener("ppopgi:navigate", onNavigate as EventListener);
+    };
+  }, [account, navigateTo]);
 
   return (
     <>
+      <GlobalDataRefresher intervalMs={5000} />
+
       <DisclaimerGate open={showGate} onAccept={handleAcceptGate} />
 
       <MainLayout
         page={page}
-        onNavigate={setPage}
+        onNavigate={navigateTo} // ✅ IMPORTANT: use navigateTo so URL updates
         account={account}
         onOpenSignIn={() => setSignInOpen(true)}
         onOpenCreate={() => (account ? setCreateOpen(true) : setSignInOpen(true))}
         onOpenCashier={() => (account ? setCashierOpen(true) : setSignInOpen(true))}
         onSignOut={handleSignOut}
+        hideChrome={anyModalOpen}
       >
-        {/* --- Page Routing --- */}
-        {page === "home" && <HomePage nowMs={nowMs} onOpenRaffle={openRaffle} onOpenSafety={handleOpenSafety} />}
+        {page === "home" && <HomePage nowMs={nowMs} onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />}
 
-        {page === "explore" && <ExplorePage onOpenRaffle={openRaffle} onOpenSafety={handleOpenSafety} />}
+        {page === "explore" && <ExplorePage onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />}
 
         {page === "dashboard" && (
-          <DashboardPage account={account} onOpenRaffle={openRaffle} onOpenSafety={handleOpenSafety} />
+          <DashboardPage account={account} onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />
         )}
 
         {page === "about" && <AboutPage />}
-
         {page === "faq" && <FaqPage />}
 
-        {/* --- Global Modals --- */}
+        {/* --- Modals --- */}
         <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
 
-        <CreateRaffleModal
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
-          onCreated={() => {
-            /* Optional toast logic here */
-          }}
-        />
+        <CreateLotteryModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => {}} />
 
         <CashierModal open={cashierOpen} onClose={() => setCashierOpen(false)} />
 
-        {/* ✅ IMPORTANT: pass the store item so modal matches cards (no more 0s) */}
-        <RaffleDetailsModal
-          open={!!selectedRaffleId}
-          raffleId={selectedRaffleId}
-          onClose={closeRaffle}
-          initialRaffle={selectedRaffleFromStore as any}
+        <LotteryDetailsModal
+          open={!!selectedLotteryId}
+          lotteryId={selectedLotteryId}
+          onClose={closeLottery}
+          initialLottery={selectedFromStore as any}
         />
 
         {safetyId && safetyData && (
-          <SafetyProofModal open={!!safetyId} onClose={() => setSafetyId(null)} raffle={safetyData} />
+          <SafetyProofModal open={!!safetyId} onClose={() => setSafetyId(null)} lottery={safetyData as any} />
         )}
       </MainLayout>
     </>

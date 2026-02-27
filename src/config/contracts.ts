@@ -1,15 +1,17 @@
+// src/config/contracts.ts
+
 import LotteryRegistryAbi from "./abis/LotteryRegistry.json";
-import SingleWinnerDeployerAbi from "./abis/SingleWinnerDeployerV2.json";
-import LotterySingleWinnerAbi from "./abis/LotterySingleWinnerV2.json";
+import SingleWinnerDeployerAbi from "./abis/SingleWinnerDeployer.json";
+import SingleWinnerLotteryAbi from "./abis/SingleWinnerLottery.json";
 
 export const ADDRESSES = {
-  LotteryRegistry: "0x1CD24E0C49b1B61ff07be12fBa3ce58eCb20b098",
-  SingleWinnerDeployer: "0xe48da5BCb4E276C508285E0D9B8A9A84Dd9bf704",
+  LotteryRegistry: "0xa916e20AbF4d57bCb98f7A845eb74f2EB4Dcbed2",
+  SingleWinnerDeployer: "0xAd0c8Ba0E4e519B4EA97cE945A20E2716dDbDf7D",
   USDC: "0x796Ea11Fa2dD751eD01b53C372fFDB4AAa8f00F9",
 } as const;
 
 export const ABIS = {
   LotteryRegistry: LotteryRegistryAbi,
   SingleWinnerDeployer: SingleWinnerDeployerAbi,
-  LotterySingleWinner: LotterySingleWinnerAbi,
+  SingleWinnerLottery: SingleWinnerLotteryAbi,
 } as const;

@@ -1,17 +1,17 @@
-// src/components/CreateRaffleModal.tsx
+// src/components/CreateLotteryModal.tsx
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { formatUnits } from "ethers";
 import { useActiveAccount } from "thirdweb/react";
 import { ADDRESSES } from "../config/contracts";
-import { RaffleCard } from "./RaffleCard";
-import { useCreateRaffleForm } from "../hooks/useCreateRaffleForm";
+import { LotteryCard } from "./LotteryCard";
+import { useCreateLotteryForm } from "../hooks/useCreateLotteryForm";
 import { useConfetti } from "../hooks/useConfetti";
-import "./CreateRaffleModal.css";
+import "./CreateLotteryModal.css";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onCreated?: (raffleAddress?: string) => void;
+  onCreated?: (lotteryAddress?: string) => void; // keep prop name to avoid touching callers
 };
 
 function toBigInt6(v: string): bigint {
@@ -55,7 +55,7 @@ function secondsToBestUnitValue(seconds: number, unit: DurUnit): { value: number
   return { value: v, unit };
 }
 
-export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
+export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
   const { fireConfetti } = useConfetti();
   const account = useActiveAccount();
   const isConnected = !!account?.address;
@@ -87,15 +87,19 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
     goHome();
   }, [onClose, onCreated, createdAddr, goHome]);
 
-  const handleSuccess = (addr?: string) => {
-    fireConfetti();
-    if (addr) {
-      setCreatedAddr(addr);
-      setStep("success");
-    }
-  };
+  const handleSuccess = useCallback(
+    (addr?: string) => {
+      fireConfetti();
+      if (addr) {
+        setCreatedAddr(addr);
+        setStep("success");
+      }
+    },
+    [fireConfetti]
+  );
 
-  const { form, validation, derived, status, helpers } = useCreateRaffleForm(open, handleSuccess);
+  // ✅ new hook name
+  const { form, validation, derived, status, helpers } = useCreateLotteryForm(open, handleSuccess);
 
   useEffect(() => {
     if (open) {
@@ -112,9 +116,11 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
     clearSuccessTimer();
     if (!open) return;
     if (step !== "success") return;
+
     successTimerRef.current = window.setTimeout(() => {
       handleFinalClose();
-    }, 10_000);
+    }, 3_000);
+
     return () => {
       clearSuccessTimer();
     };
@@ -178,6 +184,9 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
 
   const fieldClass = (invalid: boolean) => `crm-input ${showInvalid && invalid ? "crm-input-invalid" : ""}`;
 
+  // ✅ "wallet ready" is simply: allowance >= winningPot
+  const isReady = validation.hasEnoughAllowance;
+
   const canCreate =
     isConnected &&
     validation.canSubmit &&
@@ -188,8 +197,9 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
 
   const createDisabled = !canCreate;
 
-  const shareLink = createdAddr ? `${window.location.origin}/?raffle=${createdAddr}` : "";
-  const tweetText = `I just created a new raffle on Ppopgi! 🎟️\n\nPrize: ${form.winningPot} USDC\nCheck it out here:`;
+  // Keep your router param as-is for now
+  const shareLink = createdAddr ? `${window.location.origin}/?lottery=${createdAddr}` : "";
+  const tweetText = `I just created a new lottery on Ppopgi! 🎟️\n\nPrize: ${form.winningPot} USDC\nCheck it out here:`;
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(shareLink)}`;
   const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent(tweetText)}`;
 
@@ -201,10 +211,11 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
     } catch {}
   };
 
-  const previewRaffle = useMemo(
+  // ✅ preview object must match what LotteryCard expects (LotteryListItem-ish)
+  const previewLottery = useMemo(
     () => ({
-      id: "preview",
-      name: form.name || "Your Raffle Name",
+      id: "0xpreview",
+      name: form.name || "Your Lottery Name",
       status: "OPEN",
       winningPot: String(derived.winningPotU),
       ticketPrice: String(derived.ticketPriceU),
@@ -212,11 +223,11 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
       sold: "0",
       maxTickets: String(derived.maxT),
       minTickets: String(derived.minT),
-      protocolFeePercent: String(derived.configData?.protocolFeePercent ?? "0"),
-      feeRecipient: String(derived.configData?.feeRecipient || ADDRESSES.SingleWinnerDeployer),
-      deployer: ADDRESSES.SingleWinnerDeployer,
-      creator: derived.me ?? "0x000",
-      lastUpdatedTimestamp: String(Math.floor(Date.now() / 1000)),
+      protocolFeePercent: "0",
+      feeRecipient: ADDRESSES.SingleWinnerDeployer,
+      creator: derived.me ?? "0x0000000000000000000000000000000000000000",
+      registeredAt: String(Math.floor(Date.now() / 1000)),
+      usdcToken: ADDRESSES.USDC.toLowerCase(),
     }),
     [form.name, derived, validation.durationSecondsN]
   );
@@ -224,7 +235,6 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
   if (!open) return null;
 
   return (
-    // ✅ FIX: close ONLY when clicking the backdrop itself (not any click inside modal)
     <div
       className="crm-overlay"
       onClick={(e) => {
@@ -236,7 +246,7 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
         <div className="crm-header">
           <div className="crm-header-text">
             <h3>{step === "success" ? "You're Live! 🎉" : "Creator Studio"}</h3>
-            <span>{step === "success" ? "Your raffle is now on the blockchain." : "Create your provably fair raffle."}</span>
+            <span>{step === "success" ? "Your lottery is now on the blockchain." : "Create your provably fair lottery."}</span>
           </div>
           <button className="crm-close-btn" onClick={handleFinalClose}>
             ✕
@@ -247,16 +257,15 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
         {step === "success" ? (
           <div className="crm-success-view">
             <div className="crm-success-icon">✓</div>
-            <div className="crm-success-title">Raffle Created!</div>
+            <div className="crm-success-title">Lottery Created!</div>
             <div className="crm-success-sub">
               Your contract is live. Share the link below to start selling tickets.
               <br />
               <span style={{ display: "inline-block", marginTop: 6, opacity: 0.75, fontWeight: 800 }}>
-                Redirecting to home in ~10s…
+                Redirecting to home in ~3s…
               </span>
             </div>
 
-            {/* ✅ "Ticket Stub" Share Box */}
             <div className="crm-share-ticket">
               <div className="crm-share-stub-left">
                 <label className="crm-label-ticket">Direct Link</label>
@@ -294,11 +303,13 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
             <div className="crm-form-col">
               <div className="crm-bal-row">
                 <span className="crm-bal-label">My Balance</span>
-                <span className="crm-bal-val">{status.usdcBal !== null ? formatUnits(status.usdcBal, 6) : "..."} USDC</span>
+                <span className="crm-bal-val">
+                  {status.usdcBal !== null ? formatUnits(status.usdcBal, 6) : "..."} USDC
+                </span>
               </div>
 
               <div className="crm-input-group">
-                <label>Raffle Name</label>
+                <label>Lottery Name</label>
                 <input
                   className={fieldClass(invalidName)}
                   value={form.name}
@@ -336,7 +347,6 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                 </div>
               </div>
 
-              {/* Warning Messages */}
               {hasBalanceInfo && insufficientPrizeFunds && (
                 <div className="crm-warning-msg">⚠️ Your wallet balance isn’t enough to fund this prize.</div>
               )}
@@ -388,7 +398,6 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                           className="crm-input"
                           value={form.minTickets}
                           onChange={(e) => handleMinTicketsChange(e.target.value)}
-                          // ✅ Hardening: if user clears it, restore to 1 (prevents "empty => 1" surprises at submit)
                           onBlur={() => {
                             if (!form.minTickets || toInt(form.minTickets) <= 0) form.setMinTickets("1");
                           }}
@@ -404,33 +413,44 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                         />
                       </div>
                     </div>
+
+                    <div className="crm-grid-2" style={{ marginTop: 10 }}>
+                      <div className="crm-input-group">
+                        <label>Min Purchase</label>
+                        <input
+                          className="crm-input"
+                          value={form.minPurchaseAmount}
+                          onChange={(e) => form.setMinPurchaseAmount(helpers.sanitizeInt(e.target.value))}
+                          onBlur={() => {
+                            if (!form.minPurchaseAmount || toInt(form.minPurchaseAmount) <= 0) form.setMinPurchaseAmount("1");
+                          }}
+                        />
+                      </div>
+                      <div className="crm-input-group" />
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* ✅ COMMAND CENTER DOCK */}
+              {/* COMMAND CENTER */}
               <div className="crm-command-center">
                 <div className="crm-dock-glass">
-                  {/* STEP 1 */}
                   <button
-                    className={`crm-dock-btn ${status.isReady ? "done" : "active"}`}
+                    className={`crm-dock-btn ${isReady ? "done" : "active"}`}
                     onClick={status.approve}
-                    disabled={!isConnected || status.isReady}
+                    disabled={!isConnected || isReady || status.isPending}
                   >
-                    <span className="crm-dock-icon">{status.isReady ? "✓" : "1"}</span>
-                    <span className="crm-dock-label">{status.isReady ? "Wallet Ready" : "Prepare"}</span>
+                    <span className="crm-dock-icon">{isReady ? "✓" : "1"}</span>
+                    <span className="crm-dock-label">{isReady ? "Wallet Ready" : "Prepare"}</span>
                   </button>
 
                   <div className="crm-dock-sep" />
 
-                  {/* STEP 2 */}
                   <button
-                    className={`crm-dock-btn primary ${!status.isReady || status.isPending ? "disabled" : "active"}`}
+                    className={`crm-dock-btn primary ${!isReady || status.isPending ? "disabled" : "active"}`}
                     onClick={() => {
                       setSubmitAttempted(true);
-                      // Optional debugging line (remove once confirmed):
-                      // console.log("MIN TICKETS RIGHT BEFORE CREATE:", form.minTickets);
-                      if (canCreate) status.create();
+                      if (canCreate) void status.create();
                     }}
                     disabled={createDisabled}
                   >
@@ -438,16 +458,17 @@ export function CreateRaffleModal({ open, onClose, onCreated }: Props) {
                     <span className="crm-dock-label">{status.isPending ? "Creating..." : "Create"}</span>
                   </button>
                 </div>
+
                 {status.msg && <div className="crm-status-msg">{status.msg}</div>}
               </div>
             </div>
 
-            {/* RIGHT: Holographic Preview */}
+            {/* RIGHT: Preview */}
             <div className="crm-preview-col">
               <div className="crm-preview-label">Live Preview</div>
               <div className="crm-levitate-wrapper">
                 {/* @ts-ignore */}
-                <RaffleCard raffle={previewRaffle} onOpen={() => {}} />
+                <LotteryCard lottery={previewLottery} onOpen={() => {}} />
               </div>
               <div className="crm-preview-shadow" />
               <div className="crm-network-tip">Network: Etherlink Mainnet</div>

@@ -74,7 +74,7 @@
 						"type": "uint32"
 					}
 				],
-				"internalType": "struct LotterySingleWinnerV2.LotteryParams",
+				"internalType": "struct SingleWinnerLottery.LotteryParams",
 				"name": "params",
 				"type": "tuple"
 			}
@@ -104,17 +104,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "CannotCancel",
-		"type": "error"
-	},
-	{
-		"inputs": [],
 		"name": "CreatorCannotBuy",
-		"type": "error"
-	},
-	{
-		"inputs": [],
-		"name": "DrawingsActive",
 		"type": "error"
 	},
 	{
@@ -134,32 +124,12 @@
 	},
 	{
 		"inputs": [],
-		"name": "EmergencyHatchLocked",
-		"type": "error"
-	},
-	{
-		"inputs": [],
-		"name": "EnforcedPause",
-		"type": "error"
-	},
-	{
-		"inputs": [],
-		"name": "ExpectedPause",
-		"type": "error"
-	},
-	{
-		"inputs": [],
 		"name": "FeeTooHigh",
 		"type": "error"
 	},
 	{
 		"inputs": [],
 		"name": "FundingMismatch",
-		"type": "error"
-	},
-	{
-		"inputs": [],
-		"name": "InsufficientFee",
 		"type": "error"
 	},
 	{
@@ -239,22 +209,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "NativeRefundFailed",
-		"type": "error"
-	},
-	{
-		"inputs": [],
-		"name": "NoNativeSurplus",
-		"type": "error"
-	},
-	{
-		"inputs": [],
 		"name": "NoParticipants",
-		"type": "error"
-	},
-	{
-		"inputs": [],
-		"name": "NoSurplus",
 		"type": "error"
 	},
 	{
@@ -264,12 +219,12 @@
 	},
 	{
 		"inputs": [],
-		"name": "NotDeployer",
+		"name": "NotDrawing",
 		"type": "error"
 	},
 	{
 		"inputs": [],
-		"name": "NotDrawing",
+		"name": "NotFactory",
 		"type": "error"
 	},
 	{
@@ -295,28 +250,6 @@
 	{
 		"inputs": [],
 		"name": "Overflow",
-		"type": "error"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "owner",
-				"type": "address"
-			}
-		],
-		"name": "OwnableInvalidOwner",
-		"type": "error"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "account",
-				"type": "address"
-			}
-		],
-		"name": "OwnableUnauthorizedAccount",
 		"type": "error"
 	},
 	{
@@ -362,21 +295,8 @@
 	},
 	{
 		"inputs": [],
-		"name": "ZeroAddress",
+		"name": "WrongEntropyFee",
 		"type": "error"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint32",
-				"name": "newGasLimit",
-				"type": "uint32"
-			}
-		],
-		"name": "CallbackGasLimitUpdated",
-		"type": "event"
 	},
 	{
 		"anonymous": false,
@@ -399,34 +319,39 @@
 	},
 	{
 		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "funds",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "ticketRefund",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "total",
+				"type": "uint256"
+			}
+		],
+		"name": "Claimed",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
 		"inputs": [],
 		"name": "EmergencyRecovery",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "newContract",
-				"type": "address"
-			}
-		],
-		"name": "EntropyContractUpdated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "newProvider",
-				"type": "address"
-			}
-		],
-		"name": "EntropyProviderUpdated",
 		"type": "event"
 	},
 	{
@@ -465,19 +390,6 @@
 			}
 		],
 		"name": "FundsClaimed",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "activeDrawings",
-				"type": "uint256"
-			}
-		],
-		"name": "GovernanceLockUpdated",
 		"type": "event"
 	},
 	{
@@ -550,95 +462,6 @@
 				"internalType": "uint256",
 				"name": "amount",
 				"type": "uint256"
-			}
-		],
-		"name": "NativeClaimed",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "NativeRefundAllocated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "to",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "NativeSurplusSwept",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "previousOwner",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "OwnershipTransferred",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "account",
-				"type": "address"
-			}
-		],
-		"name": "Paused",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
 			},
 			{
 				"indexed": true,
@@ -688,7 +511,7 @@
 			{
 				"indexed": true,
 				"internalType": "address",
-				"name": "to",
+				"name": "user",
 				"type": "address"
 			},
 			{
@@ -698,7 +521,7 @@
 				"type": "uint256"
 			}
 		],
-		"name": "SurplusSwept",
+		"name": "TicketRefundClaimed",
 		"type": "event"
 	},
 	{
@@ -748,19 +571,6 @@
 		"anonymous": false,
 		"inputs": [
 			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "account",
-				"type": "address"
-			}
-		],
-		"name": "Unpaused",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
 				"indexed": true,
 				"internalType": "address",
 				"name": "winner",
@@ -784,12 +594,12 @@
 	},
 	{
 		"inputs": [],
-		"name": "DEFAULT_CALLBACK_GAS_LIMIT",
+		"name": "HARD_CAP_TICKETS",
 		"outputs": [
 			{
-				"internalType": "uint32",
+				"internalType": "uint256",
 				"name": "",
-				"type": "uint32"
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -797,7 +607,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "HARD_CAP_TICKETS",
+		"name": "HATCH_DELAY",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -875,7 +685,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "MIN_NEW_RANGE_COST",
+		"name": "MIN_NEW_RANGE_COST_BASE",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -888,7 +698,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "PRIVILEGED_HATCH_DELAY",
+		"name": "RANGE_COST_STEP",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -901,7 +711,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "PUBLIC_HATCH_DELAY",
+		"name": "RANGE_STEP",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -936,19 +746,6 @@
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "activeDrawings",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
 		"inputs": [
 			{
 				"internalType": "uint256",
@@ -976,13 +773,6 @@
 	},
 	{
 		"inputs": [],
-		"name": "cancel",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "canceledAt",
 		"outputs": [
 			{
@@ -992,6 +782,19 @@
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "claim",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "totalPaid",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -1010,25 +813,6 @@
 			}
 		],
 		"name": "claimableFunds",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "claimableNative",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1100,19 +884,6 @@
 	},
 	{
 		"inputs": [],
-		"name": "deployer",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "drawingRequestedAt",
 		"outputs": [
 			{
@@ -1165,6 +936,19 @@
 	},
 	{
 		"inputs": [],
+		"name": "factory",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "feeRecipient",
 		"outputs": [
 			{
@@ -1184,10 +968,163 @@
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "ticketIndex",
+				"type": "uint256"
+			}
+		],
+		"name": "findRangeForTicket",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "rangeIndex",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "buyer",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "forceCancelStuck",
 		"outputs": [],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "index",
+				"type": "uint256"
+			}
+		],
+		"name": "getRangeAt",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "buyer",
+				"type": "address"
+			},
+			{
+				"internalType": "uint96",
+				"name": "lowerBound",
+				"type": "uint96"
+			},
+			{
+				"internalType": "uint96",
+				"name": "upperBound",
+				"type": "uint96"
+			},
+			{
+				"internalType": "uint96",
+				"name": "size",
+				"type": "uint96"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getRangePolicy",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "maxRanges",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "rangeStep",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "baseCost",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "costStep",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "pure",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getRangeTierInfo",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "rangeCount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "tier",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "minCostToCreateNewRange",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "nextTierAtRangeCount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "rangesUntilNextTier",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "start",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "limit",
+				"type": "uint256"
+			}
+		],
+		"name": "getRangesWithBounds",
+		"outputs": [
+			{
+				"internalType": "address[]",
+				"name": "buyers",
+				"type": "address[]"
+			},
+			{
+				"internalType": "uint96[]",
+				"name": "lowerBounds",
+				"type": "uint96[]"
+			},
+			{
+				"internalType": "uint96[]",
+				"name": "upperBounds",
+				"type": "uint96[]"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -1205,12 +1142,176 @@
 	},
 	{
 		"inputs": [],
+		"name": "getSummary",
+		"outputs": [
+			{
+				"internalType": "enum SingleWinnerLottery.Status",
+				"name": "_status",
+				"type": "uint8"
+			},
+			{
+				"internalType": "string",
+				"name": "_name",
+				"type": "string"
+			},
+			{
+				"internalType": "uint64",
+				"name": "_createdAt",
+				"type": "uint64"
+			},
+			{
+				"internalType": "uint64",
+				"name": "_deadline",
+				"type": "uint64"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_ticketPrice",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_winningPot",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_ticketRevenue",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint64",
+				"name": "_minTickets",
+				"type": "uint64"
+			},
+			{
+				"internalType": "uint64",
+				"name": "_maxTickets",
+				"type": "uint64"
+			},
+			{
+				"internalType": "uint32",
+				"name": "_minPurchaseAmount",
+				"type": "uint32"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_sold",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "_winner",
+				"type": "address"
+			},
+			{
+				"internalType": "uint64",
+				"name": "_entropyRequestId",
+				"type": "uint64"
+			},
+			{
+				"internalType": "uint64",
+				"name": "_drawingRequestedAt",
+				"type": "uint64"
+			},
+			{
+				"internalType": "address",
+				"name": "_selectedProvider",
+				"type": "address"
+			},
+			{
+				"internalType": "bool",
+				"name": "_isFinalizable",
+				"type": "bool"
+			},
+			{
+				"internalType": "bool",
+				"name": "_isHatchOpen",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getTicketRangesCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "isFinalizable",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "isHatchOpen",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "maxTickets",
 		"outputs": [
 			{
 				"internalType": "uint64",
 				"name": "",
 				"type": "uint64"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "rangeCount",
+				"type": "uint256"
+			}
+		],
+		"name": "minNewRangeCostAt",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "pure",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "minNewRangeCostNow",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -1244,45 +1345,25 @@
 	},
 	{
 		"inputs": [],
+		"name": "minTicketsToOpenNewRangeNow",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "name",
 		"outputs": [
 			{
 				"internalType": "string",
 				"name": "",
 				"type": "string"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "owner",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "pause",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "paused",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -1303,9 +1384,15 @@
 	},
 	{
 		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"name": "quoteEntropyFee",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -1319,45 +1406,6 @@
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint32",
-				"name": "gasLimit",
-				"type": "uint32"
-			}
-		],
-		"name": "setCallbackGasLimit",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "e",
-				"type": "address"
-			}
-		],
-		"name": "setEntropyContract",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "p",
-				"type": "address"
-			}
-		],
-		"name": "setEntropyProvider",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -1391,38 +1439,12 @@
 		"name": "status",
 		"outputs": [
 			{
-				"internalType": "enum LotterySingleWinnerV2.Status",
+				"internalType": "enum SingleWinnerLottery.Status",
 				"name": "",
 				"type": "uint8"
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "to",
-				"type": "address"
-			}
-		],
-		"name": "sweepNativeSurplus",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "to",
-				"type": "address"
-			}
-		],
-		"name": "sweepSurplus",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -1496,19 +1518,6 @@
 	},
 	{
 		"inputs": [],
-		"name": "totalClaimableNative",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
 		"name": "totalReservedUSDC",
 		"outputs": [
 			{
@@ -1518,26 +1527,6 @@
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "unpause",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -1587,27 +1576,22 @@
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "withdrawNative",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "to",
+				"name": "buyer",
 				"type": "address"
 			}
 		],
-		"name": "withdrawNativeTo",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"name": "wouldCreateNewRange",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
-	},
-	{
-		"stateMutability": "payable",
-		"type": "receive"
 	}
 ]

@@ -5,60 +5,38 @@ import { getContract, prepareContractCall, readContract } from "thirdweb";
 import { thirdwebClient } from "../thirdweb/client";
 import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 import {
-  fetchMyJoinedRaffleIds,
-  fetchMyJoinedRaffleIdsFromEvents,
-  fetchRafflesByIds,
-  fetchRaffleParticipants,
-  type RaffleListItem,
+  fetchUserLotteriesByUser,
+  fetchLotteryById,
+  fetchLotteriesByFeeRecipient,
+  type LotteryListItem,
+  type UserLotteryItem,
 } from "../indexer/subgraph";
-import { useRaffleStore, refresh as refreshRaffleStore } from "./useRaffleStore";
+import { useLotteryStore, refresh as refreshLotteryStore } from "./useLotteryStore";
 
-// Minimal ABI for dashboard logic
-const RAFFLE_DASH_ABI = [
-  { type: "function", name: "withdrawFunds", stateMutability: "nonpayable", inputs: [], outputs: [] },
-  { type: "function", name: "withdrawNative", stateMutability: "nonpayable", inputs: [], outputs: [] },
-  { type: "function", name: "claimTicketRefund", stateMutability: "nonpayable", inputs: [], outputs: [] },
-  {
-    type: "function",
-    name: "ticketsOwned",
-    stateMutability: "view",
-    inputs: [{ type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "claimableFunds",
-    stateMutability: "view",
-    inputs: [{ type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "claimableNative",
-    stateMutability: "view",
-    inputs: [{ type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-] as const;
+// ✅ Use full ABI from your folder (better decoding, no drift)
+import { SingleWinnerLotteryABI } from "../config/abis/index";
 
-// ABI-derived nonpayable method union
-type DashTxMethod = Extract<
-  (typeof RAFFLE_DASH_ABI)[number],
-  { type: "function"; stateMutability: "nonpayable" }
->["name"];
+type JoinedLotteryItem = LotteryListItem & {
+  // From subgraph UserLotteryItem (historical)
+  userTicketsPurchased?: string;
+  userUsdcSpent?: string;
+  userFundsClaimedAmount?: string;
+  userTicketRefundAmount?: string;
 
-type JoinedRaffleItem = RaffleListItem & {
-  userTicketsOwned: string; // bigint string (on-chain current balance)
-  userTicketsBought?: string; // historical purchased count (subgraph lookup)
+  // From chain (current)
+  userTicketsOwned: string; // bigint string
+  userClaimableFunds: string; // bigint string
+  userRefundNow: string; // bigint string (computed: ticketsOwned * ticketPrice when canceled)
 };
 
 type ClaimableItem = {
-  raffle: RaffleListItem;
+  lottery: LotteryListItem;
   claimableUsdc: string; // bigint string
-  claimableNative: string; // bigint string
+  refundUsdc: string; // bigint string
+  totalUsdc: string; // bigint string
   type: "WIN" | "REFUND" | "OTHER";
-  roles: { participated?: boolean; created?: boolean; feeRecipient?: boolean };
-  userTicketsOwned?: string;
+  roles: { participated?: boolean; created?: boolean; feeRecipient?: boolean; winner?: boolean };
+  userTicketsOwned: string;
 };
 
 function isRateLimitError(e: unknown) {
@@ -93,9 +71,13 @@ function normId(v: string): string {
 }
 
 /**
- * Simple concurrency pool to avoid hammering RPC.
+ * Simple concurrency pool to avoid hammering RPC/subgraph.
  */
-async function mapPool<T, R>(items: readonly T[], concurrency: number, fn: (item: T, idx: number) => Promise<R>): Promise<R[]> {
+async function mapPool<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, idx: number) => Promise<R>
+): Promise<R[]> {
   const out: R[] = new Array(items.length) as any;
   let i = 0;
 
@@ -111,10 +93,7 @@ async function mapPool<T, R>(items: readonly T[], concurrency: number, fn: (item
   return out;
 }
 
-/**
- * Prioritize likely-claimable raffles so important ones get scanned first.
- */
-function scoreForClaimScan(r: RaffleListItem): number {
+function scoreForClaimScan(r: LotteryListItem): number {
   if (r.status === "CANCELED") return 100;
   if (r.status === "COMPLETED") return 90;
   if (r.status === "DRAWING") return 50;
@@ -124,54 +103,72 @@ function scoreForClaimScan(r: RaffleListItem): number {
 }
 
 /**
- * Read claimableFunds/claimableNative/ticketsOwned with a short-lived cache.
- * Keeps existing logic: failures become 0, and we never throw.
+ * Read claimableFunds + ticketsOwned with a short-lived cache.
+ * Never throws; failures become 0.
  */
 async function readDashboardValues(args: {
-  raffleId: string;
+  lotteryId: string;
   account: string;
-  cache: Map<string, { ts: number; cf: string; cn: string; owned: string }>;
+  cache: Map<string, { ts: number; cf: string; owned: string }>;
   ttlMs: number;
-  ownedHint?: string; // if known, avoid rereading ticketsOwned
 }) {
-  const { raffleId, account, cache, ttlMs, ownedHint } = args;
+  const { lotteryId, account, cache, ttlMs } = args;
 
-  const rid = normId(raffleId);
+  const lid = normId(lotteryId);
   const acct = account.toLowerCase();
-  const key = `${acct}:${rid}`;
+  const key = `${acct}:${lid}`;
 
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && now - hit.ts < ttlMs) {
-    return { cf: hit.cf, cn: hit.cn, owned: hit.owned };
+    return { cf: hit.cf, owned: hit.owned };
   }
 
-  // ✅ IMPORTANT: always use normalized address
   const contract = getContract({
     client: thirdwebClient,
     chain: ETHERLINK_CHAIN,
-    address: rid,
-    abi: RAFFLE_DASH_ABI,
+    address: lid,
+    abi: SingleWinnerLotteryABI as any,
   });
 
   let cf = "0";
-  let cn = "0";
-  let owned = ownedHint ?? "0";
+  let owned = "0";
 
   try {
     cf = toBigInt(await readContract({ contract, method: "claimableFunds", params: [account] })).toString();
   } catch {}
   try {
-    cn = toBigInt(await readContract({ contract, method: "claimableNative", params: [account] })).toString();
+    owned = toBigInt(await readContract({ contract, method: "ticketsOwned", params: [account] })).toString();
   } catch {}
-  if (ownedHint == null) {
-    try {
-      owned = toBigInt(await readContract({ contract, method: "ticketsOwned", params: [account] })).toString();
-    } catch {}
+
+  cache.set(key, { ts: now, cf, owned });
+  return { cf, owned };
+}
+
+/**
+ * Paged feeRecipient fetch (your subgraph API already supports paging by first/skip).
+ */
+async function fetchAllByFeeRecipientPaged(
+  feeRecipient: string,
+  opts: { pageSize: number; maxPages: number }
+): Promise<LotteryListItem[]> {
+  const pageSize = Math.min(Math.max(opts.pageSize, 1), 1000);
+  const maxPages = Math.min(Math.max(opts.maxPages, 1), 50);
+
+  const out: LotteryListItem[] = [];
+  let skip = 0;
+
+  for (let i = 0; i < maxPages; i++) {
+    const page = await fetchLotteriesByFeeRecipient(feeRecipient, { first: pageSize, skip });
+    out.push(...(page ?? []));
+    if (!page || page.length < pageSize) break;
+    skip += pageSize;
   }
 
-  cache.set(key, { ts: now, cf, cn, owned });
-  return { cf, cn, owned };
+  // dedup
+  const m = new Map<string, LotteryListItem>();
+  for (const r of out) m.set(normId(r.id), { ...r, id: normId(r.id) });
+  return Array.from(m.values());
 }
 
 export function useDashboardController() {
@@ -179,112 +176,165 @@ export function useDashboardController() {
   const account = accountObj?.address ?? null;
   const { mutateAsync: sendAndConfirm } = useSendAndConfirmTransaction();
 
-  const store = useRaffleStore("dashboard", 15_000);
-  const allRaffles = useMemo(() => store.items ?? [], [store.items]);
+  const store = useLotteryStore("dashboard", 15_000);
+  const allLotteries = useMemo(() => (store.items ?? []) as LotteryListItem[], [store.items]);
 
-  const [created, setCreated] = useState<RaffleListItem[]>([]);
-  const [joined, setJoined] = useState<JoinedRaffleItem[]>([]);
+  const [created, setCreated] = useState<LotteryListItem[]>([]);
+  const [joined, setJoined] = useState<JoinedLotteryItem[]>([]);
   const [claimables, setClaimables] = useState<ClaimableItem[]>([]);
   const [localPending, setLocalPending] = useState(true);
+  const [txPending, setTxPending] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [hiddenClaimables, setHiddenClaimables] = useState<Record<string, boolean>>({});
 
-  // Cache + single-flight joinedIds
-  const lastJoinedIdsRef = useRef<{ ts: number; account: string; ids: Set<string> } | null>(null);
-  const joinedIdsPromiseRef = useRef<Promise<Set<string>> | null>(null);
-  const joinedBackoffMsRef = useRef(0);
-
   const runIdRef = useRef(0);
 
-  // cache for "tickets bought" lookups (per page load)
-  const boughtCacheRef = useRef<Map<string, string>>(new Map());
+  const userLotsCacheRef = useRef<{ ts: number; account: string; rows: UserLotteryItem[] } | null>(null);
+  const userLotsPromiseRef = useRef<Promise<UserLotteryItem[]> | null>(null);
+  const userLotsBackoffMsRef = useRef(0);
 
-  // --- RPC read cache + throttles ---
-  const rpcCacheRef = useRef<Map<string, { ts: number; cf: string; cn: string; owned: string }>>(new Map());
+  const feeLotsCacheRef = useRef<{ ts: number; account: string; lotteries: LotteryListItem[] } | null>(null);
+  const feeLotsPromiseRef = useRef<Promise<LotteryListItem[]> | null>(null);
+  const feeLotsBackoffMsRef = useRef(0);
+
+  const byIdCacheRef = useRef<Map<string, { ts: number; item: LotteryListItem | null }>>(new Map());
+
+  const rpcCacheRef = useRef<Map<string, { ts: number; cf: string; owned: string }>>(new Map());
   const lastBgRunRef = useRef(0);
-  const rpcConcurrencyRef = useRef({ joinedOwned: 12, claimScan: 10 });
+  const rpcConcurrencyRef = useRef({ claimScan: 10, fillById: 8 });
 
-  // Reset on wallet change
+  const claimScanCursorRef = useRef(0);
+
   useEffect(() => {
-    lastJoinedIdsRef.current = null;
-    joinedIdsPromiseRef.current = null;
-    joinedBackoffMsRef.current = 0;
-    boughtCacheRef.current = new Map();
+    userLotsCacheRef.current = null;
+    userLotsPromiseRef.current = null;
+    userLotsBackoffMsRef.current = 0;
+
+    feeLotsCacheRef.current = null;
+    feeLotsPromiseRef.current = null;
+    feeLotsBackoffMsRef.current = 0;
+
+    byIdCacheRef.current = new Map();
     rpcCacheRef.current = new Map();
     lastBgRunRef.current = 0;
-    rpcConcurrencyRef.current = { joinedOwned: 12, claimScan: 10 };
+    rpcConcurrencyRef.current = { claimScan: 10, fillById: 8 };
+    claimScanCursorRef.current = 0;
+
     setHiddenClaimables({});
     setMsg(null);
     setCreated([]);
     setJoined([]);
     setClaimables([]);
+    setLocalPending(true);
+    setTxPending(false);
   }, [account]);
 
-  const getJoinedIds = useCallback(async (): Promise<Set<string>> => {
-    if (!account) return new Set<string>();
-
+  const getUserLotteries = useCallback(async (): Promise<UserLotteryItem[]> => {
+    if (!account) return [];
     const acct = account.toLowerCase();
     const now = Date.now();
-    const cached = lastJoinedIdsRef.current;
 
-    if (cached && cached.account === acct && now - cached.ts < 60_000) return cached.ids;
-    if (joinedIdsPromiseRef.current) return await joinedIdsPromiseRef.current;
+    const cached = userLotsCacheRef.current;
 
-    joinedIdsPromiseRef.current = (async () => {
-      const ids = new Set<string>();
+    const backoff = userLotsBackoffMsRef.current || 0;
+    if (backoff > 0 && cached && cached.account === acct) {
+      if (now - cached.ts < backoff) return cached.rows;
+    }
 
+    if (cached && cached.account === acct && now - cached.ts < 60_000) return cached.rows;
+    if (userLotsPromiseRef.current) return await userLotsPromiseRef.current;
+
+    userLotsPromiseRef.current = (async () => {
       try {
-        // Primary: raffleParticipants aggregation
-        try {
-          let skip = 0;
-          const pageSize = 1000;
-          const maxPages = 5;
-
-          for (let pageN = 0; pageN < maxPages; pageN++) {
-            const page = await fetchMyJoinedRaffleIds(account, { first: pageSize, skip });
-            page.forEach((id) => ids.add(normId(id)));
-            if (page.length < pageSize) break;
-            skip += pageSize;
-          }
-        } catch (e) {
-          console.warn("[dash] fetchMyJoinedRaffleIds failed", e);
-        }
-
-        // Fallback: events only if still empty
-        if (ids.size === 0) {
-          try {
-            let skip = 0;
-            const pageSize = 1000;
-            const maxPages = 8;
-
-            for (let pageN = 0; pageN < maxPages; pageN++) {
-              const page = await fetchMyJoinedRaffleIdsFromEvents(account, { first: pageSize, skip });
-              page.forEach((id) => ids.add(normId(id)));
-              if (page.length < pageSize) break;
-              skip += pageSize;
-            }
-          } catch (e) {
-            console.warn("[dash] fetchMyJoinedRaffleIdsFromEvents failed", e);
-          }
-        }
-
-        lastJoinedIdsRef.current = { ts: Date.now(), account: acct, ids };
-        joinedBackoffMsRef.current = 0;
-        return ids;
+        const rows = await fetchUserLotteriesByUser(acct, { first: 1000, skip: 0 });
+        userLotsCacheRef.current = { ts: Date.now(), account: acct, rows: rows ?? [] };
+        userLotsBackoffMsRef.current = 0;
+        return rows ?? [];
       } catch (e) {
         if (isRateLimitError(e)) {
-          const cur = joinedBackoffMsRef.current || 0;
-          joinedBackoffMsRef.current = cur === 0 ? 15_000 : Math.min(cur * 2, 120_000);
-          setMsg("Indexer rate-limited. Retrying shortly…");
+          const cur = userLotsBackoffMsRef.current || 0;
+          userLotsBackoffMsRef.current = cur === 0 ? 15_000 : Math.min(cur * 2, 120_000);
         }
-        return cached?.account === acct ? cached.ids : new Set<string>();
+        return cached?.account === acct ? cached.rows : [];
       } finally {
-        joinedIdsPromiseRef.current = null;
+        userLotsPromiseRef.current = null;
       }
     })();
 
-    return await joinedIdsPromiseRef.current;
+    return await userLotsPromiseRef.current;
   }, [account]);
+
+  const getFeeRecipientLotteries = useCallback(async (): Promise<LotteryListItem[]> => {
+    if (!account) return [];
+    const acct = account.toLowerCase();
+    const now = Date.now();
+
+    const cached = feeLotsCacheRef.current;
+
+    const backoff = feeLotsBackoffMsRef.current || 0;
+    if (backoff > 0 && cached && cached.account === acct) {
+      if (now - cached.ts < backoff) return cached.lotteries;
+    }
+
+    if (cached && cached.account === acct && now - cached.ts < 2 * 60_000) return cached.lotteries;
+    if (feeLotsPromiseRef.current) return await feeLotsPromiseRef.current;
+
+    feeLotsPromiseRef.current = (async () => {
+      try {
+        const lotteries = await fetchAllByFeeRecipientPaged(acct, { pageSize: 200, maxPages: 10 });
+        feeLotsCacheRef.current = { ts: Date.now(), account: acct, lotteries };
+        feeLotsBackoffMsRef.current = 0;
+        return lotteries;
+      } catch (e) {
+        if (isRateLimitError(e)) {
+          const cur = feeLotsBackoffMsRef.current || 0;
+          feeLotsBackoffMsRef.current = cur === 0 ? 15_000 : Math.min(cur * 2, 120_000);
+        }
+        return cached?.account === acct ? cached.lotteries : [];
+      } finally {
+        feeLotsPromiseRef.current = null;
+      }
+    })();
+
+    return await feeLotsPromiseRef.current;
+  }, [account]);
+
+  async function fillMissingLotteriesById(ids: string[], runId: number): Promise<LotteryListItem[]> {
+    const cache = byIdCacheRef.current;
+    const now = Date.now();
+    const ttl = 2 * 60_000;
+
+    const uniq = Array.from(new Set(ids.map(normId))).filter(Boolean);
+
+    const hits: LotteryListItem[] = [];
+    const missing: string[] = [];
+
+    for (const id of uniq) {
+      const c = cache.get(id);
+      if (c && now - c.ts < ttl) {
+        if (c.item) hits.push(c.item);
+      } else {
+        missing.push(id);
+      }
+    }
+
+    if (missing.length === 0) return hits;
+
+    const fetched = await mapPool(missing, rpcConcurrencyRef.current.fillById, async (id) => {
+      try {
+        const item = await fetchLotteryById(id);
+        if (runId !== runIdRef.current) return null;
+        cache.set(id, { ts: Date.now(), item });
+        return item;
+      } catch {
+        cache.set(id, { ts: Date.now(), item: null });
+        return null;
+      }
+    });
+
+    const got = fetched.filter(Boolean) as LotteryListItem[];
+    return [...hits, ...got];
+  }
 
   const recompute = useCallback(
     async (isBackground = false) => {
@@ -299,6 +349,7 @@ export function useDashboardController() {
       }
 
       if (isBackground && !isVisible()) return;
+      if (isBackground && txPending) return;
 
       if (isBackground) {
         const now = Date.now();
@@ -319,213 +370,192 @@ export function useDashboardController() {
       try {
         const myAddr = account.toLowerCase();
 
-        const myCreated = allRaffles.filter((r) => r.creator?.toLowerCase() === myAddr);
-        const myFeeRaffles = allRaffles.filter((r) => (r as any).feeRecipient?.toLowerCase() === myAddr);
-
-        const joinedIds = await getJoinedIds();
-        if (runId !== runIdRef.current) return;
-
-        const joinedIdArr = Array.from(joinedIds);
-
-        const joinedBaseFromStore = joinedIdArr.length === 0 ? [] : allRaffles.filter((r) => joinedIds.has(normId(r.id)));
-
+        const myCreated = allLotteries.filter((r) => (r.creator || "").toLowerCase() === myAddr);
         setCreated(myCreated);
 
-        const hasJoinedAlready = joined.length > 0;
-        if (!hasJoinedAlready) {
-          setJoined(joinedBaseFromStore.map((r) => ({ ...r, userTicketsOwned: "0" })));
-        }
-
-        // Fetch full raffle objects by ids
-        let joinedBase: RaffleListItem[] = joinedBaseFromStore;
-        if (joinedIdArr.length > 0) {
-          try {
-            const fetched = await fetchRafflesByIds(joinedIdArr);
-            if (runId !== runIdRef.current) return;
-            if (fetched.length > 0) joinedBase = fetched;
-          } catch {}
-        }
-
-        // Enrich ticketsOwned (current on-chain balance)
-        const ownedByRaffleId = new Map<string, string>();
-        const joinedToCheck = joinedBase.slice(0, 120);
-
-        await mapPool(joinedToCheck, rpcConcurrencyRef.current.joinedOwned, async (r) => {
-          const rid = normId(r.id);
-          try {
-            // ✅ IMPORTANT: always use normalized address
-            const contract = getContract({
-              client: thirdwebClient,
-              chain: ETHERLINK_CHAIN,
-              address: rid,
-              abi: RAFFLE_DASH_ABI,
-            });
-
-            const owned = await readContract({ contract, method: "ticketsOwned", params: [account] });
-            ownedByRaffleId.set(rid, toBigInt(owned).toString());
-          } catch {
-            ownedByRaffleId.set(rid, "0");
-          }
-        });
-
+        const userLots = await getUserLotteries();
         if (runId !== runIdRef.current) return;
 
-        // compute "tickets bought" only for canceled raffles that show 0 owned
-        const boughtByRaffleId = new Map<string, string>();
-        const boughtCache = boughtCacheRef.current;
+        // ✅ All rows for this user (keep for claim history & roles)
+        const joinedRowsAll = (userLots ?? []).filter((x) => (x.user || "").toLowerCase() === myAddr);
 
-        const canceledNeedingBought = joinedBase.filter((r) => {
-          if (r.status !== "CANCELED") return false;
-          const rid = normId(r.id);
-          const owned = ownedByRaffleId.get(rid) ?? "0";
-          return joinedIds.has(rid) && owned === "0";
-        });
-
-        const canceledToFetch = canceledNeedingBought.slice(0, 40);
-
-        canceledToFetch.forEach((r) => {
-          const rid = normId(r.id);
-          const cachedBought = boughtCache.get(rid);
-          if (cachedBought != null) boughtByRaffleId.set(rid, cachedBought);
-        });
-
-        const toFetch = canceledToFetch.filter((r) => !boughtByRaffleId.has(normId(r.id)));
-
-        await mapPool(toFetch, 6, async (r) => {
-          const rid = normId(r.id);
+        // ✅ Joined tab should mean "actually bought tickets"
+        //    Prevents creator/feeRecipient rows that exist for accounting but have 0 tickets.
+        const joinedRowsPurchased = joinedRowsAll.filter((x) => {
           try {
-            const rows = await fetchRaffleParticipants(rid);
-            const mine = rows.find((p) => String(p.buyer || "").toLowerCase() === myAddr);
-            const bought = BigInt(mine?.ticketsPurchased || "0");
-            const boughtStr = bought.toString();
-            boughtByRaffleId.set(rid, boughtStr);
-            boughtCache.set(rid, boughtStr);
+            return BigInt(x.ticketsPurchased ?? "0") > 0n;
           } catch {
-            boughtByRaffleId.set(rid, "0");
-            boughtCache.set(rid, "0");
+            return false;
           }
         });
 
+        // ✅ Joined IDs only from purchased rows
+        const joinedIds = joinedRowsPurchased.map((x) => normId(x.lottery));
+
+        const storeById = new Map<string, LotteryListItem>();
+        for (const r of allLotteries) storeById.set(normId(r.id), { ...r, id: normId(r.id) });
+
+        const baseFromStore: LotteryListItem[] = [];
+        const missingIds: string[] = [];
+
+        for (const id of joinedIds) {
+          const hit = storeById.get(id);
+          if (hit) baseFromStore.push(hit);
+          else missingIds.push(id);
+        }
+
+        let filled: LotteryListItem[] = [];
+        if (missingIds.length > 0 && isVisible()) {
+          filled = await fillMissingLotteriesById(missingIds, runId);
+          if (runId !== runIdRef.current) return;
+        }
+
+        const joinedBaseMap = new Map<string, LotteryListItem>();
+        for (const r of baseFromStore) joinedBaseMap.set(normId(r.id), r);
+        for (const r of filled) joinedBaseMap.set(normId(r.id), { ...r, id: normId(r.id) });
+        const joinedBase = Array.from(joinedBaseMap.values());
+
+        let myFeeLots: LotteryListItem[] = [];
+        if (isVisible()) {
+          myFeeLots = await getFeeRecipientLotteries();
+        }
         if (runId !== runIdRef.current) return;
 
-        const nextJoined: JoinedRaffleItem[] = joinedBase.map((r) => {
-          const rid = normId(r.id);
-          return {
-            ...r,
-            id: rid, // ✅ normalize in stored joined state too
-            userTicketsOwned: ownedByRaffleId.get(rid) ?? "0",
-            userTicketsBought: boughtByRaffleId.get(rid),
-          };
-        });
+        const candidatesMap = new Map<string, LotteryListItem>();
+        for (const r of myCreated) candidatesMap.set(normId(r.id), { ...r, id: normId(r.id) });
+        for (const r of joinedBase) candidatesMap.set(normId(r.id), { ...r, id: normId(r.id) });
+        for (const r of myFeeLots) candidatesMap.set(normId(r.id), { ...r, id: normId(r.id) });
 
-        setJoined((prev) => {
-          if (prev.length !== nextJoined.length) return nextJoined;
-          for (let i = 0; i < prev.length; i++) {
-            if (normId(prev[i].id) !== normId(nextJoined[i].id)) return nextJoined;
-            if (String(prev[i].userTicketsOwned) !== String(nextJoined[i].userTicketsOwned)) return nextJoined;
-            if (String(prev[i].userTicketsBought ?? "") !== String(nextJoined[i].userTicketsBought ?? "")) return nextJoined;
-          }
-          return prev;
-        });
+        const candidatesAll = Array.from(candidatesMap.values())
+          .sort((a, b) => {
+            const sa = scoreForClaimScan(a);
+            const sb = scoreForClaimScan(b);
+            if (sb !== sa) return sb - sa;
+            return Number(b.registeredAt || "0") - Number(a.registeredAt || "0");
+          })
+          .slice(0, 600);
 
-        // Claimables: include feeRecipient raffles too
-        const candidateById = new Map<string, RaffleListItem>();
-        myCreated.forEach((r) => candidateById.set(normId(r.id), { ...r, id: normId(r.id) }));
-        joinedBase.forEach((r) => candidateById.set(normId(r.id), { ...r, id: normId(r.id) }));
-        myFeeRaffles.forEach((r) => candidateById.set(normId(r.id), { ...r, id: normId(r.id) }));
+        // ✅ IMPORTANT: keep lookup map from ALL rows (claim history / participatedEver)
+        const joinedRowById = new Map<string, UserLotteryItem>();
+        for (const row of joinedRowsAll) joinedRowById.set(normId(row.lottery), row);
 
-        const uniqueCandidates = Array.from(candidateById.values());
-        uniqueCandidates.sort((a, b) => {
-          const sa = scoreForClaimScan(a);
-          const sb = scoreForClaimScan(b);
-          if (sb !== sa) return sb - sa;
-          return Number(b.lastUpdatedTimestamp || "0") - Number(a.lastUpdatedTimestamp || "0");
-        });
-
-        const candidates = uniqueCandidates.slice(0, 600);
-        const newClaimables: ClaimableItem[] = [];
         const rpcCache = rpcCacheRef.current;
 
-        await mapPool(candidates, rpcConcurrencyRef.current.claimScan, async (r) => {
-          const rid = normId(r.id);
+        const claimableOut: ClaimableItem[] = [];
+        const joinedOut: JoinedLotteryItem[] = [];
 
-          const ownedHintStr = ownedByRaffleId.get(rid);
+        const MAX_JOINED_ONCHAIN = isBackground ? 80 : 200;
+        const MAX_CLAIM_SCAN = isBackground ? 60 : 180;
+
+        const candLen = Math.max(1, candidatesAll.length);
+        const start = claimScanCursorRef.current % candLen;
+        const endExclusive = Math.min(start + MAX_CLAIM_SCAN, candidatesAll.length);
+
+        const scanSlice =
+          candidatesAll.length <= MAX_CLAIM_SCAN
+            ? candidatesAll
+            : [
+                ...candidatesAll.slice(start, endExclusive),
+                ...candidatesAll.slice(0, Math.max(0, MAX_CLAIM_SCAN - (endExclusive - start))),
+              ];
+
+        claimScanCursorRef.current = (start + MAX_CLAIM_SCAN) % candLen;
+
+        await mapPool(joinedBase.slice(0, MAX_JOINED_ONCHAIN), 10, async (lot) => {
+          const id = normId(lot.id);
+          const row = joinedRowById.get(id);
 
           const v = await readDashboardValues({
-            raffleId: rid,
+            lotteryId: id,
             account,
             cache: rpcCache,
             ttlMs: 20_000,
-            ownedHint: ownedHintStr,
           });
 
+          const owned = BigInt(v.owned);
           const cf = BigInt(v.cf);
-          const cn = BigInt(v.cn);
-          const ticketsOwned = BigInt(v.owned);
 
-          const roles = {
-            created: r.creator?.toLowerCase() === myAddr,
-            participated: ticketsOwned > 0n || joinedIds.has(rid),
-            feeRecipient: (r as any).feeRecipient?.toLowerCase() === myAddr,
-          };
+          const price = BigInt(String(lot.ticketPrice ?? "0") || "0");
+          const refundNow = lot.status === "CANCELED" ? owned * price : 0n;
 
-          const isWinnerEligible =
-            r.status === "COMPLETED" && r.winner?.toLowerCase() === myAddr && (cf > 0n || cn > 0n);
-
-          const isParticipantRefundEligible = r.status === "CANCELED" && ticketsOwned > 0n;
-
-          const isAnythingClaimable = cf > 0n || cn > 0n;
-
-          if (!isWinnerEligible && !isParticipantRefundEligible && !isAnythingClaimable) return;
-
-          if (isWinnerEligible) {
-            newClaimables.push({
-              raffle: { ...r, id: rid },
-              claimableUsdc: cf.toString(),
-              claimableNative: cn.toString(),
-              type: "WIN",
-              roles,
-              userTicketsOwned: ticketsOwned.toString(),
-            });
-            return;
-          }
-
-          if (isParticipantRefundEligible) {
-            newClaimables.push({
-              raffle: { ...r, id: rid },
-              claimableUsdc: cf.toString(),
-              claimableNative: cn.toString(),
-              type: "REFUND",
-              roles,
-              userTicketsOwned: ticketsOwned.toString(),
-            });
-            return;
-          }
-
-          newClaimables.push({
-            raffle: { ...r, id: rid },
-            claimableUsdc: cf.toString(),
-            claimableNative: cn.toString(),
-            type: "OTHER",
-            roles,
-            userTicketsOwned: ticketsOwned.toString(),
+          joinedOut.push({
+            ...lot,
+            id,
+            userTicketsPurchased: row ? String(row.ticketsPurchased ?? "0") : "0",
+            userUsdcSpent: row ? String(row.usdcSpent ?? "0") : "0",
+            userFundsClaimedAmount: row ? String(row.fundsClaimedAmount ?? "0") : "0",
+            userTicketRefundAmount: row ? String(row.ticketRefundAmount ?? "0") : "0",
+            userTicketsOwned: owned.toString(),
+            userClaimableFunds: cf.toString(),
+            userRefundNow: refundNow.toString(),
           });
         });
 
         if (runId !== runIdRef.current) return;
-        setClaimables(newClaimables);
+        setJoined(joinedOut);
+
+        await mapPool(scanSlice, Math.max(3, rpcConcurrencyRef.current.claimScan), async (lot) => {
+          const id = normId(lot.id);
+          const row = joinedRowById.get(id);
+
+          const v = await readDashboardValues({
+            lotteryId: id,
+            account,
+            cache: rpcCache,
+            ttlMs: 20_000,
+          });
+
+          const owned = BigInt(v.owned);
+          const cf = BigInt(v.cf);
+
+          const price = BigInt(String(lot.ticketPrice ?? "0") || "0");
+          const refundNow = lot.status === "CANCELED" ? owned * price : 0n;
+
+          const participatedEver = !!row && BigInt(row.ticketsPurchased ?? "0") > 0n;
+
+          const roles = {
+            created: (lot.creator || "").toLowerCase() === myAddr,
+            feeRecipient: (lot.feeRecipient || "").toLowerCase() === myAddr,
+            participated: owned > 0n || participatedEver,
+            winner: (lot.winner || "").toLowerCase() === myAddr,
+          };
+
+          const total = cf + refundNow;
+          if (total <= 0n) return;
+
+          let type: ClaimableItem["type"] = "OTHER";
+          if (roles.winner && lot.status === "COMPLETED") type = "WIN";
+          else if (lot.status === "CANCELED" && refundNow > 0n) type = "REFUND";
+
+          const histClaimed =
+            row && (BigInt(row.fundsClaimedAmount ?? "0") > 0n || BigInt(row.ticketRefundAmount ?? "0") > 0n);
+          if (histClaimed && cf === 0n && refundNow === 0n && owned === 0n) return;
+
+          claimableOut.push({
+            lottery: { ...lot, id },
+            claimableUsdc: cf.toString(),
+            refundUsdc: refundNow.toString(),
+            totalUsdc: total.toString(),
+            type,
+            roles,
+            userTicketsOwned: owned.toString(),
+          });
+        });
+
+        if (runId !== runIdRef.current) return;
+        setClaimables(claimableOut);
 
         rpcConcurrencyRef.current = {
-          joinedOwned: Math.min(12, rpcConcurrencyRef.current.joinedOwned + 1),
           claimScan: Math.min(10, rpcConcurrencyRef.current.claimScan + 1),
+          fillById: Math.min(10, rpcConcurrencyRef.current.fillById + 1),
         };
       } catch (e) {
         console.error("Dashboard recompute error", e);
 
         if (isRateLimitError(e)) {
           rpcConcurrencyRef.current = {
-            joinedOwned: Math.max(4, Math.floor(rpcConcurrencyRef.current.joinedOwned / 2)),
             claimScan: Math.max(3, Math.floor(rpcConcurrencyRef.current.claimScan / 2)),
+            fillById: Math.max(3, Math.floor(rpcConcurrencyRef.current.fillById / 2)),
           };
         }
 
@@ -535,7 +565,17 @@ export function useDashboardController() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [account, allRaffles, getJoinedIds, store.items, created.length, joined.length, claimables.length]
+    [
+      account,
+      allLotteries,
+      store.items,
+      created.length,
+      joined.length,
+      claimables.length,
+      txPending,
+      getUserLotteries,
+      getFeeRecipientLotteries,
+    ]
   );
 
   useEffect(() => {
@@ -544,7 +584,7 @@ export function useDashboardController() {
       return;
     }
     void (async () => {
-      await refreshRaffleStore(false, true);
+      await refreshLotteryStore(false, true);
       await recompute(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -558,13 +598,13 @@ export function useDashboardController() {
 
   useEffect(() => {
     const onFocus = () => {
-      void refreshRaffleStore(true, true);
+      void refreshLotteryStore(true, true);
       void recompute(true);
     };
 
     const onVis = () => {
       if (document.visibilityState === "visible") {
-        void refreshRaffleStore(true, true);
+        void refreshLotteryStore(true, true);
         void recompute(true);
       }
     };
@@ -578,82 +618,115 @@ export function useDashboardController() {
   }, [recompute]);
 
   const createdSorted = useMemo(
-    () => [...created].sort((a, b) => Number(b.lastUpdatedTimestamp || "0") - Number(a.lastUpdatedTimestamp || "0")),
+    () => [...created].sort((a, b) => Number(b.registeredAt || "0") - Number(a.registeredAt || "0")),
     [created]
   );
 
   const joinedSorted = useMemo(
-    () => [...joined].sort((a, b) => Number(b.lastUpdatedTimestamp || "0") - Number(a.lastUpdatedTimestamp || "0")),
+    () => [...joined].sort((a, b) => Number(b.registeredAt || "0") - Number(a.registeredAt || "0")),
     [joined]
   );
 
-  const claimablesSorted = useMemo(() => claimables.filter((c) => !hiddenClaimables[normId(c.raffle.id)]), [claimables, hiddenClaimables]);
+  const claimablesSorted = useMemo(
+    () =>
+      claimables
+        .filter((c) => !hiddenClaimables[normId(c.lottery.id)])
+        .sort((a, b) => Number(b.totalUsdc) - Number(a.totalUsdc)),
+    [claimables, hiddenClaimables]
+  );
 
-  // ✅ IMPORTANT: method is ABI-derived ("withdrawFunds" | "withdrawNative" | "claimTicketRefund")
-  const withdraw = async (raffleId: string, method: DashTxMethod) => {
-    if (!account) return;
+  function emitRevalidate() {
+    try {
+      if (typeof window === "undefined") return;
+      window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
+    } catch {}
+  }
+
+  function clearRpcCacheFor(lotteryId: string, acct: string) {
+    const lid = normId(lotteryId);
+    const key = `${acct.toLowerCase()}:${lid}`;
+    try {
+      rpcCacheRef.current.delete(key);
+    } catch {}
+  }
+
+  const claim = async (lotteryId: string): Promise<boolean> => {
+    if (!account) return false;
     setMsg(null);
 
-    const rid = normId(raffleId);
+    const lid = normId(lotteryId);
+    setTxPending(true);
 
     try {
       const c = getContract({
         client: thirdwebClient,
         chain: ETHERLINK_CHAIN,
-        address: rid, // ✅ normalize here too
-        abi: RAFFLE_DASH_ABI,
+        address: lid,
+        abi: SingleWinnerLotteryABI as any,
       });
-
-      // ✅ Refund guard:
-      // If ticketsOwned reads as 0, do NOT send a “no-op” refund tx.
-      // Instead, refresh/recompute so the UI shows the real claimable amount first.
-      if (method === "claimTicketRefund") {
-        try {
-          const owned = toBigInt(await readContract({ contract: c, method: "ticketsOwned", params: [account] }));
-          if (owned <= 0n) {
-            setMsg("Refund not ready yet — reloading…");
-            await refreshRaffleStore(true, true);
-            await recompute(false);
-            return;
-          }
-        } catch {
-          // If read fails, also avoid sending (prevents the “first click does nothing” symptom)
-          setMsg("Loading refund details — try again in a second…");
-          await refreshRaffleStore(true, true);
-          await recompute(false);
-          return;
-        }
-      }
 
       await sendAndConfirm(
         prepareContractCall({
           contract: c,
-          method,
+          method: "claim",
           params: [],
         })
       );
 
-      setHiddenClaimables((p) => ({ ...p, [rid]: true }));
+      clearRpcCacheFor(lid, account);
+      emitRevalidate();
+
+      let stillHasSomething = true;
+      try {
+        const v = await readDashboardValues({
+          lotteryId: lid,
+          account,
+          cache: rpcCacheRef.current,
+          ttlMs: 0,
+        });
+
+        const cf = BigInt(v.cf);
+        const owned = BigInt(v.owned);
+        stillHasSomething = cf > 0n || owned > 0n;
+      } catch {
+        stillHasSomething = true;
+      }
+
+      if (!stillHasSomething) {
+        setHiddenClaimables((p) => ({ ...p, [lid]: true }));
+      }
+
       setMsg("Claim successful.");
 
-      lastJoinedIdsRef.current = null;
-      joinedBackoffMsRef.current = 0;
+      userLotsCacheRef.current = null;
+      userLotsBackoffMsRef.current = 0;
 
-      await refreshRaffleStore(true, true);
+      feeLotsCacheRef.current = null;
+      feeLotsBackoffMsRef.current = 0;
+
+      await refreshLotteryStore(true, true);
       await recompute(true);
+      return true;
     } catch (e) {
-      console.error("Withdraw failed", e);
-      setMsg("Claim failed or rejected.");
+      console.error("Claim failed", e);
+      setMsg("Transaction failed.");
+      return false;
+    } finally {
+      setTxPending(false);
     }
   };
 
   const refresh = async () => {
     setMsg(null);
     setHiddenClaimables({});
-    lastJoinedIdsRef.current = null;
-    joinedBackoffMsRef.current = 0;
 
-    await refreshRaffleStore(false, true);
+    userLotsCacheRef.current = null;
+    userLotsBackoffMsRef.current = 0;
+
+    feeLotsCacheRef.current = null;
+    feeLotsBackoffMsRef.current = 0;
+
+    await refreshLotteryStore(false, true);
     await recompute(false);
   };
 
@@ -667,14 +740,14 @@ export function useDashboardController() {
       joined: joinedSorted,
       claimables: claimablesSorted,
       msg,
-      isPending: localPending || store.isLoading,
+      isPending: txPending || localPending || store.isLoading,
       isColdLoading,
       isRefreshing,
       storeNote: store.note,
       storeLastUpdatedMs: store.lastUpdatedMs,
-      joinedBackoffMs: joinedBackoffMsRef.current,
+      joinedBackoffMs: userLotsBackoffMsRef.current,
     },
-    actions: { withdraw, refresh },
+    actions: { claim, refresh },
     account,
   };
 }

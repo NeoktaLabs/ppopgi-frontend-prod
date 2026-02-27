@@ -1,8 +1,9 @@
 // src/components/Footer.tsx
 import "./Footer.css";
 import ppopgiLogo from "/ppopgi-logo.png";
+import { LINKS } from "../config/transparency";
 
-type Page = "home" | "explore" | "dashboard" | "about" | "faq"; // ✅ add faq
+type Page = "home" | "explore" | "dashboard" | "about" | "faq";
 
 type Props = {
   onNavigate: (page: Page) => void;
@@ -13,13 +14,11 @@ export function Footer({ onNavigate }: Props) {
 
   const goAbout = () => {
     onNavigate("about");
-    // ✅ Important: users are at the bottom when clicking footer → scroll up to actually see About
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const goFaq = () => {
     onNavigate("faq");
-    // ✅ Same behavior for FAQ
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -35,6 +34,8 @@ export function Footer({ onNavigate }: Props) {
     fontFamily: "inherit",
   };
 
+  const hasAnyRepoLink = !!(LINKS.repoFrontend || LINKS.repoContracts || LINKS.repoFinalizerBot);
+
   return (
     <footer className="footer-container">
       <div className="footer-content">
@@ -45,10 +46,8 @@ export function Footer({ onNavigate }: Props) {
             <span className="footer-logo-text">Ppopgi</span>
           </div>
 
-          <div className="footer-desc">Fair, verifiable, on-chain raffles.</div>
-
+          <div className="footer-desc">Fair, verifiable, on-chain lotteries.</div>
           <div className="footer-built">Built with love on Etherlink 💚</div>
-
           <div className="footer-copy">&copy; {currentYear} Ppopgi. With love.</div>
         </div>
 
@@ -68,7 +67,6 @@ export function Footer({ onNavigate }: Props) {
               About &amp; Founder's Note
             </button>
 
-            {/* ✅ NEW FAQ LINK */}
             <button
               type="button"
               onClick={goFaq}
@@ -84,17 +82,29 @@ export function Footer({ onNavigate }: Props) {
           <div className="footer-col">
             <h4>Transparency</h4>
 
-            <a href="https://github.com/NeoktaLabs/ppopgi-frontend-dev" target="_blank" rel="noreferrer">
-              Frontend Code ↗
-            </a>
+            {!hasAnyRepoLink ? (
+              <span style={{ fontSize: 13, color: "#64748b" }}>Links coming soon</span>
+            ) : (
+              <>
+                {LINKS.repoFrontend ? (
+                  <a href={LINKS.repoFrontend} target="_blank" rel="noreferrer">
+                    Frontend Code ↗
+                  </a>
+                ) : null}
 
-            <a href="https://github.com/NeoktaLabs/ppopgi-smartcontracts" target="_blank" rel="noreferrer">
-              Smart Contracts ↗
-            </a>
+                {LINKS.repoContracts ? (
+                  <a href={LINKS.repoContracts} target="_blank" rel="noreferrer">
+                    Smart Contracts ↗
+                  </a>
+                ) : null}
 
-            <a href="https://github.com/NeoktaLabs/ppopgi-finalizerbot" target="_blank" rel="noreferrer">
-              Finalizer Bot ↗
-            </a>
+                {LINKS.repoFinalizerBot ? (
+                  <a href={LINKS.repoFinalizerBot} target="_blank" rel="noreferrer">
+                    Finalizer Bot ↗
+                  </a>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
       </div>
