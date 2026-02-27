@@ -1,6 +1,5 @@
 // src/components/DisclaimerGate.tsx
-
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import "./DisclaimerGate.css";
 
 type Props = {
@@ -12,22 +11,28 @@ export function DisclaimerGate({ open, onAccept }: Props) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [atBottom, setAtBottom] = useState(false);
 
-  useEffect(() => {
+  const checkBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    const handleScroll = () => {
-      const threshold = 8; // small tolerance
-      const reached =
-        el.scrollTop + el.clientHeight >= el.scrollHeight - threshold;
-      if (reached) setAtBottom(true);
-    };
-
-    el.addEventListener("scroll", handleScroll);
-    handleScroll(); // check on mount
-
-    return () => el.removeEventListener("scroll", handleScroll);
+    const threshold = 16; // a bit more tolerant for mobile rounding
+    const reached = el.scrollTop + el.clientHeight >= el.scrollHeight - threshold;
+    setAtBottom(reached);
   }, []);
+
+  // Re-check on open (layout settles after paint on mobile)
+  useEffect(() => {
+    if (!open) return;
+
+    setAtBottom(false);
+
+    // wait 1 frame so the scrollHeight is correct
+    const raf = requestAnimationFrame(() => {
+      checkBottom();
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [open, checkBottom]);
 
   if (!open) return null;
 
@@ -40,7 +45,7 @@ export function DisclaimerGate({ open, onAccept }: Props) {
         </div>
 
         {/* ✅ Scrollable content */}
-        <div ref={scrollRef} className="dg-scroll">
+        <div ref={scrollRef} className="dg-scroll" onScroll={checkBottom}>
           <div className="dg-body">
             <p className="dg-text">
               Ppopgi is an experimental, unaudited decentralized application running on Etherlink.
@@ -68,6 +73,9 @@ export function DisclaimerGate({ open, onAccept }: Props) {
                 and any risks taken while interacting with the protocol.
               </li>
             </ul>
+
+            {/* tiny spacer helps iOS detect the real bottom reliably */}
+            <div style={{ height: 8 }} />
           </div>
         </div>
 
