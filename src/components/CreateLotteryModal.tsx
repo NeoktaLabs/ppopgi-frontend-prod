@@ -55,6 +55,18 @@ function secondsToBestUnitValue(seconds: number, unit: DurUnit): { value: number
   return { value: v, unit };
 }
 
+/** ✅ UPDATED: Custom CSS Tooltip matching InfraStatusPill */
+function HelpTip({ text }: { text: string }) {
+  return (
+    <span className="crm-q" tabIndex={0} aria-label={text}>
+      ?
+      <span className="crm-tip" role="tooltip">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
   const { fireConfetti } = useConfetti();
   const account = useActiveAccount();
@@ -98,7 +110,7 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
     [fireConfetti]
   );
 
-  // ✅ new hook name
+  // ✅ hook
   const { form, validation, derived, status, helpers } = useCreateLotteryForm(open, handleSuccess);
 
   useEffect(() => {
@@ -125,6 +137,22 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
       clearSuccessTimer();
     };
   }, [open, step, handleFinalClose]);
+
+  // ✅ Force Min Purchase to 1 (removes UI + enforces invariant)
+  useEffect(() => {
+    if (!open) return;
+    // if hook supports it, keep it pinned to "1"
+    try {
+      if (typeof (form as any).setMinPurchaseAmount === "function") {
+        const cur = String((form as any).minPurchaseAmount ?? "");
+        if (cur !== "1") (form as any).setMinPurchaseAmount("1");
+      }
+    } catch {
+      // no-op
+    }
+    // Intentionally only depends on open + current value (if present)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, (form as any).minPurchaseAmount]);
 
   const handleMinTicketsChange = (raw: string) => {
     const nextMinStr = helpers.sanitizeInt(raw);
@@ -211,6 +239,26 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
     } catch {}
   };
 
+  // ✅ protocol fee (attempt to read from the hook; fallback safely)
+  const protocolFeePercent = useMemo(() => {
+    // Common places a hook might expose it:
+    const candidates = [
+      (derived as any)?.protocolFeePercent,
+      (validation as any)?.protocolFeePercent,
+      (status as any)?.protocolFeePercent,
+      (derived as any)?.feePercent,
+      (validation as any)?.feePercent,
+      (status as any)?.feePercent,
+    ]
+      .map((v) => (v == null ? null : String(v)))
+      .filter(Boolean) as string[];
+
+    const raw = candidates[0] ?? "0";
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return Math.min(20, Math.max(0, n));
+  }, [derived, validation, status]);
+
   // ✅ preview object must match what LotteryCard expects (LotteryListItem-ish)
   const previewLottery = useMemo(
     () => ({
@@ -223,13 +271,13 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
       sold: "0",
       maxTickets: String(derived.maxT),
       minTickets: String(derived.minT),
-      protocolFeePercent: "0",
+      protocolFeePercent: String(protocolFeePercent),
       feeRecipient: ADDRESSES.SingleWinnerDeployer,
       creator: derived.me ?? "0x0000000000000000000000000000000000000000",
       registeredAt: String(Math.floor(Date.now() / 1000)),
       usdcToken: ADDRESSES.USDC.toLowerCase(),
     }),
-    [form.name, derived, validation.durationSecondsN]
+    [form.name, derived, validation.durationSecondsN, protocolFeePercent]
   );
 
   if (!open) return null;
@@ -303,13 +351,40 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
             <div className="crm-form-col">
               <div className="crm-bal-row">
                 <span className="crm-bal-label">My Balance</span>
-                <span className="crm-bal-val">
-                  {status.usdcBal !== null ? formatUnits(status.usdcBal, 6) : "..."} USDC
-                </span>
+                <span className="crm-bal-val">{status.usdcBal !== null ? formatUnits(status.usdcBal, 6) : "..."} USDC</span>
+              </div>
+
+              {/* ✅ Fee callout (enforced on-chain) */}
+              <div
+                style={{
+                  marginTop: 10,
+                  marginBottom: 14,
+                  padding: "12px 12px",
+                  borderRadius: 12,
+                  background: "rgba(255, 238, 246, 0.70)",
+                  border: "1px solid rgba(190, 24, 93, 0.18)",
+                  color: "rgba(131, 24, 67, 0.95)",
+                  fontWeight: 800,
+                  fontSize: 12,
+                  lineHeight: 1.35,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <span style={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 1000, fontSize: 11 }}>
+                    Protocol fee (enforced on-chain)
+                  </span>
+                  <span style={{ fontWeight: 1000 }}>{protocolFeePercent}%</span>
+                </div>
+                <div style={{ marginTop: 6, opacity: 0.9 }}>
+                  This fee is applied to both the <b>prize payout</b> and the <b>ticket revenue</b> when the lottery completes.<br /> No fee is applied if the lottery is canceled.
+                </div>
               </div>
 
               <div className="crm-input-group">
-                <label>Lottery Name</label>
+                <label>
+                  Lottery Name
+                  <HelpTip text="Displayed on the lottery card. This does not affect fairness — it’s just for humans." />
+                </label>
                 <input
                   className={fieldClass(invalidName)}
                   value={form.name}
@@ -321,7 +396,10 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
 
               <div className="crm-grid-2">
                 <div className="crm-input-group">
-                  <label>Ticket Price</label>
+                  <label>
+                    Ticket Price
+                    <HelpTip text="Cost per ticket in USDC. Players pay this amount per ticket they buy." />
+                  </label>
                   <div className="crm-input-wrapper">
                     <input
                       className={fieldClass(invalidTicketPrice)}
@@ -334,7 +412,10 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                 </div>
 
                 <div className="crm-input-group">
-                  <label>Total Prize</label>
+                  <label>
+                    Total Prize
+                    <HelpTip text="How much USDC you deposit as the prize pot. This amount is locked in the lottery contract." />
+                  </label>
                   <div className="crm-input-wrapper">
                     <input
                       className={fieldClass(invalidWinningPot)}
@@ -353,7 +434,10 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
 
               <div className="crm-grid-dur">
                 <div className="crm-input-group">
-                  <label>Duration</label>
+                  <label>
+                    Duration (Min: 10m / Max: 365d)
+                    <HelpTip text="How long ticket sales stay open. After this time (or sold-out), the lottery can settle." />
+                  </label>
                   <input
                     className={fieldClass(invalidDuration)}
                     inputMode="numeric"
@@ -364,7 +448,10 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                 </div>
 
                 <div className="crm-input-group">
-                  <label>Unit</label>
+                  <label>
+                    Unit
+                    <HelpTip text="Pick minutes/hours/days. We clamp duration between 10 minutes and 365 days." />
+                  </label>
                   <select
                     className="crm-select"
                     value={form.durationUnit}
@@ -393,7 +480,10 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                   <div className="crm-adv-content">
                     <div className="crm-grid-2">
                       <div className="crm-input-group">
-                        <label>Min Tickets</label>
+                        <label>
+                          Min Tickets
+                          <HelpTip text="Minimum tickets required to draw a winner. If not reached by the deadline, it will cancel." />
+                        </label>
                         <input
                           className="crm-input"
                           value={form.minTickets}
@@ -403,8 +493,12 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                           }}
                         />
                       </div>
+
                       <div className="crm-input-group">
-                        <label>Max Capacity</label>
+                        <label>
+                          Max Tickets
+                          <HelpTip text="Optional cap on total tickets. Leave empty (or 0) for unlimited capacity. The draw will happen as soon as max tickets is reached" />
+                        </label>
                         <input
                           className="crm-input"
                           value={form.maxTickets}
@@ -414,19 +508,9 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                       </div>
                     </div>
 
-                    <div className="crm-grid-2" style={{ marginTop: 10 }}>
-                      <div className="crm-input-group">
-                        <label>Min Purchase</label>
-                        <input
-                          className="crm-input"
-                          value={form.minPurchaseAmount}
-                          onChange={(e) => form.setMinPurchaseAmount(helpers.sanitizeInt(e.target.value))}
-                          onBlur={() => {
-                            if (!form.minPurchaseAmount || toInt(form.minPurchaseAmount) <= 0) form.setMinPurchaseAmount("1");
-                          }}
-                        />
-                      </div>
-                      <div className="crm-input-group" />
+                    {/* ✅ Min Purchase removed. Enforced as 1 in code. */}
+                    <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800, color: "rgba(100, 116, 139, 1)" }}>
+                      Min purchase is fixed to <b>1</b> ticket.
                     </div>
                   </div>
                 )}
@@ -439,9 +523,10 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                     className={`crm-dock-btn ${isReady ? "done" : "active"}`}
                     onClick={status.approve}
                     disabled={!isConnected || isReady || status.isPending}
+                    title="Approves USDC for the prize deposit"
                   >
-                    <span className="crm-dock-icon">{isReady ? "✓" : "1"}</span>
-                    <span className="crm-dock-label">{isReady ? "Wallet Ready" : "Prepare"}</span>
+                    <span className="crm-dock-icon">{isReady ? "Step 1 ✓" : "Step 1"}</span>
+                    <span className="crm-dock-label">{isReady ? "Wallet Ready" : "Get Wallet Ready"}</span>
                   </button>
 
                   <div className="crm-dock-sep" />
@@ -453,9 +538,10 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                       if (canCreate) void status.create();
                     }}
                     disabled={createDisabled}
+                    title="Deploys your lottery contract with these parameters"
                   >
-                    <span className="crm-dock-icon">{status.isPending ? "⏳" : "2"}</span>
-                    <span className="crm-dock-label">{status.isPending ? "Creating..." : "Create"}</span>
+                    <span className="crm-dock-icon">{status.isPending ? "⏳" : "Step 2"}</span>
+                    <span className="crm-dock-label">{status.isPending ? "Creating..." : "Create your Lottery"}</span>
                   </button>
                 </div>
 

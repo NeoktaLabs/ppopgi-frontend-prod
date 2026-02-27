@@ -4,41 +4,46 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 0 0 20px 0;
-  color: #4A0F2B;
+  color: var(--ink);
   overflow-x: hidden;
 }
 
 /* =========================================================
-   ✅ SLIDING BANNER (The horizontal replace effect)
+   ✅ SLIDING BANNER (The Ribbon)
    ========================================================= */
-
 .hp-announcement-bar {
-  /* Full Screen Width */
   width: 100vw;
   position: relative;
   left: 50%;
   right: 50%;
   margin-left: -50vw;
   margin-right: -50vw;
+  margin-top: 10px;
+  margin-bottom: 32px;
 
-  /* Spacing */
-  margin-top: 20px;
-  margin-bottom: 20px;
-
-  background: linear-gradient(90deg, #4A0F2B 0%, #701a40 50%, #4A0F2B 100%);
-  color: white;
-  padding: 12px 0; /* Slightly taller for comfort */
-
-  box-shadow: 0 4px 20px rgba(74, 15, 43, 0.15);
+  /* Vibrant, premium festival ribbon */
+  background: linear-gradient(90deg, var(--peach-glow) 0%, var(--sakura-pink) 50%, var(--peach-glow) 100%);
+  background-size: 200% auto;
+  animation: hp-ribbon-flow 10s linear infinite;
+  
+  color: var(--ink);
+  padding: 14px 0; 
+  box-shadow: 0 4px 24px rgba(246, 182, 200, 0.4); 
   display: flex;
   justify-content: center;
+  border-top: 2px solid rgba(255, 255, 255, 0.5);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+@keyframes hp-ribbon-flow {
+  to { background-position: 200% center; }
 }
 
 .hp-banner-wrapper {
   width: 100%;
-  max-width: 600px; /* Limit width so text doesn't span endlessly */
-  height: 20px; /* Fixed height for text */
-  overflow: hidden; /* Hide overflow for the slide effect */
+  max-width: 700px; 
+  height: 28px; /* Slightly taller to accommodate the hover pill */
+  overflow: hidden; 
   position: relative;
 }
 
@@ -46,186 +51,255 @@
   display: flex;
   width: 100%;
   height: 100%;
-  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .hp-banner-slide {
-  flex: 0 0 100%; /* Each slide takes full width */
+  flex: 0 0 100%; 
   width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
+/* ✅ UPDATED: Banner button now has padding and border-radius for the pill effect */
 .hp-banner-btn {
   appearance: none;
   border: none;
   background: transparent;
-  padding: 0;
-  
-  color: #ffffff;
-  text-decoration: none;
-  font-size: 12px;
-  font-weight: 800;
+  padding: 4px 16px;
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 1px;
-  
   cursor: pointer;
   white-space: nowrap;
-  transition: opacity 0.2s;
-  
-  /* Truncate if too long on mobile */
+  transition: all 0.2s ease;
   max-width: 90vw;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* ✅ FIXED: Hover now applies a soft glass pill instead of washing out the text */
 .hp-banner-btn:hover {
-  opacity: 0.8;
-  text-decoration: underline;
+  transform: scale(1.02);
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  color: var(--ink); /* Keep text dark for contrast against the bright background */
 }
 
 /* =========================================================
    ✅ ACTIVITY BOARD WRAPPER
    ========================================================= */
-
 .hp-board-section {
   max-width: 1400px;
-  margin: 0 auto 20px auto !important;
+  margin: 0 auto 32px auto !important;
   padding: 0 20px;
   display: flex;
   justify-content: center;
   width: 100%;
 }
+.hp-board-section .ab-board { margin: 0 auto !important; }
 
-.hp-board-section .ab-board {
-  margin: 0 auto !important;
-}
 
-/* --- HERO --- */
-.hp-hero {
-  text-align: center;
-  padding: 80px 20px 120px 20px;
-  margin-bottom: -80px;
-  background: linear-gradient(-45deg, rgba(255,255,255,0.9), #fff0f5, #fce7f3, #ffffff);
-  background-size: 400% 400%;
-  animation: hp-breathing 15s ease infinite;
-  border-radius: 32px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-  position: relative;
+/* =========================================================
+   ✅ THE NEW HERO CARD (Glass Billboard)
+   ========================================================= */
+.hp-hero-card {
+  max-width: 1000px;
+  margin: 20px auto 80px auto;
+  
+  /* Highly opaque glass blocks out messy backgrounds */
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  
+  border-radius: 40px; 
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  
+  /* Outer glow / drop shadow */
+  box-shadow: 
+    0 24px 60px -10px rgba(0, 0, 0, 0.1),
+    0 0 0 10px rgba(255, 255, 255, 0.3); /* Soft halo */
+    
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   overflow: hidden;
-  margin-top: 0;
 }
 
-@keyframes hp-breathing {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+.hp-hero-content {
+  padding: 60px 40px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hp-hero-badge {
+  background: rgba(246, 182, 200, 0.25);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(246, 182, 200, 0.6);
 }
 
 .hp-hero-title {
   font-size: 64px;
-  /* ✅ Fixed font weight to valid maximum */
   font-weight: 900; 
-  margin: 0;
-  line-height: 1.08;
-  padding-bottom: 6px;
-  display: inline-block;
-  letter-spacing: -2.5px;
-  background: linear-gradient(180deg, #4A0F2B 0%, #9A2A58 100%);
+  margin: 0 0 16px 0;
+  line-height: 1.1;
+  color: var(--ink);
+  letter-spacing: -1.5px;
+}
+
+.hp-text-gradient {
+  background: linear-gradient(135deg, var(--sakura-pink) 0%, #D88EAA 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 12px rgba(180, 70, 120, 0.2));
+  filter: drop-shadow(0 2px 4px rgba(246, 182, 200, 0.3));
 }
 
 .hp-hero-sub {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
-  opacity: 0.8;
-  margin-top: 24px;
+  color: var(--ink);
+  opacity: 0.75;
   max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-  color: #4A0F2B;
+  line-height: 1.5;
+  margin-bottom: 32px;
 }
 
-/* --- STATS BAR --- */
-.hp-stats-bar {
-  display: inline-flex;
+/* Hero Action Buttons */
+.hp-hero-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.hp-btn-primary, .hp-btn-secondary {
+  padding: 16px 32px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.hp-btn-primary {
+  background: linear-gradient(135deg, var(--peach-glow), var(--sakura-pink));
+  color: var(--ink);
+  border: 2px solid #ffffff;
+  box-shadow: 0 6px 20px rgba(246, 182, 200, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+.hp-btn-primary:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, var(--sakura-pink), #D88EAA);
+  color: var(--soft-cream);
+  box-shadow: 0 8px 24px rgba(246, 182, 200, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.hp-btn-secondary {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.hp-btn-secondary:hover {
+  background: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Stats Docked to bottom of Hero */
+.hp-stats-dock {
+  width: 100%;
+  display: flex;
+  justify-content: space-evenly;
   align-items: center;
-  gap: 32px;
-  margin-top: 48px;
-  padding: 16px 40px;
-  background: rgba(255, 255, 255, 0.75);
-  border-radius: 24px;
-  box-shadow: 0 20px 60px -10px rgba(180, 70, 120, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.5);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 24px 0;
 }
 
-.hp-stat-item { text-align: center; }
+.hp-stat-item { 
+  text-align: center; 
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
 .hp-stat-val {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 900;
   line-height: 1;
-  color: #1e293b;
+  color: var(--ink);
   letter-spacing: -1px;
 }
 
 .hp-stat-lbl {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 900;
   text-transform: uppercase;
-  color: #64748b;
-  margin-top: 4px;
-  letter-spacing: 0.5px;
+  color: var(--ink);
+  opacity: 0.5;
+  margin-top: 6px;
+  letter-spacing: 1px;
 }
 
 .hp-stat-item.highlight .hp-stat-val {
-  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #db2777;
 }
 
 .hp-stat-sep {
-  width: 1px;
-  height: 30px;
-  background: #e2e8f0;
+  width: 2px;
+  height: 40px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
 }
 
-/* --- SECTIONS --- */
+
+/* =========================================================
+   ✅ SECTIONS & PODIUM
+   ========================================================= */
 .hp-section-header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   padding: 0 32px;
   margin-bottom: 32px;
   margin-top: 60px;
 }
 
 .hp-section-title {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 900;
   letter-spacing: -0.5px;
-  color: #4A0F2B;
-  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
-  padding: 12px 24px;
-  border-radius: 99px;
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 12px 28px;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px -6px rgba(203, 183, 246, 0.3); /* Lavender mist shadow */
+  border: 2px solid #ffffff;
 }
 
 .hp-section-line {
   flex: 1;
-  height: 2px;
-  background: #e2e8f0;
-  border-radius: 99px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
   margin-top: 2px;
 }
 
-/* --- TOP ACTIVE (Refined) --- */
 .hp-podium-section {
   position: relative;
   z-index: 10;
@@ -235,9 +309,9 @@
 .hp-podium {
   display: flex;
   justify-content: center;
-  align-items: flex-end; /* Align bottom so they stand on ground */
-  gap: 24px;
-  padding-top: 30px;
+  align-items: flex-end; 
+  gap: 32px;
+  padding-top: 40px;
 }
 
 /* Wrapper Base */
@@ -245,68 +319,73 @@
 .pp-silver-wrapper,
 .pp-bronze-wrapper {
   position: relative;
-  transition: transform 0.2s ease;
-  border-radius: 20px;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  border-radius: 24px;
 }
 
-/* ✅ 2. CLEANER PODIUM BADGES (No Pseudo-Elements) */
+/* Podium Badges */
 .pp-rank-badge {
   position: absolute;
-  top: -18px;
+  top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   font-weight: 900;
-  font-size: 18px;
-  color: white;
+  font-size: 20px;
+  color: var(--ink);
   z-index: 20;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-  border: 3px solid white;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+  border: 3px solid #ffffff;
 }
 
-.pp-rank-badge.gold { background: linear-gradient(135deg, #fbbf24, #d97706); }
-.pp-rank-badge.silver { background: linear-gradient(135deg, #94a3b8, #475569); }
-.pp-rank-badge.bronze { background: linear-gradient(135deg, #d6d3d1, #a8a29e); color: #78350f; }
+.pp-rank-badge.gold { background: linear-gradient(135deg, #FFF1D4, var(--warm-lantern)); }
+.pp-rank-badge.silver { background: linear-gradient(135deg, #E2EFFF, var(--sky-pastel)); }
+.pp-rank-badge.bronze { background: linear-gradient(135deg, #FFF0E5, var(--peach-glow)); }
 
-/* Podium Sizes (Explicit size instead of scale) */
-.pp-gold-wrapper {
-  z-index: 10;
-  /* Gold is naturally larger */
-  transform: translateY(-10px); 
-  border-bottom: 6px solid #fbbf24;
-  box-shadow: 0 30px 60px -10px rgba(251, 191, 36, 0.6);
-  background: linear-gradient(to top, rgba(251, 191, 36, 0.15) 0%, rgba(255,255,255,0) 40%);
+/* Glowing Pedestals behind the cards */
+.pp-gold-wrapper::before,
+.pp-silver-wrapper::before,
+.pp-bronze-wrapper::before {
+  content: "";
+  position: absolute;
+  bottom: -20px;
+  left: 10%;
+  right: 10%;
+  height: 40px;
+  border-radius: 50%;
+  filter: blur(16px);
+  z-index: -1;
+  opacity: 0.6;
 }
+.pp-gold-wrapper::before { background: var(--warm-lantern); }
+.pp-silver-wrapper::before { background: var(--sky-pastel); }
+.pp-bronze-wrapper::before { background: var(--peach-glow); }
 
-.pp-silver-wrapper {
-  z-index: 5;
-  transform: scale(0.9); /* Slightly smaller visual */
-  border-bottom: 6px solid #94a3b8;
-  box-shadow: 0 20px 40px -10px rgba(148, 163, 184, 0.5);
-  background: linear-gradient(to top, rgba(148, 163, 184, 0.15) 0%, rgba(255,255,255,0) 40%);
-}
-
-.pp-bronze-wrapper {
-  z-index: 5;
-  transform: scale(0.9);
-  border-bottom: 6px solid #d97706;
-  box-shadow: 0 20px 40px -10px rgba(217, 119, 6, 0.4);
-  background: linear-gradient(to top, rgba(217, 119, 6, 0.1) 0%, rgba(255,255,255,0) 40%);
-}
+/* Podium Sizes */
+.pp-gold-wrapper { z-index: 10; transform: translateY(-20px) scale(1.05); }
+.pp-silver-wrapper { z-index: 5; transform: scale(0.95); }
+.pp-bronze-wrapper { z-index: 5; transform: scale(0.95); }
 
 .pp-silver-wrapper:hover,
-.pp-bronze-wrapper:hover,
+.pp-bronze-wrapper:hover {
+  transform: translateY(-12px) scale(0.98);
+  z-index: 30;
+  cursor: pointer;
+}
 .pp-gold-wrapper:hover {
-  transform: translateY(-12px) scale(1.02);
+  transform: translateY(-30px) scale(1.08);
   z-index: 30;
   cursor: pointer;
 }
 
-/* --- STRIP --- */
+
+/* =========================================================
+   ✅ STRIPS (Horizontal Scrolling)
+   ========================================================= */
 .hp-strip-wrap {
   position: relative;
 }
@@ -338,52 +417,61 @@
 .hp-empty-msg {
   margin: 0 32px;
   padding: 60px;
-  background: #f8fafc;
-  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 32px;
   text-align: center;
-  font-weight: 700;
+  font-weight: 800;
   opacity: 0.8;
-  color: #64748b;
+  color: var(--ink);
   min-width: 320px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  border: 1px dashed #cbd5e1;
+  border: 2px dashed rgba(246, 182, 200, 0.6); /* Sakura dash */
 }
 
 .hp-empty-icon {
-  font-size: 40px;
-  filter: grayscale(0.5);
-  opacity: 0.8;
+  font-size: 48px;
+  opacity: 0.9;
+  filter: drop-shadow(0 4px 8px rgba(246, 182, 200, 0.4));
 }
 
 /* --- SLIDER ARROWS --- */
 .hp-strip-arrow {
   position: absolute;
   top: 50%;
-  transform: translateY(-55%);
-  width: 40px;
-  height: 40px;
+  transform: translateY(-60%);
+  width: 52px;
+  height: 52px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
+  border: 2px solid #ffffff;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
   cursor: pointer;
   display: grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 900;
-  color: #334155;
+  color: var(--ink);
   z-index: 5;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.12);
-  transition: transform 0.15s ease;
+  box-shadow: 0 10px 24px rgba(203, 183, 246, 0.4); /* Lavender shadow */
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.hp-strip-arrow:hover { transform: translateY(-55%) scale(1.05); }
-.hp-strip-arrow:active { transform: translateY(-55%) scale(0.98); }
 
-.hp-strip-arrow.left { left: 10px; }
-.hp-strip-arrow.right { right: 10px; }
+.hp-strip-arrow:hover { 
+  transform: translateY(-60%) scale(1.1); 
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(203, 183, 246, 0.5);
+  color: var(--sakura-pink);
+}
+
+.hp-strip-arrow:active { 
+  transform: translateY(-60%) scale(0.95); 
+}
+
+.hp-strip-arrow.left { left: 8px; }
+.hp-strip-arrow.right { right: 8px; }
 
 /* --- MOBILE --- */
 @media (max-width: 850px) {
@@ -391,29 +479,45 @@
     padding: 0 10px;
   }
 
-  .hp-hero-title {
-    font-size: 42px;
-    line-height: 1.12;
-    padding-bottom: 5px;
+  .hp-hero-card {
+    border-radius: 32px;
+    margin: 10px 16px 40px 16px;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1), 0 0 0 6px rgba(255, 255, 255, 0.2);
   }
 
-  .hp-stats-bar {
+  .hp-hero-content {
+    padding: 40px 20px;
+  }
+
+  .hp-hero-title {
+    font-size: 42px;
+  }
+  
+  .hp-hero-sub {
+    font-size: 16px;
+  }
+  
+  .hp-hero-actions {
     flex-direction: column;
-    gap: 16px;
-    padding: 24px;
-    width: 90%;
+    width: 100%;
+  }
+
+  .hp-stats-dock {
+    flex-direction: column;
+    gap: 20px;
+    padding: 32px 0;
   }
 
   .hp-stat-sep {
-    width: 40px;
-    height: 1px;
+    width: 60px;
+    height: 2px;
   }
 
   .hp-podium {
     flex-direction: column;
     align-items: center;
-    gap: 50px;
-    margin-top: 20px;
+    gap: 60px;
+    margin-top: 30px;
   }
 
   .pp-gold-wrapper,
@@ -427,18 +531,17 @@
 
   .pp-gold-wrapper {
     order: -1;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
   }
   
-  /* Reset badge positions for mobile stack */
   .pp-rank-badge {
-    top: -16px;
+    top: -22px;
   }
 
   .pp-silver-wrapper:hover,
   .pp-bronze-wrapper:hover,
   .pp-gold-wrapper:hover {
-    transform: none;
+    transform: translateY(-4px);
   }
 
   .hp-strip {
@@ -451,9 +554,9 @@
   }
 
   .hp-strip-arrow {
-    width: 36px;
-    height: 36px;
-    font-size: 20px;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
   }
   .hp-strip-arrow.left { left: 6px; }
   .hp-strip-arrow.right { right: 6px; }

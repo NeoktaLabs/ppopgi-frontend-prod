@@ -1,7 +1,7 @@
 // src/pages/HomePage.tsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { formatUnits } from "ethers";
-import { useHomeLotteries } from "../hooks/useHomeLotteries"; // (you can rename later)
+import { useHomeLotteries } from "../hooks/useHomeLotteries"; 
 import { useInfraStatus } from "../hooks/useInfraStatus";
 import { LotteryCard } from "../components/LotteryCard";
 import { LotteryCardSkeleton } from "../components/LotteryCardSkeleton";
@@ -10,7 +10,7 @@ import "./HomePage.css";
 
 type Props = {
   nowMs: number;
-  onOpenLottery: (id: string) => void; // you can rename later to onOpenLottery
+  onOpenLottery: (id: string) => void;
   onOpenSafety: (id: string) => void;
 };
 
@@ -207,14 +207,28 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
       </div>
 
       <div className="hp-container">
-        <div className="hp-hero">
-          <h1 className="hp-hero-title">Welcome to Ppopgi (뽑기)</h1>
-          <div className="hp-hero-sub">
-            Where fun meets fairness. Experience the thrill of fully transparent, on-chain lotteries. No tricks — just
-            luck.
+        
+        {/* ✅ REFACTORED HERO CARD */}
+        <div className="hp-hero-card">
+          <div className="hp-hero-content">
+            <div className="hp-hero-badge">🎟️ The Festival is Open</div>
+            <h1 className="hp-hero-title">
+              Welcome to <span className="hp-text-gradient">Ppopgi (뽑기)</span>
+            </h1>
+            <p className="hp-hero-sub">
+              Where fun meets fairness. Experience the thrill of fully transparent, on-chain lotteries. No tricks — just luck.
+            </p>
+            <div className="hp-hero-actions">
+              <button className="hp-btn-primary" onClick={() => navigateFromHome("explore")}>
+                Explore Lotteries
+              </button>
+              <button className="hp-btn-secondary" onClick={() => navigateFromHome("faq")}>
+                How it Works
+              </button>
+            </div>
           </div>
 
-          <div className="hp-stats-bar">
+          <div className="hp-stats-dock">
             <div className="hp-stat-item">
               <div className="hp-stat-val">{isLoading ? "..." : stats.totalLotteries}</div>
               <div className="hp-stat-lbl">Lotteries Created</div>
@@ -227,7 +241,7 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
             <div className="hp-stat-sep" />
             <div className="hp-stat-item highlight">
               <div className="hp-stat-val">{isLoading ? "..." : fmtUsd(stats.activeVolume)}</div>
-              <div className="hp-stat-lbl">Total Active Volume</div>
+              <div className="hp-stat-lbl">Active Volume</div>
             </div>
           </div>
         </div>
@@ -241,55 +255,28 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
           <div className="hp-podium">
             {isLoading && (
               <>
-                <div className="pp-silver-wrapper">
-                  <LotteryCardSkeleton />
-                </div>
-                <div className="pp-gold-wrapper">
-                  <LotteryCardSkeleton />
-                </div>
-                <div className="pp-bronze-wrapper">
-                  <LotteryCardSkeleton />
-                </div>
+                <div className="pp-silver-wrapper"><LotteryCardSkeleton /></div>
+                <div className="pp-gold-wrapper"><LotteryCardSkeleton /></div>
+                <div className="pp-bronze-wrapper"><LotteryCardSkeleton /></div>
               </>
             )}
 
             {!isLoading && podium.silver && (
               <div className="pp-silver-wrapper">
                 <div className="pp-rank-badge silver">2</div>
-                <LotteryCard
-                  lottery={podium.silver}
-                  onOpen={onOpenLottery}
-                  onOpenSafety={onOpenSafety}
-                  ribbon="silver"
-                  nowMs={nowMs}
-                  finalizer={finalizerForCards}
-                />
+                <LotteryCard lottery={podium.silver} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} ribbon="silver" nowMs={nowMs} finalizer={finalizerForCards} />
               </div>
             )}
             {!isLoading && podium.gold && (
               <div className="pp-gold-wrapper">
                 <div className="pp-rank-badge gold">1</div>
-                <LotteryCard
-                  lottery={podium.gold}
-                  onOpen={onOpenLottery}
-                  onOpenSafety={onOpenSafety}
-                  ribbon="gold"
-                  nowMs={nowMs}
-                  finalizer={finalizerForCards}
-                />
+                <LotteryCard lottery={podium.gold} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} ribbon="gold" nowMs={nowMs} finalizer={finalizerForCards} />
               </div>
             )}
             {!isLoading && podium.bronze && (
               <div className="pp-bronze-wrapper">
                 <div className="pp-rank-badge bronze">3</div>
-                <LotteryCard
-                  lottery={podium.bronze}
-                  onOpen={onOpenLottery}
-                  onOpenSafety={onOpenSafety}
-                  ribbon="bronze"
-                  nowMs={nowMs}
-                  finalizer={finalizerForCards}
-                />
+                <LotteryCard lottery={podium.bronze} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} ribbon="bronze" nowMs={nowMs} finalizer={finalizerForCards} />
               </div>
             )}
             {!isLoading && !podium.gold && !podium.silver && !podium.bronze && (
@@ -310,30 +297,22 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
 
           <div className="hp-strip-wrap">
             {!endingEdges.atLeft && (
-              <button className="hp-strip-arrow left" onClick={() => scrollStrip(endingRef.current, "left")}>
-                ‹
-              </button>
+              <button className="hp-strip-arrow left" onClick={() => scrollStrip(endingRef.current, "left")}>‹</button>
             )}
             {!endingEdges.atRight && (
-              <button className="hp-strip-arrow right" onClick={() => scrollStrip(endingRef.current, "right")}>
-                ›
-              </button>
+              <button className="hp-strip-arrow right" onClick={() => scrollStrip(endingRef.current, "right")}>›</button>
             )}
 
             <div className="hp-strip" ref={endingRef} onScroll={updateEndingEdges}>
-              {isLoading &&
-                Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="hp-strip-item">
-                    <LotteryCardSkeleton />
-                  </div>
-                ))}
+              {isLoading && Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="hp-strip-item"><LotteryCardSkeleton /></div>
+              ))}
 
-              {!isLoading &&
-                endingSoonSorted.map((r) => (
-                  <div key={r.id} className="hp-strip-item">
-                    <LotteryCard lottery={r} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} nowMs={nowMs} finalizer={finalizerForCards} />
-                  </div>
-                ))}
+              {!isLoading && endingSoonSorted.map((r) => (
+                <div key={r.id} className="hp-strip-item">
+                  <LotteryCard lottery={r} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} nowMs={nowMs} finalizer={finalizerForCards} />
+                </div>
+              ))}
 
               {!isLoading && endingSoonSorted.length === 0 && (
                 <div className="hp-empty-msg">
@@ -348,36 +327,28 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
         {/* RECENTLY SETTLED */}
         <div>
           <div className="hp-section-header">
-            <div className="hp-section-title">✅ Recently Settled</div>
+            <div className="hp-section-title">✅ Recently Finalized</div>
             <div className="hp-section-line" />
           </div>
 
           <div className="hp-strip-wrap">
             {!settledEdges.atLeft && (
-              <button className="hp-strip-arrow left" onClick={() => scrollStrip(settledRef.current, "left")}>
-                ‹
-              </button>
+              <button className="hp-strip-arrow left" onClick={() => scrollStrip(settledRef.current, "left")}>‹</button>
             )}
             {!settledEdges.atRight && (
-              <button className="hp-strip-arrow right" onClick={() => scrollStrip(settledRef.current, "right")}>
-                ›
-              </button>
+              <button className="hp-strip-arrow right" onClick={() => scrollStrip(settledRef.current, "right")}>›</button>
             )}
 
             <div className="hp-strip" ref={settledRef} onScroll={updateSettledEdges}>
-              {isLoading &&
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="hp-strip-item">
-                    <LotteryCardSkeleton />
-                  </div>
-                ))}
+              {isLoading && Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="hp-strip-item"><LotteryCardSkeleton /></div>
+              ))}
 
-              {!isLoading &&
-                recentlySettledSorted.map((r) => (
-                  <div key={r.id} className="hp-strip-item">
-                    <LotteryCard lottery={r} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} nowMs={nowMs} finalizer={finalizerForCards} />
-                  </div>
-                ))}
+              {!isLoading && recentlySettledSorted.map((r) => (
+                <div key={r.id} className="hp-strip-item">
+                  <LotteryCard lottery={r} onOpen={onOpenLottery} onOpenSafety={onOpenSafety} nowMs={nowMs} finalizer={finalizerForCards} />
+                </div>
+              ))}
 
               {!isLoading && recentlySettledSorted.length === 0 && (
                 <div className="hp-empty-msg">

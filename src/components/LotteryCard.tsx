@@ -4,6 +4,9 @@ import type { LotteryListItem } from "../indexer/subgraph"; // ✅ updated type
 import { useLotteryCard } from "../hooks/useLotteryCard";
 import "./LotteryCard.css";
 
+// ✅ NEW: shared UI formatter (removes trailing .0 by default)
+import { fmtUsdcUi } from "../lib/format";
+
 const EXPLORER_URL = "https://explorer.etherlink.com/address/";
 
 type HatchUI = {
@@ -145,7 +148,7 @@ export function LotteryCard({
           <div className="rc-end-sub">
             Min tickets not reached.
             <br />
-            Reclaim available.
+            Reclaim available soon on your dashboard.
           </div>
         </div>
       );
@@ -166,6 +169,10 @@ export function LotteryCard({
   // ✅ Fix TS: title prop cannot be null
   const titleText = lottery.name ?? undefined;
   const displayName = lottery.name ?? "Lottery";
+
+  // ✅ NEW: remove trailing ".0" (and any decimals) for card display only
+  const potUi = useMemo(() => fmtUsdcUi(ui.formattedPot, { maxDecimals: 0 }), [ui.formattedPot]);
+  const priceUi = useMemo(() => fmtUsdcUi(ui.formattedPrice, { maxDecimals: 0 }), [ui.formattedPrice]);
 
   return (
     <div className={cardClass} onClick={() => onOpen(lottery.id)} role="button" tabIndex={0}>
@@ -235,7 +242,7 @@ export function LotteryCard({
       <div className="rc-prize-section">
         <div className="rc-prize-lbl">Prize Pool</div>
         <div className="rc-prize-val">
-          <span className="rc-prize-num">{ui.formattedPot}</span>
+          <span className="rc-prize-num">{potUi}</span>
           <span className="rc-prize-unit">USDC</span>
         </div>
       </div>
@@ -244,7 +251,7 @@ export function LotteryCard({
       <div className="rc-grid">
         <div className="rc-stat">
           <div className="rc-stat-lbl">Ticket Price</div>
-          <div className="rc-stat-val">{ui.formattedPrice} USDC</div>
+          <div className="rc-stat-val">{priceUi} USDC</div>
         </div>
         <div className="rc-stat">
           <div className="rc-stat-lbl">Tickets Sold</div>

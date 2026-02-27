@@ -23,17 +23,13 @@ function toInt(raw: string, fallback = 0) {
 
 // ✅ allow decimal input for USDC fields (ticket price, winning pot)
 function sanitizeUsdcDecimal(raw: string) {
-  // allow digits + one dot; also accept commas from some keyboards
   const s = String(raw ?? "").trim().replace(",", ".");
-  // keep only digits + dots
   const cleaned = s.replace(/[^\d.]/g, "");
-  // collapse multiple dots into a single one
   const parts = cleaned.split(".");
   if (parts.length <= 1) return parts[0] || "0";
   return `${parts[0] || "0"}.${parts.slice(1).join("")}`;
 }
 
-// ✅ safe parse to 6 decimals, returns 0n on bad input
 function parseUsdc(raw: string): bigint {
   const s = sanitizeUsdcDecimal(raw);
   if (!s || s === "." || s === "0." || s === ".0") return 0n;
@@ -163,6 +159,21 @@ function topicToAddress(topic: string): string {
   return ("0x" + topic.slice(26)).toLowerCase();
 }
 
+async function tryRead<T>(contract: any, methodNames: string[], params: any[] = []) {
+  for (const method of methodNames) {
+    try {
+      const value = await readContract({ contract, method, params });
+      return { method, value: value as T };
+    } catch {}
+  }
+  return null;
+}
+
+function clampFeePct(n: number) {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(20, n));
+}
+
 /* -------------------- hook -------------------- */
 
 type AllowanceSnapshot = { bal: bigint; allowance: bigint; ts: number };
@@ -196,7 +207,14 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
   const [allowance, setAllowance] = useState<bigint | null>(null);
   const [allowLoading, setAllowLoading] = useState(false);
 
-  const reqIdRef = useRef(0);
+  // ✅ on-chain fee config
+  const [protocolFeePercent, setProtocolFeePercent] = useState<number | null>(null);
+  const [protocolFeeRecipient, setProtocolFeeRecipient] = useState<string | null>(null);
+
+  // ✅ separate request IDs so fee reads never cancel allowance reads
+  const allowReqIdRef = useRef(0);
+  const feeReqIdRef = useRef(0);
+
   const lastSnapRef = useRef<AllowanceSnapshot | null>(null);
 
   const deployerContract = useMemo(
@@ -226,7 +244,6 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
   const unitSeconds = durationUnit === "minutes" ? 60 : durationUnit === "hours" ? 3600 : 86400;
   const durationSecondsN = toInt(durationValue, 0) * unitSeconds;
 
-  // ✅ FIX: allow decimals properly
   const ticketPriceU = useMemo(() => parseUsdc(ticketPrice), [ticketPrice]);
   const winningPotU = useMemo(() => parseUsdc(winningPot), [winningPot]);
 
@@ -261,7 +278,7 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
         return;
       }
 
-      const reqId = ++reqIdRef.current;
+      const reqId = ++allowReqIdRef.current;
       setAllowLoading(true);
 
       try {
@@ -270,7 +287,7 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
           readContract({ contract: usdcContract, method: "allowance", params: [me, ADDRESSES.SingleWinnerDeployer] }),
         ]);
 
-        if (reqId !== reqIdRef.current) return;
+        if (reqId !== allowReqIdRef.current) return;
 
         const balB = BigInt(bal ?? 0n);
         const allowB = BigInt(a ?? 0n);
@@ -278,16 +295,59 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
         lastSnapRef.current = { bal: balB, allowance: allowB, ts: Date.now() };
         setUsdcBal(balB);
         setAllowance(allowB);
-      } catch (e: any) {
-        if (reqId !== reqIdRef.current) return;
-        // keep previous values, but give a hint
+      } catch {
+        if (reqId !== allowReqIdRef.current) return;
         setMsg((prev) => prev ?? "Could not refresh USDC balance/allowance. Try again.");
       } finally {
-        if (reqId === reqIdRef.current) setAllowLoading(false);
+        if (reqId === allowReqIdRef.current) setAllowLoading(false);
       }
     },
     [isOpen, me, usdcContract]
   );
+
+  /* ---------- fee refresh (on-chain) ---------- */
+
+  const refreshFeeConfig = useCallback(async () => {
+    if (!isOpen) return;
+
+    const reqId = ++feeReqIdRef.current;
+
+    try {
+      // Try common method names. One of these should exist in your deployer ABI.
+      const feeRes = await tryRead<any>(deployerContract, [
+        "protocolFeePercent", // your UI expects percent
+        "protocolFee",        // sometimes named like this
+        "feePercent",         // alt
+        "protocolFeeBps",     // bps variants
+        "feeBps",
+      ]);
+
+      const recRes = await tryRead<any>(deployerContract, [
+        "feeRecipient",
+        "protocolFeeRecipient",
+      ]);
+
+      if (reqId !== feeReqIdRef.current) return;
+
+      // If fee is in bps, divide by 100
+      let pct: number | null = null;
+      if (feeRes?.value != null) {
+        const raw = BigInt(feeRes.value?.toString?.() ?? String(feeRes.value));
+        const isBps = feeRes.method.toLowerCase().includes("bps");
+        const asNum = isBps ? Number(raw) / 100 : Number(raw);
+        pct = clampFeePct(asNum);
+      }
+
+      const recipient = recRes?.value != null ? String(recRes.value).toLowerCase() : null;
+
+      setProtocolFeePercent(pct);
+      setProtocolFeeRecipient(recipient);
+    } catch {
+      if (reqId !== feeReqIdRef.current) return;
+      setProtocolFeePercent(null);
+      setProtocolFeeRecipient(null);
+    }
+  }, [isOpen, deployerContract]);
 
   /* ---------- approve ---------- */
 
@@ -298,7 +358,6 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
     try {
       setMsg("Confirm approval in wallet...");
 
-      // ✅ Better UX: approve max so user doesn’t need repeated approvals
       const tx = prepareContractCall({
         contract: usdcContract,
         method: "approve",
@@ -347,7 +406,6 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
 
       const receipt = await sendAndConfirm(tx);
 
-      // ⚠️ fragile unless your event indexes the address as topic[1]
       let newAddr = "";
       const logs: any[] = (receipt as any)?.logs ?? [];
       for (const log of logs) {
@@ -411,22 +469,29 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
 
   useEffect(() => {
     if (!isOpen) return;
+
     refreshAllowance({ force: true });
+    void refreshFeeConfig();
+
     return () => {
-      reqIdRef.current++;
+      allowReqIdRef.current++;
+      feeReqIdRef.current++;
     };
-  }, [isOpen, me, refreshAllowance]);
+  }, [isOpen, me, refreshAllowance, refreshFeeConfig]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const onVis = () => {
-      if (document.visibilityState === "visible") refreshAllowance({ force: false });
+      if (document.visibilityState === "visible") {
+        refreshAllowance({ force: false });
+        void refreshFeeConfig();
+      }
     };
 
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [isOpen, refreshAllowance]);
+  }, [isOpen, refreshAllowance, refreshFeeConfig]);
 
   return {
     form: {
@@ -454,7 +519,15 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
       canSubmit,
       durationSecondsN,
     },
-    derived: { ticketPriceU, winningPotU, minT, maxT, me },
+    derived: {
+      ticketPriceU,
+      winningPotU,
+      minT,
+      maxT,
+      me,
+      protocolFeePercent,     // ✅ for UI
+      protocolFeeRecipient,   // ✅ for UI
+    },
     status: { msg, isPending, allowLoading, usdcBal, approve, create, refresh: refreshAllowance },
     helpers: { sanitizeInt },
   };

@@ -54,7 +54,7 @@ flowchart TD
   E{Deadline?}:::decision
   F{Min Tickets?}:::decision
 
-  Bot[Finalizer Bot<br/>runs ~every 5 min]:::tech
+  Bot[Finalizer Bot<br/>runs ~every 3 min]:::tech
   User[Any User]:::tech
 
   H[Drawing Phase]:::tech
@@ -439,6 +439,74 @@ const FAQ_SECTIONS: FaqSection[] = [
         tags: ["usage", "roles"],
       },
 
+      // ✅ NEW: deployer admin explanation
+      {
+        id: "deployer-admin",
+        q: "Who is the deployer admin?",
+        a: (
+          <>
+            The “deployer admin” is the <b>admin/owner of the SingleWinnerDeployer contract</b> (the factory that creates new lottery
+            instances).
+            <br />
+            <br />
+            Today, this admin is a <b>multisig contract</b> controlled by <b>one signer (the project creator)</b>. If Ppopgi grows, the
+            multisig can be updated to add more participants (multiple signers) for better shared governance and operational safety.
+            <br />
+            <br />
+            You can always verify the deployer contract on-chain here:{" "}
+            <LinkOut href={explorerAddressUrl(CONTRACTS.deployer)}>{CONTRACTS.deployer}</LinkOut>
+            <div className="faq-callout">
+              Important: deployer admin powers apply to <b>future lotteries</b> (configuration / deployment defaults). They do not let
+              anyone change the outcome of an already deployed lottery.
+            </div>
+          </>
+        ),
+        tags: ["usage", "roles", "admin"],
+      },
+
+      {
+        id: "ticket-ranges",
+        q: "Why do ticket purchases use “ranges”?",
+        a: (
+          <>
+            Ppopgi groups tickets into <b>on-chain ranges</b> when you buy.
+            <br />
+            <br />
+            Instead of storing one entry per ticket (which becomes expensive fast), the contract stores purchases like:
+            <div className="faq-callout">
+              <code>[startTicketIndex … endTicketIndex] → buyerAddress</code>
+            </div>
+            So a single purchase of 25 tickets becomes <b>one range</b>, not 25 separate records.
+            <br />
+            <br />
+            <b>Why this exists</b>
+            <ul className="faq-ul">
+              <li>
+                <b>Lower gas costs:</b> ranges reduce storage writes compared to tracking every ticket individually.
+              </li>
+              <li>
+                <b>Fast winner mapping:</b> when randomness gives a <code>winningIndex</code>, the contract finds the range that contains
+                it and assigns the winner deterministically.
+              </li>
+              <li>
+                <b>Prevents spam / bloat:</b> too many tiny buys would create lots of ranges and make the system heavier to operate.
+              </li>
+            </ul>
+            <b>So why do I sometimes see a “minimum buy” warning?</b>
+            <br />
+            When the contract is close to using up its range capacity, opening a <b>new range</b> can be more expensive than extending an
+            existing one. In those cases, the contract may require a slightly larger purchase to justify creating that new range.
+            <br />
+            <br />
+            <div className="faq-callout">
+              You can see this live per lottery in the <b>Ranges</b> tab inside the Lottery Details modal (tier, ranges used, and whether
+              your next buy opens a new range).
+            </div>
+          </>
+        ),
+        tags: ["usage", "tickets", "ranges"],
+      },
+
       {
         id: "finalizer-bot",
         q: "What is the finalizer bot?",
@@ -638,7 +706,8 @@ export function FaqPage() {
     document.title = "Ppopgi 뽑기 — FAQ";
   }, []);
 
-  const [openId, setOpenId] = useState<string | null>("what-is");
+  // ✅ collapse everything by default (including the first question)
+  const [openId, setOpenId] = useState<string | null>(null);
   const toggle = (id: string) => setOpenId((prev) => (prev === id ? null : id));
 
   return (

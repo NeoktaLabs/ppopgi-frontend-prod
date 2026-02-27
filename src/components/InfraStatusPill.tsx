@@ -99,7 +99,7 @@ export function InfraStatusPill() {
           <div className="isp-item">
             <div className="isp-item-header">
               <span className={`isp-dot ${rpcDot}`} aria-hidden="true" />
-              <span className="isp-item-name">RPC</span>
+              <span className="isp-item-name">Etherlink RPC</span>
               <span className="isp-q" tabIndex={0} aria-label="What is the RPC?">
                 ?
                 <span className="isp-tip" role="tooltip">
@@ -119,7 +119,7 @@ export function InfraStatusPill() {
           <div className="isp-item">
             <div className="isp-item-header">
               <span className={`isp-dot ${botDot}`} aria-hidden="true" />
-              <span className="isp-item-name">Bot</span>
+              <span className="isp-item-name">Finalizer Bot</span>
               <span className="isp-q" tabIndex={0} aria-label="What is the finalizer bot?">
                 ?
                 <span className="isp-tip" role="tooltip">

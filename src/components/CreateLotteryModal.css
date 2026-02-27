@@ -4,41 +4,46 @@
 .crm-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.75); /* Darker, premium overlay */
-  backdrop-filter: blur(8px);
+  background-color: rgba(43, 43, 51, 0.45); /* Dark ink overlay */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 2000;
 
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 100px; /* More breathing room */
+  padding-top: 100px;
   padding-bottom: 40px;
   padding-left: 20px;
   padding-right: 20px;
   overflow-y: auto;
-  animation: crm-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: crm-fade-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @keyframes crm-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(12px); }
 }
 
 /* --- 2. The Modal --- */
 .crm-modal {
   width: 100%;
-  max-width: 960px; /* Slightly wider for the studio feel */
-  background: #ffffff;
-  border-radius: 28px;
+  max-width: 960px; 
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 32px; /* Pillowy corners */
+  
+  /* ✅ REMOVED overflow: hidden; so tooltips can escape the boundaries! */
+  
   box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255,255,255,0.1);
+    0 24px 50px -12px rgba(203, 183, 246, 0.4), /* Lavender shadow */
+    0 4px 12px -2px rgba(246, 182, 200, 0.2);
   
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 
-  animation: crm-scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: crm-scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: top center;
 }
 
@@ -50,49 +55,54 @@
 /* --- Header --- */
 .crm-header {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 24px 36px;
-  border-bottom: 1px solid rgba(0,0,0,0.04);
-  background: #ffffff;
+  padding: 28px 36px;
+  border-bottom: 2px dashed rgba(246, 182, 200, 0.4); /* Sakura dash */
+  background: rgba(255, 255, 255, 0.6);
   z-index: 10;
+  /* ✅ ADDED border-radius to preserve pillowy corners */
+  border-top-left-radius: 31px;
+  border-top-right-radius: 31px;
 }
 
 .crm-header-text h3 {
   margin: 0;
   font-size: 24px;
   font-weight: 900;
-  color: #1e293b;
+  color: var(--ink, #2B2B33);
   letter-spacing: -0.5px;
 }
 .crm-header-text span {
   font-size: 14px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--ink, #2B2B33);
+  opacity: 0.6;
 }
 
 .crm-close-btn {
-  background: #f1f5f9;
-  border: none;
+  background: rgba(169, 212, 255, 0.2); /* Soft sky */
+  border: 1px solid transparent;
   width: 36px;
   height: 36px;
   border-radius: 50%;
   cursor: pointer;
   font-weight: 800;
-  color: #64748b;
-  transition: all 0.2s;
+  color: var(--ink, #2B2B33);
+  transition: all 0.2s ease;
   display: grid;
   place-items: center;
 }
 .crm-close-btn:hover {
-  background: #fee2e2;
-  color: #ef4444;
-  transform: rotate(90deg);
+  background: var(--sky-pastel, #A9D4FF);
+  color: var(--ink, #2B2B33);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(169, 212, 255, 0.4);
 }
 
 /* --- Body Layout --- */
 .crm-body {
   display: flex;
   flex-direction: row;
-  background: white;
+  background: transparent;
   min-height: 520px;
 }
 
@@ -101,32 +111,35 @@
   padding: 36px;
   position: relative;
   z-index: 2;
+  border-bottom-left-radius: 31px;
 }
 
 /* --- Holographic Preview Column --- */
 .crm-preview-col {
   width: 380px;
   padding: 40px;
-  /* Soft vertical gradient */
-  background: linear-gradient(180deg, #fff0f5 0%, #f8fafc 100%);
-  border-left: 1px solid rgba(0,0,0,0.03);
+  /* Soft pastel column */
+  background: linear-gradient(180deg, rgba(255, 246, 239, 0.5) 0%, rgba(246, 182, 200, 0.1) 100%);
+  border-left: 2px dashed rgba(246, 182, 200, 0.3);
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
   overflow: hidden;
+  /* ✅ ADDED border-radius */
+  border-bottom-right-radius: 31px;
 }
 
 /* Glow Orb behind the card */
 .crm-preview-col::before {
   content: "";
   position: absolute;
-  top: 30%;
+  top: 35%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 200px;
-  height: 200px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, transparent 70%);
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(246, 182, 200, 0.4) 0%, transparent 70%); /* Sakura glow */
   pointer-events: none;
 }
 
@@ -134,7 +147,8 @@
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--ink, #2B2B33);
+  opacity: 0.5;
   letter-spacing: 1px;
   margin-bottom: 24px;
 }
@@ -148,60 +162,62 @@
 
 @keyframes crm-levitate {
   0%, 100% { transform: scale(0.9) translateY(0); }
-  50% { transform: scale(0.9) translateY(-10px); }
+  50% { transform: scale(0.9) translateY(-12px); }
 }
 
 /* Floor Shadow */
 .crm-preview-shadow {
   width: 140px;
   height: 20px;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,0.1) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(203, 183, 246, 0.4) 0%, transparent 70%); /* Lavender shadow */
   margin-top: 10px;
   animation: crm-shadow-breathe 6s ease-in-out infinite;
 }
 
 @keyframes crm-shadow-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
+  0%, 100% { transform: scale(1); opacity: 0.6; }
   50% { transform: scale(0.8); opacity: 0.3; }
 }
 
 .crm-network-tip {
   margin-top: auto;
   font-size: 11px;
-  font-weight: 700;
-  color: #cbd5e1;
+  font-weight: 800;
+  color: #10b981; /* Etherlink green, softened slightly */
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  opacity: 0.8;
 }
 
 /* --- Float & Glow Inputs --- */
 .crm-input-group { margin-bottom: 24px; }
 .crm-input-group label {
-  display: block;
+  display: flex;
+  align-items: center;
   font-size: 11px;
-  font-weight: 800;
-  color: #64748b;
+  font-weight: 900;
+  color: var(--ink, #2B2B33);
+  opacity: 0.8;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   margin-bottom: 8px;
   margin-left: 4px;
 }
 
-/* Base Input Style */
+/* Base Input Style - Fixed White on White */
 .crm-input, .crm-select, .crm-input-wrapper input {
   width: 100%;
   padding: 14px 16px;
-  border-radius: 14px;
-  /* ✅ No Border, just background */
-  border: none; 
-  background: #f1f5f9;
+  border-radius: 16px;
+  
+  border: 2px solid rgba(43, 43, 51, 0.15); 
+  background: #f8fafc; 
   
   font-size: 15px;
-  font-weight: 600;
-  color: #1e293b;
+  font-weight: 700;
+  color: var(--ink, #2B2B33);
   
-  /* Inner shadow for depth */
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
   transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   outline: none;
 }
@@ -209,11 +225,19 @@
 /* Focus State: Glow + White BG */
 .crm-input:focus, .crm-select:focus, .crm-input-wrapper input:focus {
   background: #ffffff;
-  /* Brand Pink Glow Ring */
-  box-shadow: 
-    0 0 0 3px rgba(236, 72, 153, 0.15),
-    0 4px 12px rgba(0,0,0,0.05);
+  border-color: var(--sky-pastel, #A9D4FF);
+  box-shadow: 0 0 0 4px rgba(169, 212, 255, 0.3);
   transform: translateY(-1px);
+}
+
+/* Validation Error State */
+.crm-input.crm-input-invalid, 
+.crm-input-wrapper input.crm-input-invalid,
+.crm-select.crm-input-invalid {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+  color: #991b1b !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15) !important;
 }
 
 .crm-input-wrapper { position: relative; width: 100%; }
@@ -225,7 +249,8 @@
   transform: translateY(-50%);
   font-size: 12px;
   font-weight: 900;
-  color: #94a3b8;
+  color: var(--ink, #2B2B33);
+  opacity: 0.4;
   pointer-events: none;
 }
 
@@ -233,13 +258,13 @@
 .crm-bal-row {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 28px;
-  padding: 10px 16px;
-  background: rgba(255,255,255,0.6);
-  border: 1px dashed #e2e8f0;
-  border-radius: 12px;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.7);
+  border: 2px dashed rgba(246, 182, 200, 0.5); /* Sakura dash */
+  border-radius: 16px;
 }
-.crm-bal-label { font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
-.crm-bal-val { font-size: 14px; font-weight: 900; color: #334155; font-family: monospace; }
+.crm-bal-label { font-size: 11px; font-weight: 900; color: var(--ink, #2B2B33); opacity: 0.6; text-transform: uppercase; }
+.crm-bal-val { font-size: 14px; font-weight: 900; color: var(--ink, #2B2B33); font-family: ui-monospace, monospace; }
 
 /* --- Grids --- */
 .crm-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -249,14 +274,14 @@
 .crm-warning-msg {
   margin-top: -10px;
   margin-bottom: 20px;
-  padding: 10px;
-  background: #fff1f2;
-  border-radius: 8px;
-  color: #be123c;
-  font-size: 12px;
-  font-weight: 700;
+  padding: 12px;
+  background: rgba(254, 242, 242, 0.8); /* Soft red background */
+  border-radius: 12px;
+  color: #b91c1c; /* Deep red text */
+  font-size: 13px;
+  font-weight: 800;
   text-align: center;
-  border: 1px solid #fecdd3;
+  border: 1px solid rgba(239, 68, 68, 0.3);
   animation: crm-fade-in 0.2s;
 }
 
@@ -264,15 +289,19 @@
 .crm-advanced { margin-top: 10px; margin-bottom: 40px; }
 .crm-adv-toggle {
   background: none; border: none; padding: 0;
-  font-size: 12px; font-weight: 700; color: #64748b;
-  cursor: pointer; text-decoration: underline; opacity: 0.8;
+  font-size: 12.5px; font-weight: 800; color: var(--ink, #2B2B33);
+  cursor: pointer; text-decoration: none; border-bottom: 2px solid var(--sakura-pink, #F6B6C8); opacity: 0.7;
+  transition: opacity 0.2s;
 }
+.crm-adv-toggle:hover { opacity: 1; }
+
 .crm-adv-content {
-  margin-top: 16px;
-  padding: 20px;
-  background: #f8fafc;
-  border-radius: 16px;
-  border: 1px solid #f1f5f9;
+  margin-top: 20px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
 
 /* =========================================================
@@ -284,37 +313,39 @@
 }
 
 .crm-dock-glass {
-  background: #1e293b; /* Dark Navy Dock */
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
   padding: 8px;
-  border-radius: 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
   display: flex;
   align-items: stretch;
   gap: 8px;
-  box-shadow: 0 12px 30px -5px rgba(30, 41, 59, 0.4);
+  box-shadow: 0 12px 30px -5px rgba(203, 183, 246, 0.3); /* Lavender mist shadow */
 }
 
 .crm-dock-sep {
-  width: 1px;
-  background: rgba(255,255,255,0.1);
+  width: 2px;
+  background: rgba(246, 182, 200, 0.3); /* Sakura pink separator */
+  border-radius: 2px;
   margin: 4px 0;
 }
 
 /* 3D Dock Buttons */
 .crm-dock-btn {
   flex: 1;
-  border: none;
-  background: #334155;
-  color: #94a3b8;
-  border-radius: 14px;
+  border: 2px solid transparent;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink, #2B2B33);
+  opacity: 0.6;
+  border-radius: 16px;
   padding: 14px;
   font-weight: 800;
   font-size: 14px;
   cursor: not-allowed;
   position: relative;
   
-  /* 3D Depth */
-  border-bottom: 4px solid #0f172a;
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   
   display: flex;
   flex-direction: column;
@@ -323,48 +354,133 @@
   gap: 4px;
 }
 
-.crm-dock-icon { font-size: 16px; line-height: 1; opacity: 0.7; }
-.crm-dock-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9; }
+.crm-dock-icon { font-size: 18px; line-height: 1; font-weight: 900; }
+.crm-dock-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 900; }
 
 /* Active (Pressable) State */
 .crm-dock-btn.active {
   cursor: pointer;
-  background: #4A0F2B; /* Brand Dark */
-  color: white;
-  border-bottom-color: #280515;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  background: rgba(169, 212, 255, 0.2); /* Soft sky */
+  color: var(--ink, #2B2B33);
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 12px rgba(169, 212, 255, 0.3);
 }
 
-/* Active Pressed Effect */
+.crm-dock-btn.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(169, 212, 255, 0.4);
+}
+
 .crm-dock-btn.active:active {
-  transform: translateY(2px);
-  border-bottom-width: 2px;
+  transform: translateY(1px);
   box-shadow: none;
 }
 
 /* Primary (Launch) Button Override */
 .crm-dock-btn.active.primary {
-  background: linear-gradient(135deg, #db2777, #be185d);
-  border-bottom-color: #831843;
+  background: linear-gradient(135deg, var(--peach-glow, #FAD1B8), var(--sakura-pink, #F6B6C8));
+  border-color: #ffffff;
+  box-shadow: 0 6px 20px rgba(246, 182, 200, 0.4), inset 0 0 0 1px rgba(255,255,255,0.4);
+}
+
+.crm-dock-btn.active.primary:hover {
+  background: linear-gradient(135deg, var(--sakura-pink, #F6B6C8), #D88EAA);
+  color: var(--soft-cream, #FFF6EF);
 }
 
 /* Done State (Green Pill) */
 .crm-dock-btn.done {
-  background: #059669;
-  border-bottom: 0;
-  transform: translateY(2px); /* Permanently pressed */
-  color: white;
+  background: rgba(34, 197, 94, 0.15); /* Softened success green */
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #166534; /* Darker green text */
   opacity: 1;
   cursor: default;
 }
 
 .crm-status-msg {
-  margin-top: 12px;
+  margin-top: 16px;
   text-align: center;
   font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
+  font-weight: 700;
+  color: var(--ink, #2B2B33);
+  opacity: 0.6;
 }
+
+/* =========================================================
+   ✅ CSS TOOLTIP (Matches InfraStatusPill)
+   ========================================================= */
+.crm-q {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: rgba(169, 212, 255, 0.3); /* Soft sky pastel */
+  color: var(--ink, #2B2B33);
+  font-size: 10px;
+  font-weight: 900;
+  cursor: help;
+  position: relative;
+  transition: all 0.2s ease;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.crm-q:hover {
+  background: var(--sky-pastel, #A9D4FF);
+  transform: scale(1.1);
+}
+
+.crm-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  opacity: 0;
+  visibility: hidden;
+
+  background: var(--ink, #2B2B33);
+  color: var(--soft-cream, #FFF6EF);
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  
+  /* ✅ FIXED: Allows text to wrap instead of shooting infinitely sideways */
+  white-space: normal;
+  width: max-content;
+  max-width: 240px;
+  text-align: center;
+
+  box-shadow: 0 12px 30px rgba(43, 43, 51, 0.35);
+  transition: all 0.2s ease;
+  z-index: 9999; /* Stays above everything */
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.crm-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--ink, #2B2B33) transparent transparent transparent;
+}
+
+.crm-q:hover .crm-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
 
 /* =========================================================
    ✅ TICKET STUB SUCCESS VIEW
@@ -375,39 +491,42 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: radial-gradient(circle at top, #fffbeb 0%, #ffffff 60%);
+  background: radial-gradient(circle at top, rgba(250, 209, 184, 0.3) 0%, rgba(255, 255, 255, 0) 70%); /* Peach glow burst */
+  /* ✅ ADDED border-radius */
+  border-bottom-left-radius: 31px;
+  border-bottom-right-radius: 31px;
 }
 
 .crm-success-icon {
-  width: 72px; height: 72px;
-  background: #22c55e;
-  color: white;
+  width: 80px; height: 80px;
+  background: var(--sakura-pink, #F6B6C8);
+  color: var(--soft-cream, #FFF6EF);
   border-radius: 50%;
-  font-size: 32px;
+  font-size: 36px;
   display: grid; place-items: center;
   margin-bottom: 24px;
-  box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+  box-shadow: 0 12px 24px rgba(246, 182, 200, 0.4);
 }
 
 .crm-success-title {
-  font-size: 32px; font-weight: 900; color: #1e293b; margin-bottom: 8px;
+  font-size: 32px; font-weight: 900; color: var(--ink, #2B2B33); margin-bottom: 12px; letter-spacing: -0.5px;
 }
 .crm-success-sub {
-  font-size: 15px; color: #64748b; margin-bottom: 40px; max-width: 400px; line-height: 1.5;
+  font-size: 15px; color: var(--ink, #2B2B33); opacity: 0.7; font-weight: 600; margin-bottom: 40px; max-width: 440px; line-height: 1.5;
 }
 
 /* Ticket Stub Container */
 .crm-share-ticket {
   display: flex;
   width: 100%;
-  max-width: 460px;
-  height: 80px;
-  background: #fff7ed; /* Light orange paper */
-  border: 2px dashed #f97316;
-  border-radius: 12px;
+  max-width: 480px;
+  height: 88px;
+  background: rgba(250, 209, 184, 0.15); /* Soft peach paper */
+  border: 2px dashed rgba(250, 209, 184, 0.8);
+  border-radius: 16px;
   position: relative;
-  margin-bottom: 30px;
-  box-shadow: 0 4px 15px rgba(249, 115, 22, 0.1);
+  margin-bottom: 32px;
+  box-shadow: 0 8px 24px rgba(250, 209, 184, 0.2);
   overflow: hidden;
 }
 
@@ -417,77 +536,78 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 0 20px;
-  border-right: 2px dashed #f97316;
+  padding: 0 24px;
+  border-right: 2px dashed rgba(250, 209, 184, 0.8);
   position: relative;
-  background: white;
+  background: rgba(255, 255, 255, 0.8);
 }
 /* Cutout circles for perforation illusion */
 .crm-share-stub-left::after {
-  content: ""; position: absolute; top: -10px; right: -10px;
-  width: 20px; height: 20px; background: white; border-radius: 50%;
-  border: 2px dashed #f97316; z-index: 2;
+  content: ""; position: absolute; top: -12px; right: -12px;
+  width: 24px; height: 24px; background: white; border-radius: 50%;
+  border: 2px dashed rgba(250, 209, 184, 0.8); z-index: 2;
 }
 .crm-share-stub-left::before {
-  content: ""; position: absolute; bottom: -10px; right: -10px;
-  width: 20px; height: 20px; background: white; border-radius: 50%;
-  border: 2px dashed #f97316; z-index: 2;
+  content: ""; position: absolute; bottom: -12px; right: -12px;
+  width: 24px; height: 24px; background: white; border-radius: 50%;
+  border: 2px dashed rgba(250, 209, 184, 0.8); z-index: 2;
 }
 
 .crm-label-ticket {
-  font-size: 9px; font-weight: 800; color: #c2410c; text-transform: uppercase; margin-bottom: 4px;
+  font-size: 10px; font-weight: 900; color: var(--ink, #2B2B33); opacity: 0.5; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;
 }
 .crm-ticket-code {
-  font-family: monospace; font-size: 13px; color: #431407;
+  font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; color: var(--ink, #2B2B33);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Right Part: Stamp Button */
 .crm-share-stub-right {
-  width: 100px;
+  width: 110px;
   display: grid; place-items: center;
-  background: #fff7ed;
+  background: rgba(250, 209, 184, 0.1);
 }
 
 .crm-stamp-btn {
-  width: 60px; height: 60px;
+  width: 64px; height: 64px;
   border-radius: 50%;
-  border: 3px solid #ea580c;
-  background: transparent;
-  color: #ea580c;
+  border: 3px solid var(--warm-lantern, #FFD89A);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--ink, #2B2B33);
   font-weight: 900;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
   transform: rotate(-12deg);
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   display: grid; place-items: center;
 }
-.crm-stamp-btn:hover { background: #ffedd5; transform: rotate(-12deg) scale(1.05); }
+.crm-stamp-btn:hover { background: #ffffff; transform: rotate(-12deg) scale(1.05); box-shadow: 0 4px 12px rgba(255, 216, 154, 0.4); }
 
 .crm-stamp-btn.stamped {
-  background: #ea580c; color: white; border-color: #ea580c;
+  background: var(--warm-lantern, #FFD89A); color: var(--ink, #2B2B33); border-color: #ffffff;
   transform: rotate(0deg) scale(1);
-  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.2);
+  box-shadow: 0 0 0 4px rgba(255, 216, 154, 0.3);
 }
 
-.crm-social-row { display: flex; gap: 12px; margin-top: 20px; }
+.crm-social-row { display: flex; gap: 16px; margin-top: 24px; }
 .crm-social-btn {
-  padding: 10px 20px; border-radius: 99px; text-decoration: none; font-weight: 800; font-size: 13px; transition: transform 0.2s;
+  padding: 12px 24px; border-radius: 99px; text-decoration: none; font-weight: 900; font-size: 14px; transition: transform 0.2s; border: 2px solid transparent;
 }
-.crm-social-btn.twitter { background: #000; color: #fff; }
-.crm-social-btn.telegram { background: #0088cc; color: #fff; }
+.crm-social-btn.twitter { background: var(--ink, #2B2B33); color: var(--soft-cream, #FFF6EF); box-shadow: 0 4px 12px rgba(43, 43, 51, 0.2); }
+.crm-social-btn.telegram { background: rgba(169, 212, 255, 0.4); color: var(--ink, #2B2B33); border-color: #ffffff; box-shadow: 0 4px 12px rgba(169, 212, 255, 0.2); }
 .crm-social-btn:hover { transform: translateY(-2px); }
 
 .crm-done-btn {
-  margin-top: 10px; background: none; border: none; font-weight: 700; color: #94a3b8; cursor: pointer; text-decoration: underline;
+  margin-top: 12px; background: none; border: none; font-weight: 800; font-size: 14px; color: var(--ink, #2B2B33); opacity: 0.6; cursor: pointer; text-decoration: underline; transition: opacity 0.2s;
 }
+.crm-done-btn:hover { opacity: 1; }
 
 /* --- Mobile --- */
 @media (max-width: 800px) {
   .crm-overlay { padding-top: 80px; padding-left: 10px; padding-right: 10px; }
   .crm-body { flex-direction: column; }
   .crm-preview-col { display: none; }
-  .crm-form-col { border-right: none; padding: 24px; }
+  .crm-form-col { border-right: none; padding: 24px; border-bottom-left-radius: 31px; border-bottom-right-radius: 31px; }
   .crm-grid-2, .crm-grid-dur { grid-template-columns: 1fr; }
   
   .crm-command-center {

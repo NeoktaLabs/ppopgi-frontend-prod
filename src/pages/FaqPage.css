@@ -2,20 +2,14 @@
 
 .faq-page {
   max-width: 900px;
-  
-  /* ✅ CHANGED: Margin pushes the entire colored block down */
   margin: 20px auto 0 auto;
-  
-  /* ✅ CHANGED: Reduced padding */
   padding: 40px 20px 80px 20px;
-  
-  /* ✅ ADDED: Rounded top */
   border-radius: 32px 32px 0 0;
-  
-  color: #4A0F2B;
+  color: var(--ink);
   min-height: calc(100vh - 120px);
   
-  background: linear-gradient(-45deg, rgba(255,255,255,0.9), #fff0f5, #fce7f3, #ffffff);
+  /* Updated to Ppopgi spring festival palette */
+  background: linear-gradient(-45deg, var(--soft-cream), var(--sakura-pink), var(--lavender-mist), var(--sky-pastel));
   background-size: 400% 400%;
   animation: faq-breathing 15s ease infinite;
 }
@@ -30,26 +24,26 @@
 .faq-hero-card {
   text-align: center;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(12px);
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 20px 60px -10px rgba(180, 70, 120, 0.15);
+  border-radius: 32px; /* Pillowy */
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 20px 60px -10px rgba(203, 183, 246, 0.3); /* Lavender mist shadow */
   margin-bottom: 40px;
 }
 
 .faq-h1 {
   margin: 0;
   font-size: 48px;
-  font-weight: 1000;
-  color: #4A0F2B;
+  font-weight: 900;
+  color: var(--ink);
   letter-spacing: -1.5px;
   
   /* Text Gradient for Premium Feel */
-  background: linear-gradient(180deg, #4A0F2B 0%, #9A2A58 100%);
+  background: linear-gradient(180deg, var(--ink) 0%, #5C5C6B 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 12px rgba(180, 70, 120, 0.1));
+  filter: drop-shadow(0 4px 12px rgba(246, 182, 200, 0.4)); /* Sakura shadow */
 }
 
 .faq-sub {
@@ -57,8 +51,8 @@
   max-width: 600px;
   font-size: 18px;
   font-weight: 600;
-  color: #4A0F2B;
-  opacity: 0.7;
+  color: var(--ink);
+  opacity: 0.8;
   line-height: 1.5;
 }
 
@@ -75,13 +69,20 @@
   font-weight: 900;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: #4A0F2B;
-  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.8);
   padding: 10px 20px;
   border-radius: 99px;
-  box-shadow: 0 4px 12px -2px rgba(0,0,0,0.05);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 12px -2px rgba(246, 182, 200, 0.3);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.faq-h3 {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--ink);
+  margin: 0;
 }
 
 /* --- DIAGRAM CARD --- */
@@ -90,7 +91,7 @@
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #9A2A58;
+  color: var(--ink);
   margin-bottom: 16px;
   text-align: center;
   opacity: 0.8;
@@ -99,7 +100,7 @@
 .faq-diagram-note {
   margin-top: 10px;
   font-size: 12px;
-  color: #9A2A58;
+  color: var(--ink);
   text-align: center;
   font-style: italic;
   opacity: 0.6;
@@ -113,26 +114,26 @@
 }
 
 .faq-item {
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
   background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(8px);
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+  box-shadow: 0 4px 12px -2px rgba(203, 183, 246, 0.15); /* Soft lavender shadow */
 }
 
 .faq-item:hover {
-  background: rgba(255, 255, 255, 0.9);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px -5px rgba(74, 15, 43, 0.05);
+  background: rgba(255, 255, 255, 0.95);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -6px rgba(246, 182, 200, 0.3); /* Sakura shadow on hover */
 }
 
 /* Active State */
 .faq-item.open {
   background: #ffffff;
-  border-color: rgba(154, 42, 88, 0.2);
-  box-shadow: 0 15px 30px -5px rgba(154, 42, 88, 0.1);
+  border-color: var(--sakura-pink);
+  box-shadow: 0 15px 30px -5px rgba(246, 182, 200, 0.25);
   transform: scale(1.01);
 }
 
@@ -152,31 +153,31 @@
 .faq-q-text {
   font-size: 17px;
   font-weight: 800;
-  color: #4A0F2B;
-  transition: color 0.2s;
+  color: var(--ink);
+  transition: opacity 0.2s;
 }
 
 .faq-item.open .faq-q-text {
-  color: #9A2A58;
+  opacity: 0.9;
 }
 
 .faq-chevron {
-  width: 28px; 
-  height: 28px;
-  border-radius: 8px;
+  width: 32px; 
+  height: 32px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  background: rgba(74, 15, 43, 0.05);
-  color: #4A0F2B;
+  background: rgba(246, 182, 200, 0.3); /* Light sakura */
+  color: var(--ink);
   font-weight: 700;
   font-size: 18px;
   flex-shrink: 0;
-  transition: all 0.3s;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .faq-item.open .faq-chevron {
-  background: #4A0F2B;
-  color: white;
+  background: var(--peach-glow);
+  color: var(--ink);
   transform: rotate(180deg);
 }
 
@@ -188,12 +189,12 @@
 }
 
 .faq-a-wrapper.open {
-  max-height: 800px;
+  max-height: 1000px;
 }
 
 .faq-a {
   padding: 0 24px 28px 24px;
-  color: #4A0F2B;
+  color: var(--ink);
   font-size: 16px;
   line-height: 1.6;
   opacity: 0.85;
@@ -211,32 +212,34 @@
 .faq-callout {
   margin-top: 20px;
   padding: 16px 20px;
-  border-radius: 12px;
-  border-left: 4px solid #9A2A58;
-  background: #fff0f5; /* Light Pink */
-  color: #6D1641;
-  font-size: 14px;
-  font-weight: 700;
+  border-radius: 16px;
+  border-left: 4px solid var(--sakura-pink);
+  background: rgba(250, 209, 184, 0.2); /* Very light peach */
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .faq-a code {
-  background: rgba(74, 15, 43, 0.08);
-  padding: 2px 6px;
-  border-radius: 6px;
+  background: rgba(169, 212, 255, 0.25); /* Light sky pastel */
+  padding: 3px 8px;
+  border-radius: 8px;
   font-family: monospace;
   font-size: 0.9em;
-  color: #4A0F2B;
+  color: var(--ink);
+  font-weight: 600;
 }
 
 /* --- MERMAID WRAPPER --- */
 .faq-mermaid {
   margin: 0 auto 40px;
   padding: 32px;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(12px);
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 20px 40px -10px rgba(74, 15, 43, 0.05);
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 40px -10px rgba(203, 183, 246, 0.2); /* Lavender shadow */
   overflow-x: auto;
 }
 
@@ -244,8 +247,8 @@
 .faq-footer-card {
   margin-top: 60px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.6);
-  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 14px 28px;
   border-radius: 99px;
   display: inline-block;
   
@@ -253,20 +256,34 @@
   left: 50%;
   transform: translateX(-50%);
   
-  color: #4A0F2B;
-  font-size: 13px;
-  font-weight: 700;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  backdrop-filter: blur(4px);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 16px rgba(246, 182, 200, 0.25);
+  backdrop-filter: blur(8px);
+}
+
+/* Link Styles (For the LinkOut components) */
+.rdm-info-link {
+  color: var(--ink);
+  font-weight: 800;
+  text-decoration: none;
+  border-bottom: 2px solid var(--sakura-pink);
+  transition: all 0.2s ease;
+}
+
+.rdm-info-link:hover {
+  background-color: var(--sakura-pink);
+  color: var(--soft-cream);
+  border-radius: 4px;
 }
 
 /* Mobile Adjustments */
 @media (max-width: 720px) {
   .faq-page {
-    padding: 24px 16px 50px; /* Reset padding for mobile if needed, or keep high margin */
-    /* Mobile usually has smaller nav, but let's keep consistent margin for now */
-    margin-top: 90px;
+    padding: 24px 16px 50px; 
+    margin-top: 20px;
   }
 
   .faq-h1 {
@@ -275,5 +292,11 @@
   
   .faq-hero-card {
     padding: 24px 16px;
+    border-radius: 24px;
+  }
+  
+  .faq-mermaid {
+    padding: 20px 10px;
+    border-radius: 24px;
   }
 }

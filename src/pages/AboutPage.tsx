@@ -26,7 +26,7 @@ export function AboutPage() {
 
           <h3>The Journey</h3>
           <p>
-            I’ve been around Tezos since the early days. I was even a Tezos baker back then — not because I was chasing profits, but
+            I’ve been around Tezos since the early days. I was even a Tezos baker back then (Neokta Labs) — not because I was chasing profits, but
             because I genuinely believed in the technology. Transparency, on-chain governance, and verifiable systems always mattered
             more to me than hype or quick wins.
           </p>

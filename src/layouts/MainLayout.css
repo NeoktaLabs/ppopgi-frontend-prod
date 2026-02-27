@@ -1,16 +1,31 @@
 /* src/layouts/MainLayout.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --sakura-pink: #F6B6C8;
+  --peach-glow: #FAD1B8;
+  --lavender-mist: #CBB7F6;
+  --sky-pastel: #A9D4FF;
+  --warm-lantern: #FFD89A;
+  --soft-cream: #FFF6EF;
+  --ink: #2B2B33;
+}
+
 .layout-shell {
   min-height: 100vh;
   width: 100%;
   display: flex;
   flex-direction: column;
-  color: #4A0F2B; /* Brand ink color */
-  font-family: 'Inter', sans-serif;
+  color: var(--ink);
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
   position: relative;
   overflow-x: hidden;
+  /* Removed the solid background color so it doesn't interfere */
+  background-color: transparent; 
 }
 
-/* The fixed background layer */
+/* The fixed background layer (Your images) */
 .layout-bg {
   position: fixed;
   inset: 0;
@@ -21,16 +36,21 @@
   transition: opacity 0.5s ease;
 }
 
-/* The global overlay gradient (glass effect) */
+/* The global overlay gradient (Restored transparency!) */
 .layout-overlay {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  
+  /* Extremely light lantern-like glows so your image is the star */
   background:
-      radial-gradient(900px 520px at 15% 10%, rgba(246,182,200,0.14), transparent 60%),
-      radial-gradient(900px 520px at 85% 5%, rgba(169,212,255,0.12), transparent 60%),
-      rgba(255,255,255,0.02);
+      radial-gradient(800px 600px at 10% 0%, rgba(246, 182, 200, 0.15), transparent 70%),
+      radial-gradient(800px 600px at 90% 5%, rgba(169, 212, 255, 0.15), transparent 70%), 
+      radial-gradient(900px 600px at 50% 100%, rgba(255, 216, 154, 0.1), transparent 70%), 
+      rgba(255, 255, 255, 0.05); /* Barely-there tint */
+  
+  /* Removed the blur completely so your background images are sharp and visible */
 }
 
 /* The scrollable content area */
@@ -39,7 +59,14 @@
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 18px 16px;
+  padding: 32px 24px; 
   position: relative;
   z-index: 1;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .layout-content {
+    padding: 20px 16px;
+  }
 }

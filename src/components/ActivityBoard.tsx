@@ -4,6 +4,9 @@ import { formatUnits } from "ethers";
 import { useActivityStore } from "../hooks/useActivityStore";
 import "./ActivityBoard.css";
 
+// ✅ shared UI formatter (removes trailing .0 / trims zeros)
+import { fmtUsdcUi } from "../lib/format";
+
 const NEW_WINDOW_SEC = 30;
 
 const shortAddr = (s: string) => (s ? `${s.slice(0, 4)}...${s.slice(-4)}` : "—");
@@ -15,7 +18,6 @@ function isFresh(ts: string, seconds = NEW_WINDOW_SEC) {
   return now - t <= seconds;
 }
 
-// ✅ Updated: seconds / minutes / hours / days / months / years
 function timeAgoFrom(nowSec: number, ts: string) {
   const t = Number(ts);
   if (!Number.isFinite(t) || t <= 0) return "—";
@@ -63,10 +65,13 @@ function getLotteryName(item: any): string {
 
 function buildDetailHref(lotteryId: string) {
   const u = new URL("/", window.location.origin);
-  if (lotteryId) {
-    u.searchParams.set("lottery", lotteryId);
-  }
+  if (lotteryId) u.searchParams.set("lottery", lotteryId);
   return u.toString();
+}
+
+function fmtUsdcFromU6(valueU6: string): string {
+  const s = formatUnits(valueU6 || "0", 6);
+  return fmtUsdcUi(s);
 }
 
 export function ActivityBoard() {
@@ -121,6 +126,7 @@ export function ActivityBoard() {
           const isBuy = type === "BUY";
           const isWin = type === "WIN";
           const isCancel = type === "CANCEL";
+          const isCreate = !isBuy && !isWin && !isCancel;
 
           let icon = "✨";
           let iconClass = "create";
@@ -153,12 +159,14 @@ export function ActivityBoard() {
           const lotteryName = getLotteryName(item);
 
           const subject = String((item as any).subject || "");
-          const value = String((item as any).value || "0");
+          const value = String((item as any).value || "0"); // BUY: ticket count; others: pot u6
 
           const pendingLabel = String((item as any).pendingLabel || "PENDING");
           const pending = !!(item as any).pending;
 
           const detailHref = buildDetailHref(lotteryId);
+
+          const potUi = !isBuy && !isCancel ? fmtUsdcFromU6(value) : null;
 
           return (
             <div key={key} className={rowClass}>
@@ -188,21 +196,48 @@ export function ActivityBoard() {
                         <>
                           {" "}
                           bought <b>{value} tix</b> in{" "}
+                          <a href={detailHref} className="ab-link">
+                            {lotteryName}
+                          </a>
                         </>
                       )}
 
-                      {!isBuy && !isWin && <> created </>}
+                      {isCreate && (
+                        <>
+                          {" "}
+                          created{" "}
+                          <a href={detailHref} className="ab-link">
+                            {lotteryName}
+                          </a>
+                          {potUi ? (
+                            <>
+                              {" "}
+                              with <b>{potUi} USDC</b> to win!
+                            </>
+                          ) : (
+                            <>!</>
+                          )}
+                        </>
+                      )}
 
                       {isWin && (
                         <>
                           {" "}
-                          <b style={{ color: "#166534" }}>won</b> the pot on{" "}
+                          won{" "}
+                          {potUi ? (
+                            <>
+                              <b style={{ color: "#166534" }}>{potUi} USDC</b>
+                            </>
+                          ) : (
+                            <b style={{ color: "#166534" }}>the prize</b>
+                          )}{" "}
+                          on{" "}
+                          <a href={detailHref} className="ab-link">
+                            {lotteryName}
+                          </a>
+                          !
                         </>
                       )}
-
-                      <a href={detailHref} className="ab-link">
-                        {lotteryName}
-                      </a>
                     </>
                   )}
                 </div>
@@ -220,13 +255,6 @@ export function ActivityBoard() {
                       </span>
                     )}
                   </span>
-
-                  {!isBuy && (
-                    <span className={`ab-pot-tag ${isWin ? "win" : isCancel ? "cancel" : ""}`}>
-                      {isWin ? "Won: " : isCancel ? "Refunded" : "Pot: "}
-                      {!isCancel && formatUnits(value, 6)}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>

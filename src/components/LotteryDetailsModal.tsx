@@ -4,8 +4,12 @@ import { useActiveAccount } from "thirdweb/react";
 import { useLotteryInteraction } from "../hooks/useLotteryInteraction";
 import { useLotteryParticipants } from "../hooks/useLotteryParticipants";
 import { fetchLotteryById, type LotteryListItem } from "../indexer/subgraph";
-
 import "./LotteryDetailsModal.css";
+
+// ✅ NEW: shared UI formatter (removes trailing .0 / trims zeros)
+import { fmtUsdcUi } from "../lib/format";
+
+const FAQ_HREF = "/?page=faq"; // ✅ adjust if your FAQ lives elsewhere
 
 const ExplorerLink = ({ addr, label }: { addr: string; label?: string }) => {
   if (!addr || addr === "0x0000000000000000000000000000000000000000") return <span>{label || "—"}</span>;
@@ -37,6 +41,28 @@ const formatDate = (ts: any) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+// ✅ NEW: timeline wants date + HH:mm (under date)
+const formatDateParts = (ts: any) => {
+  const n = Number(ts);
+  if (!ts || ts === "0" || !Number.isFinite(n) || n <= 0) return { date: "—", time: "—" };
+
+  const d = new Date(n * 1000);
+
+  const date = d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const time = d.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false, // ✅ HH:mm
+  });
+
+  return { date, time };
 };
 
 function mustEnv(name: string): string {
@@ -341,6 +367,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
     } else if (status === "DRAWING") {
       steps.push({ label: "Randomness Requested", date: null, tx: null, status: "active" });
     } else {
+      // ✅ Draw Deadline uses the real on-chain deadline timestamp
       steps.push({ label: "Draw Deadline", date: deadline, tx: null, status: status === "OPEN" ? "active" : "future" });
     }
 
@@ -371,6 +398,10 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
     return steps;
   }, [displayData, journey]);
 
+  // ✅ UI-only amounts: remove trailing ".0" etc (but keep real decimals when present)
+  const potUi = useMemo(() => fmtUsdcUi(math.fmtUsdc(displayData?.winningPot || "0")), [math, displayData?.winningPot]);
+  const priceUi = useMemo(() => fmtUsdcUi(math.fmtUsdc(displayData?.ticketPrice || "0")), [math, displayData?.ticketPrice]);
+
   const stats = useMemo(() => {
     if (!displayData) return null;
 
@@ -383,7 +414,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
     const netPot = pot * 0.9;
     const roi = price > 0 ? (netPot / price).toFixed(1) : "0";
 
-    return { roi, oddsPct, price };
+    return { roi, oddsPct };
   }, [displayData, math]);
 
   const distribution = useMemo(() => {
@@ -437,12 +468,6 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
     if (String(clampedUiTicket) !== String(state.tickets)) actions.setTickets(String(clampedUiTicket));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, lotteryId, uiMaxForStepper]);
-
-  // Optional UX: when success appears, keep tab stable (no impact on hooks)
-  useEffect(() => {
-    if (!open) return;
-    if (state.lastBuy) setTab("receipt");
-  }, [open, state.lastBuy]);
 
   const createdOnTs = timeline?.[0]?.date ?? null;
   const showRemainingNote = typeof (math as any).remainingTickets === "number" && (math as any).remainingTickets > 0;
@@ -511,6 +536,15 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
 
   const showSuccess = !!state.lastBuy;
 
+  // ✅ UI-only formatted values for buy panels (no trailing ".0")
+  const balanceUi = useMemo(() => fmtUsdcUi(math.fmtUsdc(state.usdcBal?.toString() || "0")), [math, state.usdcBal]);
+  const totalUi = useMemo(() => fmtUsdcUi(math.fmtUsdc(math.totalCostU.toString())), [math, math.totalCostU]);
+
+  const successSpentUi = useMemo(() => {
+    if (!state.lastBuy) return "0";
+    return fmtUsdcUi(math.fmtUsdc(state.lastBuy.totalCostU.toString()));
+  }, [math, state.lastBuy]);
+
   return !open ? null : (
     <div className="rdm-overlay" onMouseDown={handleClose}>
       <div className="rdm-card" onMouseDown={(e) => e.stopPropagation()}>
@@ -531,7 +565,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
           <div className="rdm-hero">
             <div className="rdm-hero-lbl">Prize Pool</div>
             <div className="rdm-hero-val">
-              {math.fmtUsdc(displayData?.winningPot || "0")} <span className="rdm-hero-unit">USDC</span>
+              {potUi} <span className="rdm-hero-unit">USDC</span>
             </div>
 
             <div className="rdm-hero-meta">
@@ -540,7 +574,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                 <ExplorerLink addr={String(displayData?.creator || "")} label={math.short(String(displayData?.creator || ""))} />
               </div>
               <div className="rdm-createdon">
-                <span>on</span>
+                <span>on </span>
                 <span className="rdm-createdon-val">{formatDate(createdOnTs)}</span>
               </div>
             </div>
@@ -559,7 +593,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
               <div className="rdm-stat-box">
                 <div className="rdm-sb-lbl">Price</div>
                 <div className="rdm-sb-val">
-                  {stats.price} <span style={{ fontSize: 10, opacity: 0.7 }}>USDC</span>
+                  {priceUi} <span style={{ fontSize: 10, opacity: 0.7 }}>USDC</span>
                 </div>
               </div>
             </div>
@@ -580,7 +614,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
               <div className="rdm-success-grid">
                 <div className="rdm-success-box">
                   <div className="rdm-success-lbl">You spent</div>
-                  <div className="rdm-success-val">{math.fmtUsdc(state.lastBuy.totalCostU.toString())} USDC</div>
+                  <div className="rdm-success-val">{successSpentUi} USDC</div>
                 </div>
 
                 <div className="rdm-success-box">
@@ -643,7 +677,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                 ) : (
                   <div className={`rdm-buy-inner ${blurBuy ? "blurred" : ""}`}>
                     <div className="rdm-balance-row">
-                      <span>Bal: {math.fmtUsdc(state.usdcBal?.toString() || "0")} USDC</span>
+                      <span>Bal: {balanceUi} USDC</span>
                       <span>Cap: {uiMaxForStepper}</span>
                     </div>
 
@@ -677,7 +711,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                           }}
                           placeholder="1"
                         />
-                        <div className="rdm-cost-preview">Total: {math.fmtUsdc(math.totalCostU.toString())} USDC</div>
+                        <div className="rdm-cost-preview">Total: {totalUi} USDC</div>
                       </div>
 
                       <button
@@ -699,7 +733,6 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                       </button>
                     )}
 
-                    {/* ✅ Removed state.buyMsg rendering entirely — rely on button states + success screen */}
                     {blurBuy && (
                       <div className="rdm-overlay-msg">
                         <span>Connect Wallet to Buy</span>
@@ -744,11 +777,12 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                 </div>
               </div>
 
+              {/* ✅ KEEP DECIMALS HERE (distribution/payout section) */}
               {distribution && (
                 <div className="rdm-dist-section">
                   <div className="rdm-dist-header">Payout Distribution</div>
                   {distribution.isCanceled ? (
-                    <div className="rdm-dist-note warn">Canceled. Reclaim available on dashboard.</div>
+                    <div className="rdm-dist-note warn">Canceled. Reclaim available on your dashboard.</div>
                   ) : (
                     <div className="rdm-payout-slip">
                       <div className="rdm-slip-row head">
@@ -779,7 +813,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
 
               <div className="rdm-tabs">
                 <button className={`rdm-tab ${tab === "receipt" ? "active" : ""}`} onClick={() => setTab("receipt")}>
-                  Receipt Log
+                  Blockchain
                 </button>
                 <button className={`rdm-tab ${tab === "holders" ? "active" : ""}`} onClick={() => setTab("holders")}>
                   Holders
@@ -793,22 +827,30 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                 {tab === "receipt" && (
                   <div className="rdm-receipt">
                     <div className="rdm-receipt-line start">--- START OF LOG ---</div>
-                    {timeline.map((step, i) => (
-                      <div key={i} className={`rdm-tl-row ${step.status}`}>
-                        <div className="rdm-tl-time">{step.date ? formatDate(step.date).split(",")[0] : "--/--"}</div>
-                        <div className="rdm-tl-desc">
-                          <div className="rdm-tl-label">{step.label}</div>
-                          <div className="rdm-tl-sub">
-                            {step.tx && <TxLink hash={step.tx} />}
-                            {step.winner && (
-                              <div className="rdm-winner-hl">
-                                Winner: <ExplorerLink addr={step.winner} label={String(step.winner).slice(0, 6) + "..."} />
-                              </div>
-                            )}
+                    {timeline.map((step, i) => {
+                      const parts = step.date ? formatDateParts(step.date) : { date: "—", time: "—" };
+
+                      return (
+                        <div key={i} className={`rdm-tl-row ${step.status}`}>
+                          <div className="rdm-tl-time">
+                            <div className="rdm-tl-date">{parts.date}</div>
+                            <div className="rdm-tl-hm">{parts.time}</div>
+                          </div>
+
+                          <div className="rdm-tl-desc">
+                            <div className="rdm-tl-label">{step.label}</div>
+                            <div className="rdm-tl-sub">
+                              {step.tx && <TxLink hash={step.tx} />}
+                              {step.winner && (
+                                <div className="rdm-winner-hl">
+                                  Winner: <ExplorerLink addr={step.winner} label={String(step.winner).slice(0, 6) + "..."} />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <div className="rdm-receipt-line end">--- END OF LOG ---</div>
                   </div>
                 )}
@@ -838,6 +880,15 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                 {tab === "ranges" && (
                   <div className="rdm-receipt">
                     <div className="rdm-receipt-line start">--- RANGE POLICY ---</div>
+
+                    {/* ✅ NEW: small note + FAQ link */}
+                    <div className="rdm-range-note" style={{ margin: "8px 0 12px", fontSize: 12, opacity: 0.8 }}>
+                      Learn more about ranges in the{" "}
+                      <a href={FAQ_HREF} className="rdm-info-link" target="_blank" rel="noreferrer">
+                        FAQ
+                      </a>
+                      .
+                    </div>
 
                     {!showRangePanel ? (
                       <div className="rdm-empty">Range information unavailable.</div>
@@ -896,7 +947,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
                         <div className="rdm-slip-row">
                           <span>Min cost to open new range</span>
                           <span>
-                            <b>{math.fmtUsdc(state.minCostToCreateNewRange?.toString() || "0")} USDC</b>
+                            <b>{fmtUsdcUi(math.fmtUsdc(state.minCostToCreateNewRange?.toString() || "0"))} USDC</b>
                             <span style={{ marginLeft: 8, opacity: 0.75 }}> (~{fmtCostTickets(state.minCostToCreateNewRange)})</span>
                           </span>
                         </div>
@@ -914,3 +965,5 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery }
     </div>
   );
 }
+
+export default LotteryDetailsModal;

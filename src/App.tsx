@@ -89,11 +89,11 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [cashierOpen, setCashierOpen] = useState(false);
 
-  // 5) Disclaimer gate
+  // 5) Disclaimer gate — show by default on first load
   const [showGate, setShowGate] = useState(false);
   useEffect(() => {
-    const hasAccepted = localStorage.getItem("ppopgi_terms_accepted");
-    if (!hasAccepted) setShowGate(true);
+    const hasAccepted = localStorage.getItem("ppopgi_terms_accepted") === "true";
+    setShowGate(!hasAccepted);
   }, []);
 
   const handleAcceptGate = () => {
@@ -124,10 +124,10 @@ export default function App() {
   // ✅ Lottery details for safety modal
   const { data: safetyData } = useLotteryDetails(safetyId, !!safetyId);
 
-  // ✅ NEW: single flag to hide layout chrome when any modal/gate is open
+  // ✅ Hide layout chrome when any modal/gate is open
   const anyModalOpen = showGate || signInOpen || createOpen || cashierOpen || !!selectedLotteryId || !!safetyId;
 
-  // ✅ OPTIONAL: prevent background scroll while a modal is open
+  // ✅ prevent background scroll while a modal is open
   useEffect(() => {
     document.body.style.overflow = anyModalOpen ? "hidden" : "";
     return () => {
@@ -136,14 +136,13 @@ export default function App() {
   }, [anyModalOpen]);
 
   /**
-   * ✅ Navigate helper:
+   * Navigate helper:
    * - updates React state
    * - updates URL (?page=...)
    * - gates dashboard behind wallet
    */
   const navigateTo = useCallback(
     (next: Page) => {
-      // gate dashboard behind wallet
       if (next === "dashboard" && !account) {
         setPage("home");
         setPageInUrl("home");
@@ -158,7 +157,7 @@ export default function App() {
   );
 
   /**
-   * ✅ Sync page from URL on:
+   * Sync page from URL on:
    * - first load
    * - browser back/forward
    */
@@ -167,10 +166,8 @@ export default function App() {
     const applyFromUrl = () => {
       const next = getPageFromUrl();
 
-      // gate dashboard behind wallet if needed
       if (next === "dashboard" && !account) {
         setPage("home");
-        // keep URL consistent too
         setPageInUrl("home");
         setSignInOpen(true);
         return;
@@ -179,13 +176,11 @@ export default function App() {
       setPage(next);
     };
 
-    // initial sync
     if (!didInitRef.current) {
       didInitRef.current = true;
       applyFromUrl();
     }
 
-    // popstate (back/forward)
     window.addEventListener("popstate", applyFromUrl);
     return () => window.removeEventListener("popstate", applyFromUrl);
   }, [account]);
@@ -194,14 +189,13 @@ export default function App() {
   useEffect(() => {
     setSession({ account, connector: account ? "thirdweb" : null });
 
-    // if user disconnects while on dashboard, bounce home + keep URL correct
     if (page === "dashboard" && !account) {
       setPage("home");
       setPageInUrl("home");
     }
   }, [account, page, setSession]);
 
-  // 9) Global events (Home banner + external navigation)
+  // 9) Global events
   useEffect(() => {
     const onOpenCashier = () => {
       if (account) setCashierOpen(true);
@@ -228,11 +222,12 @@ export default function App() {
     <>
       <GlobalDataRefresher intervalMs={5000} />
 
+      {/* ✅ Always blocks the app until accepted (on first visit) */}
       <DisclaimerGate open={showGate} onAccept={handleAcceptGate} />
 
       <MainLayout
         page={page}
-        onNavigate={navigateTo} // ✅ IMPORTANT: use navigateTo so URL updates
+        onNavigate={navigateTo}
         account={account}
         onOpenSignIn={() => setSignInOpen(true)}
         onOpenCreate={() => (account ? setCreateOpen(true) : setSignInOpen(true))}

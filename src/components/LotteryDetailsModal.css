@@ -4,8 +4,9 @@
   position: fixed;
   inset: 0;
   z-index: 9000;
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(6px);
+  background: rgba(43, 43, 51, 0.45); /* Dark ink overlay */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   padding-top: 100px;
   padding-bottom: 40px;
   display: flex;
@@ -18,24 +19,27 @@
 
 .rdm-card {
   width: 100%;
-  max-width: 420px;
-  border-radius: 20px;
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5);
+  max-width: 440px; 
+  border-radius: 32px;
+  box-shadow: 
+    0 30px 60px -12px rgba(203, 183, 246, 0.4), 
+    0 0 0 1px rgba(255, 255, 255, 0.5);
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  animation: rdm-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: rdm-slide-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   margin-bottom: 20px;
+  background: #ffffff;
 }
 
 @keyframes rdm-slide-up {
-  from { transform: translateY(40px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from { transform: translateY(40px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 /* =========================================================
-   ✅ TICKET BODY (Top Section - Pink/Gradient)
+   ✅ TICKET BODY (Textured Pastel Pink)
    ========================================================= */
 .rdm-ticket-body {
   background-color: #ffeef6;
@@ -50,12 +54,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 20px 24px;
 }
 
 .rdm-ticket-id {
   font-weight: 900;
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #831843;
@@ -63,39 +67,44 @@
 }
 
 .rdm-icon-btn {
-  background: rgba(255,255,255,0.5);
-  border: 1px solid rgba(0,0,0,0.05);
-  width: 32px;
-  height: 32px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   cursor: pointer;
-  color: #5C1F3B;
-  transition: all 0.2s;
+  color: var(--ink);
+  transition: all 0.2s ease;
   font-size: 14px;
+  box-shadow: 0 4px 10px rgba(246, 182, 200, 0.2);
 }
-.rdm-icon-btn:hover { background: white; transform: scale(1.1); }
+.rdm-icon-btn:hover { 
+  background: white; 
+  transform: scale(1.05); 
+  box-shadow: 0 6px 14px rgba(246, 182, 200, 0.3);
+}
 
 /* Hero */
-.rdm-hero { text-align: center; padding: 10px 20px 20px 20px; }
+.rdm-hero { text-align: center; padding: 10px 24px 24px 24px; }
 .rdm-hero-lbl {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   color: #831843;
-  font-weight: 800;
+  font-weight: 900;
   opacity: 0.7;
+  letter-spacing: 0.5px;
 }
 
 .rdm-hero-val {
-  font-size: 48px;
+  font-size: 52px;
   font-weight: 900;
-  margin: 4px 0;
-
+  margin: 4px 0 8px 0;
   background: linear-gradient(135deg, #BE185D 0%, #db2777 50%, #f472b6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 4px rgba(190, 24, 93, 0.2));
+  filter: drop-shadow(0 4px 12px rgba(190, 24, 93, 0.2));
   letter-spacing: -2px;
   line-height: 1;
 }
@@ -103,209 +112,245 @@
 .rdm-hero-unit {
   font-size: 20px;
   font-weight: 900;
-  color: #831843;
-  -webkit-text-fill-color: #831843;
+  color: #db2777;
+  -webkit-text-fill-color: #db2777;
 }
 
 .rdm-hero-meta {
   display: flex;
   justify-content: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: #831843;
   opacity: 0.8;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
-.rdm-info-link { color: inherit; text-decoration: underline; }
+.rdm-info-link { 
+  color: inherit; 
+  text-decoration: none; 
+  border-bottom: 2px solid rgba(131, 24, 67, 0.4);
+  transition: all 0.2s ease;
+}
+.rdm-info-link:hover {
+  background-color: var(--sakura-pink);
+  color: var(--soft-cream);
+}
 
 /* Stats Grid */
 .rdm-stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  padding: 0 20px;
+  gap: 12px;
+  padding: 0 24px;
 }
 .rdm-stat-box {
-  background: rgba(255,255,255,0.5);
-  padding: 8px;
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5); 
+  padding: 12px 8px;
+  border-radius: 16px;
   text-align: center;
-  border: 1px solid rgba(255,255,255,0.6);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
 .rdm-sb-lbl {
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
   color: #831843;
-  font-weight: 800;
+  font-weight: 900;
   opacity: 0.7;
+  letter-spacing: 0.5px;
 }
 .rdm-sb-val {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
-  color: #5C1F3B;
-  margin-top: 2px;
+  color: var(--ink);
+  margin-top: 4px;
+}
+.rdm-stat-box.highlight .rdm-sb-val {
+  color: #db2777;
 }
 
 /* =========================================================
    ✅ PERFORATION & NOTCHES
    ========================================================= */
 .rdm-perforation-line {
-  height: 6px;
+  height: 20px;
   background-color: #ffeef6;
-  background-image: radial-gradient(circle, transparent 3px, rgba(0,0,0,0.1) 3.5px);
-  background-size: 10px 10px;
-  background-position: center;
+  background-image: radial-gradient(circle, transparent 6px, rgba(255,255,255,0.9) 6.5px);
+  background-size: 20px 20px;
+  background-position: -10px -10px;
+  border-top: 2px dashed rgba(246, 182, 200, 0.5); 
   position: relative;
   z-index: 5;
+  margin-top: -10px;
 }
 
 .rdm-notch {
   position: absolute;
-  top: 218px;
-  width: 30px;
-  height: 30px;
+  top: 240px; 
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(43, 43, 51, 0.45); 
   z-index: 10;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
-.rdm-notch.left { left: -15px; }
-.rdm-notch.right { right: -15px; }
+.rdm-notch.left { left: -18px; }
+.rdm-notch.right { right: -18px; }
 
 /* =========================================================
    ✅ TICKET STUB (Bottom Section - Paper)
    ========================================================= */
 .rdm-ticket-stub {
-  background: #fff;
-  padding: 24px 20px;
+  background: #ffffff;
+  padding: 24px 28px;
   flex: 1;
 }
 
 /* Buy Section */
-.rdm-buy-section { margin-bottom: 30px; }
+.rdm-buy-section { margin-bottom: 32px; }
 
-/* 🔥 More obvious closed message */
 .rdm-closed-msg {
   text-align: center;
-  font-weight: 1000;
-  font-size: 14px;
-  padding: 14px 12px;
-  border-radius: 14px;
-
-  color: #7f1d1d;
-  background: linear-gradient(180deg, #fff1f2, #ffffff);
-  border: 1px solid rgba(225, 29, 72, 0.25);
-  box-shadow: 0 10px 22px rgba(225, 29, 72, 0.08);
+  font-weight: 900;
+  font-size: 15px;
+  padding: 16px 12px;
+  border-radius: 20px;
+  color: var(--ink);
+  background: rgba(246, 182, 200, 0.2); 
+  border: 2px dashed rgba(246, 182, 200, 0.6);
   opacity: 1;
 }
 
-/* Creator cannot buy */
 .rdm-buy-disabled {
-  background: #fef2f2;
-  color: #991b1b;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(153, 27, 27, 0.18);
+  background: rgba(169, 212, 255, 0.15); 
+  color: var(--ink);
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(169, 212, 255, 0.4);
   font-weight: 900;
   text-align: center;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .rdm-buy-inner { position: relative; }
-.rdm-buy-inner.blurred { filter: blur(3px); opacity: 0.6; pointer-events: none; }
+.rdm-buy-inner.blurred { filter: blur(4px); opacity: 0.5; pointer-events: none; }
 
 .rdm-balance-row {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
-  font-weight: 800;
-  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ink);
+  opacity: 0.6;
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  letter-spacing: 0.5px;
 }
 
-/* ✅ Make “warn” lines look intentional (remaining tickets / range hint) */
 .rdm-warn-text {
-  background: #fffbeb;
-  border: 1px solid rgba(245, 158, 11, 0.25);
-  color: #92400e;
-  font-weight: 900;
-  font-size: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  margin: 8px 0;
-  box-shadow: 0 8px 18px rgba(245, 158, 11, 0.08);
+  background: rgba(250, 209, 184, 0.3); 
+  border: 1px solid rgba(250, 209, 184, 0.6);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 12.5px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  margin: 10px 0;
+  text-align: center;
 }
 
 .rdm-warn-box {
-  background: #fff1f2;
-  border: 1px solid rgba(225, 29, 72, 0.22);
-  color: #9f1239;
-  padding: 12px;
-  border-radius: 12px;
+  background: rgba(246, 182, 200, 0.25);
+  border: 1px solid rgba(246, 182, 200, 0.6);
+  color: var(--ink);
+  padding: 12px 16px;
+  border-radius: 16px;
   font-weight: 900;
   text-align: center;
-  font-size: 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
 }
 
-.rdm-stepper { display: flex; gap: 8px; margin-bottom: 12px; }
+.rdm-stepper { display: flex; gap: 12px; margin-bottom: 24px; }
 .rdm-step-btn {
-  width: 44px;
-  height: 44px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  width: 52px;
+  height: 52px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 2px solid rgba(246, 182, 200, 0.4);
+  border-radius: 16px;
   font-weight: 900;
-  font-size: 18px;
-  color: #334155;
+  font-size: 24px;
+  color: var(--ink);
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(246, 182, 200, 0.1);
 }
-.rdm-step-btn:hover:not(:disabled) { background: #f1f5f9; }
-.rdm-step-btn:disabled { opacity: 0.5; }
+.rdm-step-btn:hover:not(:disabled) { 
+  background: var(--sakura-pink); 
+  color: var(--soft-cream);
+  border-color: var(--sakura-pink);
+}
+.rdm-step-btn:disabled { opacity: 0.4; background: #f8fafc; border-color: #e2e8f0; }
 
 .rdm-input-wrapper { flex: 1; position: relative; }
 .rdm-amount {
   width: 100%;
-  height: 44px;
+  height: 52px;
   text-align: center;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 900;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 2px solid rgba(169, 212, 255, 0.4); 
+  border-radius: 16px;
   outline: none;
   background: #fff;
-  color: #0f172a;
+  color: var(--ink);
+  transition: all 0.2s;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+.rdm-amount:focus {
+  border-color: var(--sky-pastel);
+  box-shadow: 0 0 0 4px rgba(169, 212, 255, 0.2);
 }
 .rdm-cost-preview {
   position: absolute;
-  bottom: -16px;
+  bottom: -20px;
   width: 100%;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  color: #94a3b8;
+  color: var(--ink);
+  opacity: 0.6;
 }
 
 .rdm-cta {
   width: 100%;
-  padding: 14px;
-  border-radius: 12px;
+  padding: 16px;
+  border-radius: 20px;
   border: none;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
   cursor: pointer;
   margin-top: 10px;
-  transition: transform 0.1s;
+  transition: all 0.2s ease;
 }
 .rdm-cta.primary {
-  background: #1e293b;
-  color: white;
-  box-shadow: 0 4px 12px rgba(30, 41, 59, 0.2);
+  background: linear-gradient(135deg, var(--peach-glow), var(--sakura-pink));
+  color: var(--ink);
+  border: 2px solid #ffffff;
+  box-shadow: 0 6px 20px rgba(246, 182, 200, 0.4), inset 0 0 0 1px rgba(255,255,255,0.4);
+}
+.rdm-cta.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--sakura-pink), #D88EAA);
+  color: var(--soft-cream);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(246, 182, 200, 0.5), inset 0 0 0 1px rgba(255,255,255,0.6);
 }
 .rdm-cta:active { transform: translateY(1px); }
-.rdm-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.rdm-cta:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.3); }
 
 .rdm-overlay-msg {
   position: absolute;
@@ -315,206 +360,305 @@
   pointer-events: none;
 }
 .rdm-overlay-msg span {
-  background: #1e293b;
-  color: white;
-  padding: 10px 20px;
+  background: var(--ink);
+  color: var(--soft-cream);
+  padding: 12px 24px;
   border-radius: 99px;
   font-weight: 900;
-  font-size: 12px;
-  box-shadow: 0 10px 20px rgba(30, 41, 59, 0.25);
+  font-size: 13px;
+  box-shadow: 0 10px 24px rgba(43, 43, 51, 0.3);
 }
 
 /* Specs */
 .rdm-dist-section {
-  margin-bottom: 30px;
-  background: #f8fafc;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid #f1f5f9;
+  margin-bottom: 32px;
+  background: rgba(169, 212, 255, 0.15); 
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(169, 212, 255, 0.3);
 }
 .rdm-dist-header {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
-  color: #64748b;
-  margin-bottom: 4px;
+  color: var(--ink);
+  opacity: 0.6;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
 }
 .rdm-dist-note {
-  font-size: 12px;
-  font-weight: 800;
-  color: #334155;
-  margin-bottom: 12px;
-  line-height: 1.3;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  opacity: 0.85;
+  margin-bottom: 16px;
+  line-height: 1.4;
 }
-.rdm-specs-grid { display: grid; gap: 6px; }
-.rdm-spec-row { display: flex; justify-content: space-between; font-size: 12px; color: #64748b; }
-.rdm-spec-row b { color: #0f172a; }
-
-/* Optional: you can use these later if you wrap Status with a span class */
-.rdm-status-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 1000;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #fff;
-  color: #0f172a;
-}
+.rdm-specs-grid { display: grid; gap: 8px; }
+.rdm-spec-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink); opacity: 0.8; }
+.rdm-spec-row b { color: var(--ink); opacity: 1; font-weight: 900; }
 
 /* Payout Slip */
 .rdm-payout-slip {
-  font-family: "Courier New", monospace;
-  font-size: 12px;
-  color: #334155;
-  background: #fff;
-  border: 1px dashed #cbd5e1;
-  padding: 12px;
-  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.7);
+  border: 2px dashed rgba(169, 212, 255, 0.6);
+  padding: 16px;
+  border-radius: 16px;
 }
-.rdm-slip-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-.rdm-slip-row.head { font-weight: 900; text-transform: uppercase; color: #0f172a; margin-bottom: 6px; }
-.rdm-slip-divider { border-bottom: 1px dashed #cbd5e1; margin: 8px 0; }
+.rdm-slip-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 600; }
+.rdm-slip-row.head { font-weight: 900; text-transform: uppercase; margin-bottom: 8px; }
+.rdm-slip-divider { border-bottom: 2px dashed rgba(169, 212, 255, 0.6); margin: 10px 0; }
 
 /* Tabs */
 .rdm-tabs {
   display: flex;
-  border-bottom: 2px solid #e2e8f0;
-  margin-bottom: 16px;
+  border-bottom: 2px solid rgba(246, 182, 200, 0.3); 
+  margin-bottom: 20px;
 }
 .rdm-tab {
   flex: 1;
-  padding: 10px;
+  padding: 12px;
   background: none;
   border: none;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
-  color: #94a3b8;
+  color: var(--ink);
+  opacity: 0.5;
   text-transform: uppercase;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
+.rdm-tab:hover { opacity: 0.8; }
 .rdm-tab.active {
-  color: #1e293b;
-  border-bottom: 2px solid #1e293b;
+  color: var(--ink);
+  opacity: 1;
+  border-bottom: 3px solid var(--sakura-pink);
   margin-bottom: -2px;
 }
 
-/* Receipt Log */
-.rdm-receipt { font-family: "Courier New", monospace; color: #334155; font-size: 11px; }
-.rdm-receipt-line { text-align: center; opacity: 0.4; margin: 10px 0; }
-.rdm-tl-row { display: flex; gap: 12px; margin-bottom: 8px; }
-.rdm-tl-time { opacity: 0.6; white-space: nowrap; width: 40px; }
-.rdm-tl-desc { flex: 1; }
-.rdm-tl-label { font-weight: 800; text-transform: uppercase; }
-.rdm-tl-sub { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; opacity: 0.85; }
-.rdm-tl-tx { color: #2563eb; text-decoration: none; }
-.rdm-winner-hl { color: #16a34a; font-weight: 900; }
+/* =========================================================
+   ✅ RECEIPT LOG & HOLDERS (Polished Paper Look)
+   ========================================================= */
+.rdm-receipt { 
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; 
+  color: var(--ink); 
+  font-size: 12px; 
+  background: rgba(250, 209, 184, 0.15); /* Faint peach paper */
+  border: 2px dashed rgba(250, 209, 184, 0.6); /* Peach dashed border */
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.02);
+}
 
-.rdm-holders { display: grid; gap: 8px; }
+.rdm-receipt-line { 
+  text-align: center; 
+  opacity: 0.4; 
+  margin: 16px 0; 
+  font-weight: 800; 
+  letter-spacing: 2px;
+}
+
+.rdm-tl-row { 
+  display: flex; 
+  gap: 16px; 
+  margin-bottom: 16px; 
+  padding-bottom: 12px;
+  border-bottom: 1px dotted rgba(0,0,0,0.1);
+}
+
+.rdm-tl-row:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.rdm-tl-row.future {
+  opacity: 0.5; /* Fade out steps that haven't happened yet */
+}
+
+/* The new Date/Time column */
+.rdm-tl-time { 
+  display: flex;
+  flex-direction: column;
+  min-width: 65px; 
+}
+.rdm-tl-date { 
+  font-size: 10px; 
+  opacity: 0.6; 
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.rdm-tl-hm { 
+  font-size: 13px; 
+  font-weight: 900; 
+  color: var(--ink);
+}
+
+.rdm-tl-desc { flex: 1; }
+
+.rdm-tl-label { 
+  font-weight: 900; 
+  font-size: 12.5px;
+  text-transform: uppercase; 
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.rdm-tl-sub { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 6px; 
+  opacity: 0.9; 
+}
+
+.rdm-tl-tx { 
+  color: var(--ink); 
+  text-decoration: none; 
+  border-bottom: 1px solid var(--sakura-pink); 
+  width: fit-content; 
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+.rdm-tl-tx:hover {
+  background: var(--sakura-pink);
+  color: var(--soft-cream);
+}
+
+.rdm-winner-hl { 
+  color: var(--ink); 
+  font-weight: 900; 
+  background: var(--warm-lantern); 
+  padding: 4px 8px; 
+  border-radius: 6px; 
+  width: fit-content; 
+  box-shadow: 0 2px 4px rgba(255, 216, 154, 0.4);
+}
+
+/* Holders Tab */
+.rdm-holders { 
+  display: grid; 
+  gap: 12px; 
+  padding: 0 8px;
+}
 .rdm-holder-row {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  padding-bottom: 6px;
-  border-bottom: 1px dashed #e2e8f0;
+  font-size: 13px;
+  padding-bottom: 10px;
+  border-bottom: 2px dashed rgba(246, 182, 200, 0.3);
 }
+.rdm-holder-row b { color: var(--ink); font-weight: 800; }
 .rdm-empty {
   text-align: center;
-  padding: 20px;
-  color: #94a3b8;
-  font-size: 12px;
+  padding: 24px;
+  color: var(--ink);
+  opacity: 0.6;
+  font-size: 13px;
+  font-weight: 600;
   font-style: italic;
 }
 
 /* =========================================================
-   ✅ SUCCESS SCREEN (single clean definition)
+   ✅ SUCCESS SCREEN 
    ========================================================= */
 
 .rdm-success {
-  padding: 26px 18px;
+  padding: 32px 24px;
   text-align: center;
-  border-radius: 16px;
-  background: radial-gradient(circle at top, #fffbeb 0%, #ffffff 60%);
-  border: 1px solid #f1f5f9;
+  border-radius: 24px;
+  background: radial-gradient(circle at top, rgba(250, 209, 184, 0.35) 0%, #ffffff 60%); 
+  border: 2px solid rgba(250, 209, 184, 0.5);
+  box-shadow: 0 10px 30px rgba(250, 209, 184, 0.2);
 }
 
 .rdm-success-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 14px auto;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px auto;
   border-radius: 999px;
-  background: #22c55e;
-  color: white;
+  background: var(--sakura-pink);
+  color: var(--soft-cream);
   display: grid;
   place-items: center;
   font-weight: 900;
-  font-size: 28px;
-  box-shadow: 0 10px 20px rgba(34, 197, 94, 0.25);
+  font-size: 32px;
+  box-shadow: 0 10px 24px rgba(246, 182, 200, 0.4);
 }
 
 .rdm-success-title {
-  font-size: 22px;
-  font-weight: 1000;
-  color: #1e293b;
-  margin-bottom: 6px;
-  letter-spacing: -0.3px;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--ink);
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
 }
 
 .rdm-success-sub {
-  font-size: 13px;
-  color: #64748b;
-  font-weight: 800;
-  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--ink);
+  opacity: 0.8;
+  font-weight: 600;
+  margin-bottom: 20px;
 }
+.rdm-success-sub b { font-weight: 900; }
 
 .rdm-success-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .rdm-success-box {
-  background: #ffffff;
-  border: 1px solid #f1f5f9;
-  border-radius: 12px;
-  padding: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 2px solid #ffffff;
+  border-radius: 16px;
+  padding: 14px;
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.02);
 }
 
 .rdm-success-lbl {
   font-size: 10px;
-  font-weight: 1000;
+  font-weight: 900;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--ink);
+  opacity: 0.6;
   margin-bottom: 4px;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.5px;
 }
 
 .rdm-success-val {
-  font-size: 13px;
-  font-weight: 1000;
-  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--ink);
 }
 
 .rdm-success-note {
-  font-size: 10px;
-  font-weight: 800;
-  color: #94a3b8;
-  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  opacity: 0.5;
+  margin-top: 6px;
 }
 
 .rdm-success-actions {
   display: grid;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
-/* success buttons: align with CTA style */
 .rdm-success-actions .rdm-cta {
   margin-top: 0;
+}
+.rdm-success-actions .rdm-cta:not(.primary) {
+  background: transparent;
+  border: 2px solid rgba(246, 182, 200, 0.5);
+  color: var(--ink);
+}
+.rdm-success-actions .rdm-cta:not(.primary):hover {
+  background: rgba(246, 182, 200, 0.1);
 }

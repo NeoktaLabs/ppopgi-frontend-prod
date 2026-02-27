@@ -18,9 +18,9 @@ export const LINKS = {
     "https://solidityscan.com/quickscan/0xAd0c8Ba0E4e519B4EA97cE945A20E2716dDbDf7D/blockscout/etherlink-mainnet",
 
   // Optional: add when ready (leave "" if not public yet)
-  repoFrontend: "",
-  repoContracts: "",
-  repoFinalizerBot: "",
+  repoFrontend: "https://github.com/NeoktaLabs/ppopgi-frontend-prod",
+  repoContracts: "https://github.com/NeoktaLabs/ppopgi-smartcontracts",
+  repoFinalizerBot: "https://github.com/NeoktaLabs/ppopgi-finalizer-bot",
 
   // Optional: one “Transparency” link you might add later
   // transparencyPage: "?page=transparency",

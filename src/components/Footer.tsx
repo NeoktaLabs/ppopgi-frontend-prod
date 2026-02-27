@@ -22,18 +22,6 @@ export function Footer({ onNavigate }: Props) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const linkBtnStyle: React.CSSProperties = {
-    background: "none",
-    border: "none",
-    padding: 0,
-    color: "#334155",
-    fontSize: "13px",
-    fontWeight: 600,
-    cursor: "pointer",
-    textAlign: "left",
-    fontFamily: "inherit",
-  };
-
   const hasAnyRepoLink = !!(LINKS.repoFrontend || LINKS.repoContracts || LINKS.repoFinalizerBot);
 
   return (
@@ -60,9 +48,7 @@ export function Footer({ onNavigate }: Props) {
             <button
               type="button"
               onClick={goAbout}
-              style={linkBtnStyle}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#2563eb")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#334155")}
+              className="footer-link-btn"
             >
               About &amp; Founder's Note
             </button>
@@ -70,9 +56,7 @@ export function Footer({ onNavigate }: Props) {
             <button
               type="button"
               onClick={goFaq}
-              style={{ ...linkBtnStyle, marginTop: 10 }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#2563eb")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#334155")}
+              className="footer-link-btn"
             >
               FAQ
             </button>
@@ -83,24 +67,46 @@ export function Footer({ onNavigate }: Props) {
             <h4>Transparency</h4>
 
             {!hasAnyRepoLink ? (
-              <span style={{ fontSize: 13, color: "#64748b" }}>Links coming soon</span>
+              <span className="footer-link-disabled">Links coming soon</span>
             ) : (
               <>
                 {LINKS.repoFrontend ? (
-                  <a href={LINKS.repoFrontend} target="_blank" rel="noreferrer">
+                  <a href={LINKS.repoFrontend} target="_blank" rel="noreferrer" className="footer-link-btn">
                     Frontend Code ↗
                   </a>
                 ) : null}
 
                 {LINKS.repoContracts ? (
-                  <a href={LINKS.repoContracts} target="_blank" rel="noreferrer">
+                  <a href={LINKS.repoContracts} target="_blank" rel="noreferrer" className="footer-link-btn">
                     Smart Contracts ↗
                   </a>
                 ) : null}
 
                 {LINKS.repoFinalizerBot ? (
-                  <a href={LINKS.repoFinalizerBot} target="_blank" rel="noreferrer">
+                  <a href={LINKS.repoFinalizerBot} target="_blank" rel="noreferrer" className="footer-link-btn">
                     Finalizer Bot ↗
+                  </a>
+                ) : null}
+              </>
+            )}
+          </div>
+          {/* SolidityScan */}
+          <div className="footer-col">
+            <h4>Audit (SolidityScan)</h4>
+
+            {!hasAnyRepoLink ? (
+              <span className="footer-link-disabled">Links coming soon</span>
+            ) : (
+              <>
+                {LINKS.repoFrontend ? (
+                  <a href={LINKS.solidityScanRegistry} target="_blank" rel="noreferrer" className="footer-link-btn">
+                    Ppopgi Registry Contract ↗
+                  </a>
+                ) : null}
+
+                {LINKS.repoContracts ? (
+                  <a href={LINKS.solidityScanDeployer} target="_blank" rel="noreferrer" className="footer-link-btn">
+                    Ppopgi Lottery Contract ↗
                   </a>
                 ) : null}
               </>
