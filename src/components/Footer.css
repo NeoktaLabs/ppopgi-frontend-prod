@@ -76,7 +76,7 @@
 /* LINKS GRID */
 .footer-links {
   display: flex;
-  gap: 80px;
+  gap: 60px; /* ✅ Adjusted from 80px so 4 columns fit nicely */
   flex-wrap: wrap;
 }
 

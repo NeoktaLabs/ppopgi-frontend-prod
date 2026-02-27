@@ -62,6 +62,19 @@ export function Footer({ onNavigate }: Props) {
             </button>
           </div>
 
+          {/* Community (NEW) */}
+          <div className="footer-col">
+            <h4>Community</h4>
+
+            <a href="https://x.com/ppopgixyz?s=21" target="_blank" rel="noreferrer" className="footer-link-btn">
+              𝕏 Follow on X
+            </a>
+
+            <a href="mailto:hi@ppopgi.xyz" className="footer-link-btn">
+              💌 hi@ppopgi.xyz
+            </a>
+          </div>
+
           {/* Transparency */}
           <div className="footer-col">
             <h4>Transparency</h4>
@@ -90,6 +103,7 @@ export function Footer({ onNavigate }: Props) {
               </>
             )}
           </div>
+          
           {/* SolidityScan */}
           <div className="footer-col">
             <h4>Audit (SolidityScan)</h4>
