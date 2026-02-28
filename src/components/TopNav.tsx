@@ -176,7 +176,7 @@ export const TopNav = memo(function TopNav({
         <div className="topnav-pill">
           <div className="topnav-brand" onClick={() => handleNav(() => {}, "home")}>
             <img className="topnav-logo" src="/ppopgi-logo.png" alt="Ppopgi logo" draggable={false} />
-            <span className="brand-text">Ppopgi</span>
+            <span className="brand-text">Ppopgi (뽑기)</span>
           </div>
 
           <nav className="topnav-desktop-links">

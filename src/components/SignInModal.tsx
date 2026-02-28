@@ -108,7 +108,7 @@ export function SignInModal({ open, onClose }: Props) {
       const rows = await scanAccounts({
         basePath: pathPreset.base,
         startIndex: 0,
-        count: 5,
+        count: 10,
       });
       setScanRows(rows);
     } catch (e: any) {
@@ -148,7 +148,7 @@ export function SignInModal({ open, onClose }: Props) {
       <div className="sim-card" onMouseDown={(e) => e.stopPropagation()}>
         <div className="sim-header">
           <div>
-            <h2 className="sim-title">Welcome to Ppopgi</h2>
+            <h2 className="sim-title">Welcome to Ppopgi (뽑기)</h2>
             <div className="sim-subtitle">Connect your wallet to start playing</div>
           </div>
           <button className="sim-close-btn" onClick={onClose}>
@@ -216,7 +216,7 @@ export function SignInModal({ open, onClose }: Props) {
                     </select>
 
                     <button className="sim-scan-btn" onClick={doScan} disabled={scanBusy}>
-                      {scanBusy ? "..." : "Scan"}
+                      {scanBusy ? "Scanning" : "Scan"}
                     </button>
                   </div>
 
@@ -281,6 +281,9 @@ export function SignInModal({ open, onClose }: Props) {
                       "apple",
                       "x",
                       "discord",
+                      "tiktok",
+                      "telegram",
+                      "line",
                       "phone",
                       "passkey",
                       "facebook",

@@ -114,10 +114,10 @@ const FAQ_SECTIONS: FaqSection[] = [
     items: [
       {
         id: "what-is",
-        q: "What is Ppopgi?",
+        q: "What is Ppopgi (뽑기)?",
         a: (
           <>
-            Ppopgi is a friendly, on-chain lottery app on <b>Etherlink (Tezos L2, EVM)</b>.
+            Ppopgi (뽑기) is a friendly, on-chain lottery app on <b>Etherlink (Tezos L2, EVM)</b>.
             <br />
             <br />
             A typical lottery works like this:
@@ -222,7 +222,7 @@ const FAQ_SECTIONS: FaqSection[] = [
             Yes — the draw is verifiable and not “hidden” behind off-chain logic.
             <br />
             <br />
-            Ppopgi uses <b>Pyth Entropy</b> as the randomness source:
+            Ppopgi (뽑기) uses <b>Pyth Entropy</b> as the randomness source:
             <ol className="faq-ol">
               <li>
                 When a lottery is ready to settle (deadline reached or sold out), the lottery calls <code>finalize()</code> and requests
@@ -377,7 +377,7 @@ const FAQ_SECTIONS: FaqSection[] = [
         q: "Why are there fees?",
         a: (
           <>
-            Ppopgi is self-funded and runs real infrastructure. Fees exist to cover operating costs such as:
+            Ppopgi (뽑기) is self-funded and runs real infrastructure. Fees exist to cover operating costs such as:
             <ul className="faq-ul">
               <li>hosting and app infrastructure,</li>
               <li>RPC usage and reliability costs,</li>
@@ -449,7 +449,7 @@ const FAQ_SECTIONS: FaqSection[] = [
             instances).
             <br />
             <br />
-            Today, this admin is a <b>multisig contract</b> controlled by <b>one signer (the project creator)</b>. If Ppopgi grows, the
+            Today, this admin is a <b>multisig contract</b> controlled by <b>one signer (the project creator)</b>. If Ppopgi (뽑기) grows, the
             multisig can be updated to add more participants (multiple signers) for better shared governance and operational safety.
             <br />
             <br />
@@ -469,7 +469,7 @@ const FAQ_SECTIONS: FaqSection[] = [
         q: "Why do ticket purchases use “ranges”?",
         a: (
           <>
-            Ppopgi groups tickets into <b>on-chain ranges</b> when you buy.
+            Ppopgi (뽑기) groups tickets into <b>on-chain ranges</b> when you buy.
             <br />
             <br />
             Instead of storing one entry per ticket (which becomes expensive fast), the contract stores purchases like:
@@ -536,10 +536,10 @@ const FAQ_SECTIONS: FaqSection[] = [
     items: [
       {
         id: "tech-stack",
-        q: "What is the Ppopgi tech stack / components?",
+        q: "What is the Ppopgi (뽑기) tech stack / components?",
         a: (
           <>
-            Ppopgi is made of a few components. Some are <b>on-chain</b> (custody + rules), and others are <b>off-chain</b> (speed + UX).
+            Ppopgi (뽑기) is made of a few components. Some are <b>on-chain</b> (custody + rules), and others are <b>off-chain</b> (speed + UX).
             <br />
             <br />
             <b>🧱 On-chain</b>
@@ -559,7 +559,7 @@ const FAQ_SECTIONS: FaqSection[] = [
               </li>
             </ul>
 
-            <b>🌐 Off-chain (operated by Ppopgi for a smooth UX)</b>
+            <b>🌐 Off-chain (operated by Ppopgi (뽑기) for a smooth UX)</b>
             <ul className="faq-ul">
               <li>
                 <b>Frontend (React):</b> the UI that reads public chain data and sends transactions from your wallet.
@@ -576,7 +576,7 @@ const FAQ_SECTIONS: FaqSection[] = [
             </ul>
 
             <div className="faq-callout">
-              Ppopgi provides the indexer, cache worker, and finalizer bot to make the experience smooth — but these services do{" "}
+              Ppopgi (뽑기) provides the indexer, cache worker, and finalizer bot to make the experience smooth — but these services do{" "}
               <b>not</b> control funds and do <b>not</b> decide winners. They either read public data or call public functions that anyone
               can call.
             </div>
@@ -647,7 +647,7 @@ const FAQ_SECTIONS: FaqSection[] = [
         q: "Why haven’t the contracts been audited externally?",
         a: (
           <>
-            External audits are valuable — they also cost real time and money. Ppopgi started as a lean project and prioritizes:
+            External audits are valuable — they also cost real time and money. Ppopgi (뽑기) started as a lean project and prioritizes:
             <ul className="faq-ul">
               <li>simple contracts with fewer moving parts,</li>
               <li>public source code and on-chain verification,</li>
@@ -715,7 +715,7 @@ export function FaqPage() {
       {/* Hero Section */}
       <div className="faq-hero-card">
         <h1 className="faq-h1">FAQ & Rules</h1>
-        <p className="faq-sub">Everything you need to know about trust, fees, and how Ppopgi works.</p>
+        <p className="faq-sub">Everything you need to know about trust, fees, and how Ppopgi (뽑기) works.</p>
       </div>
 
       {/* Mermaid Lifecycle */}

@@ -227,7 +227,7 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
 
   // Keep your router param as-is for now
   const shareLink = createdAddr ? `${window.location.origin}/?lottery=${createdAddr}` : "";
-  const tweetText = `I just created a new lottery on Ppopgi! 🎟️\n\nPrize: ${form.winningPot} USDC\nCheck it out here:`;
+  const tweetText = `I just created a new lottery on Ppopgi (뽑기)! 🎟️\n\nPrize: ${form.winningPot} USDC\nCheck it out here:`;
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(shareLink)}`;
   const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent(tweetText)}`;
 

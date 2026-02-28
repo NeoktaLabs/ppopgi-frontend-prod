@@ -51,7 +51,7 @@ export function AboutPage() {
           </p>
 
           <div className="about-highlight-box">
-            <h3>That’s how Ppopgi was born.</h3>
+            <h3>That’s how Ppopgi (뽑기) was born.</h3>
             <p>
               Ppopgi (뽑기) means “drawing” or “picking something at random” in Korean — like small festival games or capsule machines.
               That feeling is intentional. I wanted this to feel playful and fair — not like a casino, not like a financial product,
@@ -61,7 +61,7 @@ export function AboutPage() {
 
           <h3>Transparency by Design</h3>
           <p>
-            Ppopgi is built so the most important parts are verifiable on-chain:{" "}
+            Ppopgi (뽑기) is built so the most important parts are verifiable on-chain:{" "}
             <strong>the lottery rules, funds custody, and winner selection</strong>. The UI, indexing, and automation are there to make
             things fast and easy — but they don’t decide who wins.
           </p>
@@ -73,7 +73,7 @@ export function AboutPage() {
           </p>
 
           <p>
-            I built Ppopgi in my spare time, funded it myself, and learned a lot along the way. It’s still experimental. It’s not
+            I built Ppopgi (뽑기) in my spare time, funded it myself, and learned a lot along the way. It’s still experimental. It’s not
             perfect. And it’s very much a work in progress. But it’s built with care, respect for users, and a strong focus on
             transparency.
           </p>
@@ -99,7 +99,7 @@ export function AboutPage() {
           <hr className="about-divider" />
 
           <p>
-            I didn’t build Ppopgi to chase trends or money. I built it because I love learning, building, and experimenting with
+            I didn’t build Ppopgi (뽑기) to chase trends or money. I built it because I love learning, building, and experimenting with
             transparent systems. AI made that journey possible in a way it wasn’t before, and Etherlink gave me the right playground
             to do it.
           </p>
@@ -109,7 +109,7 @@ export function AboutPage() {
           </p>
 
           <p>
-            If you’d like to learn more about how Ppopgi works, its security model, and the underlying architecture, feel free to
+            If you’d like to learn more about how Ppopgi (뽑기) works, its security model, and the underlying architecture, feel free to
             explore the{" "}
             <a href="?page=faq" className="rdm-info-link">
               FAQ

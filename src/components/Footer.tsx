@@ -31,12 +31,12 @@ export function Footer({ onNavigate }: Props) {
         <div className="footer-brand">
           <div className="footer-logo-row">
             <img src={ppopgiLogo} alt="Ppopgi logo" className="footer-logo-img" />
-            <span className="footer-logo-text">Ppopgi</span>
+            <span className="footer-logo-text">Ppopgi (뽑기)</span>
           </div>
 
           <div className="footer-desc">Fair, verifiable, on-chain lotteries.</div>
           <div className="footer-built">Built with love on Etherlink 💚</div>
-          <div className="footer-copy">&copy; {currentYear} Ppopgi. With love.</div>
+          <div className="footer-copy">&copy; {currentYear} Ppopgi (뽑기). With love.</div>
         </div>
 
         {/* RIGHT: Links Grid */}
@@ -114,13 +114,13 @@ export function Footer({ onNavigate }: Props) {
               <>
                 {LINKS.repoFrontend ? (
                   <a href={LINKS.solidityScanRegistry} target="_blank" rel="noreferrer" className="footer-link-btn">
-                    Ppopgi Registry Contract ↗
+                    Ppopgi (뽑기) Registry Contract ↗
                   </a>
                 ) : null}
 
                 {LINKS.repoContracts ? (
                   <a href={LINKS.solidityScanDeployer} target="_blank" rel="noreferrer" className="footer-link-btn">
-                    Ppopgi Lottery Contract ↗
+                    Ppopgi (뽑기) Lottery Contract ↗
                   </a>
                 ) : null}
               </>

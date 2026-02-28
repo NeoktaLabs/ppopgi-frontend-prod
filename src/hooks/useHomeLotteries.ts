@@ -14,6 +14,14 @@ function numOr0(v?: string | null) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// ✅ Safe integer parsing for counters like "sold"
+function intOr0(v?: string | number | null) {
+  const n = typeof v === "number" ? v : Number(v ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  // sold should never be negative, but clamp anyway
+  return Math.max(0, Math.floor(n));
+}
+
 // Sort helper: treat 0 / missing deadlines as "far future" so they don't appear as "ending soon"
 function deadlineSortKey(deadline?: string | null) {
   const d = numOr0(deadline);
@@ -209,17 +217,25 @@ export function useHomeLotteries() {
       .slice(0, 5);
   }, [all, mode]);
 
+  // ✅ REAL billboard stats (no fake drift)
   const stats = useMemo(() => {
     const totalLotteries = all.length;
 
+    // ✅ total tickets sold across ALL lotteries (OPEN, COMPLETED, CANCELED…)
+    const totalTicketsSold = all.reduce((acc, r) => {
+      return acc + intOr0(r.sold);
+    }, 0);
+
+    // ✅ total prizes settled = COMPLETED only
     const settledVolume = all.reduce((acc, r) => {
       if (r.status === "COMPLETED") return acc + BigInt(r.winningPot || "0");
       return acc;
     }, 0n);
 
+    // ✅ active volume = OPEN + FUNDING_PENDING only
     const activeVolume = active.reduce((acc, r) => acc + BigInt(r.winningPot || "0"), 0n);
 
-    return { totalLotteries, settledVolume, activeVolume };
+    return { totalLotteries, totalTicketsSold, settledVolume, activeVolume };
   }, [all, active]);
 
   return {

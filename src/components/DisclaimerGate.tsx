@@ -48,7 +48,7 @@ export function DisclaimerGate({ open, onAccept }: Props) {
         <div ref={scrollRef} className="dg-scroll" onScroll={checkBottom}>
           <div className="dg-body">
             <p className="dg-text">
-              Ppopgi is an experimental, unaudited decentralized application running on Etherlink.
+              Ppopgi (뽑기) is an experimental, unaudited decentralized application running on Etherlink.
               By entering, you acknowledge and agree to the following:
             </p>
 
@@ -64,7 +64,7 @@ export function DisclaimerGate({ open, onAccept }: Props) {
               </li>
 
               <li>
-                <strong>No Liability:</strong> Ppopgi and its contributors are not responsible for any financial loss,
+                <strong>No Liability:</strong> Ppopgi (뽑기) and its contributors are not responsible for any financial loss,
                 damages, or issues arising from the use of this application.
               </li>
 
@@ -90,7 +90,7 @@ export function DisclaimerGate({ open, onAccept }: Props) {
               cursor: atBottom ? "pointer" : "not-allowed",
             }}
           >
-            {atBottom ? "Agree and take me to Ppopgi" : "Scroll to continue"}
+            {atBottom ? "Agree and take me to Ppopgi (뽑기)" : "Scroll to continue"}
           </button>
 
           <div className="dg-footer">
