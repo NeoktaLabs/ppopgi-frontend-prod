@@ -4,6 +4,9 @@ import type { ThirdwebClient } from "thirdweb";
 import type { Chain } from "thirdweb/chains";
 import { Transaction, Signature, hexlify, getBytes } from "ethers";
 
+type HID = any;
+type HIDDevice = any;
+
 async function rpcRequest(rpcUrl: string, method: string, params: any[] = []) {
   const res = await fetch(rpcUrl, {
     method: "POST",
