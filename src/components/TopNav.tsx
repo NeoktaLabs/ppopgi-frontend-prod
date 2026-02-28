@@ -59,7 +59,7 @@ export const TopNav = memo(function TopNav({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const burgerRef = useRef<HTMLButtonElement | null>(null);
 
-  // ✅ pause balance polling when tab hidden
+  // pause balance polling when tab hidden
   const [pollEnabled, setPollEnabled] = useState(() => !isHidden());
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export const TopNav = memo(function TopNav({
     };
   }, [menuOpen]);
 
-  // ✅ keep polling off in background tabs
+  // keep polling off in background tabs
   useEffect(() => {
     const onVis = () => {
       const enabled = !isHidden();
@@ -109,7 +109,7 @@ export const TopNav = memo(function TopNav({
     };
   }, []);
 
-  // (optional UX) close mobile menu when tab loses focus
+  // close mobile menu when tab loses focus
   useEffect(() => {
     const onBlur = () => setMenuOpen(false);
     window.addEventListener("blur", onBlur);
@@ -153,7 +153,7 @@ export const TopNav = memo(function TopNav({
     } as any
   );
 
-  // ✅ refresh balances immediately when tab becomes visible again
+  // refresh balances immediately when tab becomes visible again
   useEffect(() => {
     if (!account) return;
     if (!pollEnabled) return;
@@ -172,9 +172,7 @@ export const TopNav = memo(function TopNav({
 
   return (
     <div className="topnav-wrapper">
-      {/* ✅ ONE single “header shell” (nav + infra are inside the same glass container) */}
       <div className="topnav-shell">
-        {/* NAV ROW */}
         <div className="topnav-pill">
           <div className="topnav-brand" onClick={() => handleNav(() => {}, "home")}>
             <img className="topnav-logo" src="/ppopgi-logo.png" alt="Ppopgi logo" draggable={false} />
@@ -206,23 +204,24 @@ export const TopNav = memo(function TopNav({
           <div className="topnav-right">
             <div className="desktop-actions">
               {account ? (
-                <button
-                  className="balances-pill"
-                  onClick={() => handleNav(onOpenCashier)}
-                  title="Open Cashier"
-                  type="button"
-                >
-                  <div className="balances-rows">
-                    <div className="bal-row">
-                      <span className="bal-sym">{xtzSym}</span>
-                      <span className="bal-val">{xtzText}</span>
-                    </div>
-                    <div className="bal-row">
-                      <span className="bal-sym">{usdcSym}</span>
-                      <span className="bal-val">{usdcText}</span>
+                <>
+                  <button className="nav-link cashier-btn" onClick={() => handleNav(onOpenCashier)} title="Open Cashier">
+                    🏦 Cashier
+                  </button>
+
+                  <div className="balances-pill" title="Wallet balances">
+                    <div className="balances-rows">
+                      <div className="bal-row">
+                        <span className="bal-sym">{xtzSym}</span>
+                        <span className="bal-val">{xtzText}</span>
+                      </div>
+                      <div className="bal-row">
+                        <span className="bal-sym">{usdcSym}</span>
+                        <span className="bal-val">{usdcText}</span>
+                      </div>
                     </div>
                   </div>
-                </button>
+                </>
               ) : (
                 <button className="nav-link cashier-btn" onClick={() => handleNav(onOpenCashier)} title="Open Cashier">
                   🏦 Cashier
@@ -234,12 +233,7 @@ export const TopNav = memo(function TopNav({
                   Sign In
                 </button>
               ) : (
-                <button
-                  type="button"
-                  className="nav-link primary-pill-btn"
-                  onClick={() => handleNav(onSignOut)}
-                  title="Log Off"
-                >
+                <button type="button" className="nav-link primary-pill-btn" onClick={() => handleNav(onSignOut)} title="Log Off">
                   <div className="acct-stack">
                     <div className="acct-top">Log Off</div>
                     <div className="acct-bottom">{short(account)}</div>
@@ -247,6 +241,22 @@ export const TopNav = memo(function TopNav({
                 </button>
               )}
             </div>
+
+            {/* ✅ Mini Quick-Balance for Mobile (USDC + XTZ) */}
+            {account && (
+              <button className="mobile-quick-bal" onClick={() => handleNav(onOpenCashier)} aria-label="Open Cashier">
+                <div className="mobile-quick-bal-rows">
+                  <div className="mobile-quick-bal-row">
+                    <b>{usdcText}</b>
+                    <span>{usdcSym}</span>
+                  </div>
+                  <div className="mobile-quick-bal-row">
+                    <b>{xtzText}</b>
+                    <span>{xtzSym}</span>
+                  </div>
+                </div>
+              </button>
+            )}
 
             <button
               ref={burgerRef}
@@ -261,13 +271,11 @@ export const TopNav = memo(function TopNav({
           </div>
         </div>
 
-        {/* INFRA ROW (now “wired” inside the same header shell) */}
         <div className="topnav-infra">
           <InfraStatusPill />
         </div>
       </div>
 
-      {/* MOBILE MENU (still anchored to the whole header shell) */}
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
           {account && (

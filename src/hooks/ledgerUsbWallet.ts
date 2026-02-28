@@ -1,4 +1,3 @@
-// src/hooks/ledgerUsbWallet.ts
 import { useCallback, useMemo, useRef, useState } from "react";
 import { EIP1193 } from "thirdweb/wallets";
 import type { ThirdwebClient } from "thirdweb";
@@ -48,7 +47,7 @@ function hexToBigInt(v?: string | null): bigint {
   try {
     if (!v) return 0n;
     const s = String(v);
-    if (!s || s === "0x" || s === "0x0" || s === "0") return 0n;
+    if (!s || s === "0x" || s === "0x0" || s === "0" || s === "0x00") return 0n;
     return BigInt(s);
   } catch {
     return 0n;
@@ -66,7 +65,7 @@ function isZeroHex(v: any): boolean {
   if (typeof v === "bigint") return v === 0n;
   if (typeof v === "string") {
     const s = v.toLowerCase();
-    return s === "0x0" || s === "0x" || s === "0";
+    return s === "0x0" || s === "0x" || s === "0" || s === "0x00";
   }
   try {
     return BigInt(v) === 0n;
@@ -94,7 +93,19 @@ type LedgerSession = {
   path: string;
 };
 
-async function openLedgerSession(): Promise<LedgerSession> {
+type LedgerScanRow = { path: string; address: string };
+
+const LEDGER_VENDOR_ID = 0x2c97;
+
+function assertWebHid() {
+  const hid: any = (navigator as any)?.hid;
+  if (!hid?.requestDevice) {
+    throw new Error("WebHID not available. Use Chrome / Edge / Brave (desktop).");
+  }
+  return hid as HID;
+}
+
+async function openLedgerTransportAndEth(opts: { device?: HIDDevice } = {}): Promise<{ transport: any; eth: any }> {
   const [{ default: TransportWebHID }, { default: Eth }] = await Promise.all([
     import("@ledgerhq/hw-transport-webhid"),
     import("@ledgerhq/hw-app-eth"),
@@ -102,28 +113,37 @@ async function openLedgerSession(): Promise<LedgerSession> {
 
   let transport: any = null;
 
-  // ✅ Best-effort silent reconnect after refresh if permission already granted
-  // NOTE: still not guaranteed; browser/device policies can block this.
+  // ✅ If caller already selected a device, ALWAYS use it (no prompting here)
+  if (opts.device) {
+    transport = await (TransportWebHID as any).open(opts.device);
+    const eth = new Eth(transport);
+    return { transport, eth };
+  }
+
+  // Otherwise try silent open (only works if permission already granted)
   try {
     const hid: any = (navigator as any)?.hid;
-    if (hid?.getDevices) {
-      const devices = await hid.getDevices();
-      if (devices && devices.length > 0) {
-        transport = await (TransportWebHID as any).open(devices[0]);
-      }
+    const devices = await hid?.getDevices?.();
+    if (devices?.length) {
+      transport = await (TransportWebHID as any).open(devices[0]);
     }
-  } catch {}
+  } catch {
+    transport = null;
+  }
 
-  // Fallback (will require user gesture/prompt)
   if (!transport) {
-    transport = await TransportWebHID.create();
+    // IMPORTANT: we do NOT call requestDevice() here anymore
+    // because this function is often reached after async boundaries.
+    throw new Error("Ledger device not selected yet. Click “Connect Ledger” again to choose the device.");
   }
 
   const eth = new Eth(transport);
+  return { transport, eth };
+}
 
-  const path = "44'/60'/0'/0/0";
+async function openLedgerSession(path: string, device?: HIDDevice): Promise<LedgerSession> {
+  const { transport, eth } = await openLedgerTransportAndEth({ device });
   const { address } = await eth.getAddress(path, false, true);
-
   return { transport, eth, address, path };
 }
 
@@ -156,13 +176,17 @@ async function createLedgerEip1193Provider(opts: {
   chainId: number;
   rpcUrl: string;
   sessionRef: { current: LedgerSession | null };
+  preferredPath?: string;
+  deviceRef: { current: HIDDevice | null };
 }): Promise<MinimalEip1193Provider> {
-  const { chainId, rpcUrl, sessionRef } = opts;
+  const { chainId, rpcUrl, sessionRef, preferredPath, deviceRef } = opts;
   const hexChainId = `0x${chainId.toString(16)}`;
 
   async function getSession() {
     if (sessionRef.current) return sessionRef.current;
-    const s = await openLedgerSession();
+
+    const path = preferredPath || "44'/60'/0'/0/0";
+    const s = await openLedgerSession(path, deviceRef.current ?? undefined);
     sessionRef.current = s;
     return s;
   }
@@ -247,13 +271,7 @@ async function createLedgerEip1193Provider(opts: {
           const maxFeeHexResolved = maxFeePerGasHex ?? gasPriceHexResolved;
           const maxPrioHexResolved = maxPriorityFeePerGasHex ?? "0x3b9aca00";
 
-          const estimateCall: any = {
-            from: tx.from,
-            to,
-            data,
-            value: tx.value ?? "0x0",
-          };
-
+          const estimateCall: any = { from: tx.from, to, data, value: tx.value ?? "0x0" };
           if (is1559) {
             estimateCall.maxFeePerGas = maxFeeHexResolved;
             estimateCall.maxPriorityFeePerGas = maxPrioHexResolved;
@@ -280,13 +298,8 @@ async function createLedgerEip1193Provider(opts: {
             data,
             value,
             ...(is1559
-              ? {
-                  maxFeePerGas: BigInt(maxFeeHexResolved),
-                  maxPriorityFeePerGas: BigInt(maxPrioHexResolved),
-                }
-              : {
-                  gasPrice: BigInt(gasPriceHexResolved),
-                }),
+              ? { maxFeePerGas: BigInt(maxFeeHexResolved), maxPriorityFeePerGas: BigInt(maxPrioHexResolved) }
+              : { gasPrice: BigInt(gasPriceHexResolved) }),
           });
 
           const payloadHex = unsignedTx.unsignedSerialized.startsWith("0x")
@@ -301,8 +314,6 @@ async function createLedgerEip1193Provider(opts: {
           const sSig = "0x" + sig.s;
 
           const signature = Signature.from({ v, r, s: sSig });
-
-          // ✅ don’t spread a Transaction instance
           const txData = unsignedTx.toJSON();
           const signedTx = Transaction.from({ ...txData, signature }).serialized;
 
@@ -344,15 +355,98 @@ export function useLedgerUsbWallet() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState("");
 
-  /**
-   * ✅ Keep session for the current tab lifetime (best possible).
-   * NOTE: after a full refresh, this resets (expected). Silent HID reconnect above helps.
-   */
   const sessionRef = useRef<LedgerSession | null>((globalThis as any).__ppopgiLedgerSession ?? null);
   (globalThis as any).__ppopgiLedgerSession = sessionRef.current;
 
+  // ✅ NEW: cache the HID device chosen by the user
+  const deviceRef = useRef<HIDDevice | null>((globalThis as any).__ppopgiLedgerDevice ?? null);
+  (globalThis as any).__ppopgiLedgerDevice = deviceRef.current;
+
+  /**
+   * ✅ NEW: Must be called directly from a button click (no awaits before calling it).
+   * This is what guarantees the Chrome HID chooser prompt shows up.
+   */
+  const ensureLedgerDevice = useCallback(async () => {
+    setError("");
+    if (!isSupported) throw new Error("WebHID not supported. Use Chrome/Edge/Brave.");
+
+    const hid = assertWebHid();
+
+    const devices = await hid.requestDevice({
+      filters: [{ vendorId: LEDGER_VENDOR_ID }],
+    });
+
+    if (!devices || devices.length === 0) {
+      throw new Error("No Ledger device selected. Please select your Ledger in the browser prompt.");
+    }
+
+    deviceRef.current = devices[0];
+    (globalThis as any).__ppopgiLedgerDevice = deviceRef.current;
+
+    return deviceRef.current;
+  }, [isSupported]);
+
+  const setSelectedPath = useCallback(
+    async (path: string) => {
+      setError("");
+      if (!isSupported) throw new Error("WebHID not supported. Use Chrome/Edge/Brave.");
+
+      try {
+        await sessionRef.current?.transport?.close?.();
+      } catch {}
+      sessionRef.current = null;
+
+      // requires device to be selected already (or silent permission)
+      const s = await openLedgerSession(path, deviceRef.current ?? undefined);
+      sessionRef.current = s;
+      (globalThis as any).__ppopgiLedgerSession = sessionRef.current;
+      return { address: s.address, path: s.path };
+    },
+    [isSupported]
+  );
+
+  const scanAccounts = useCallback(
+    async (opts: { basePath: string; startIndex?: number; count?: number }) => {
+      setError("");
+      if (!isSupported) throw new Error("WebHID not supported. Use Chrome/Edge/Brave.");
+
+      const base = String(opts.basePath || "").trim();
+      const start = Math.max(0, Number(opts.startIndex ?? 0));
+      const count = Math.max(1, Math.min(25, Number(opts.count ?? 5)));
+
+      let tempTransport: any = null;
+      let eth: any = null;
+
+      try {
+        if (sessionRef.current?.eth && sessionRef.current?.transport) {
+          eth = sessionRef.current.eth;
+        } else {
+          const opened = await openLedgerTransportAndEth({ device: deviceRef.current ?? undefined });
+          tempTransport = opened.transport;
+          eth = opened.eth;
+        }
+
+        const out: LedgerScanRow[] = [];
+        for (let i = 0; i < count; i++) {
+          const idx = start + i;
+          const fullPath = `${base}/${idx}`;
+          const { address } = await eth.getAddress(fullPath, false, true);
+          out.push({ path: fullPath, address });
+        }
+        return out;
+      } finally {
+        if (tempTransport) {
+          try {
+            await tempTransport.close?.();
+          } catch {}
+        }
+      }
+    },
+    [isSupported]
+  );
+
   const connectLedgerUsb = useCallback(
-    async (opts: { client: ThirdwebClient; chain: Chain }) => {
+    async (opts: { client: ThirdwebClient; chain: Chain; preferredPath?: string }) => {
       setError("");
       if (!isSupported) throw new Error("WebHID not supported. Use Chrome/Edge/Brave.");
 
@@ -360,21 +454,38 @@ export function useLedgerUsbWallet() {
       try {
         const rpcUrl = pickRpcUrl(opts.chain);
 
+        // ✅ Require device selection already OR previously granted permission
+        // If neither is true, show a clean message telling the UI what to do.
+        if (!deviceRef.current) {
+          try {
+            const hid: any = (navigator as any)?.hid;
+            const granted = await hid?.getDevices?.();
+            if (!granted?.length) {
+              throw new Error(
+                "Ledger not selected yet. Click “Connect Ledger” again and choose the Ledger device in the browser prompt."
+              );
+            }
+          } catch (e: any) {
+            throw e;
+          }
+        }
+
         const wallet = EIP1193.fromProvider({
-          // ✅ IMPORTANT: do NOT set a custom walletId (thirdweb types reject it)
           provider: async () => {
             return await createLedgerEip1193Provider({
               chainId: opts.chain.id,
               rpcUrl,
               sessionRef,
+              preferredPath: opts.preferredPath,
+              deviceRef,
             });
           },
         });
 
         await wallet.connect({ client: opts.client, chain: opts.chain });
 
-        // keep ref cached for tab life
         (globalThis as any).__ppopgiLedgerSession = sessionRef.current;
+        (globalThis as any).__ppopgiLedgerDevice = deviceRef.current;
 
         return wallet;
       } catch (e: any) {
@@ -387,5 +498,13 @@ export function useLedgerUsbWallet() {
     [isSupported]
   );
 
-  return { isSupported, isConnecting, error, connectLedgerUsb };
+  return {
+    isSupported,
+    isConnecting,
+    error,
+    ensureLedgerDevice, // ✅ NEW
+    connectLedgerUsb,
+    scanAccounts,
+    setSelectedPath,
+  };
 }

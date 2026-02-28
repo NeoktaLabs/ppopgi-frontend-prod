@@ -128,7 +128,7 @@ export function ActivityBoard() {
           const isCancel = type === "CANCEL";
           const isCreate = !isBuy && !isWin && !isCancel;
 
-          let icon = "✨";
+          let icon = "🎰";
           let iconClass = "create";
           if (isBuy) {
             icon = "🎟️";
