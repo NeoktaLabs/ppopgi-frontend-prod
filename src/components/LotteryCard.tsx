@@ -39,6 +39,14 @@ type Props = {
   hatch?: HatchUI | null;
   userEntry?: UserEntryStats;
   finalizer?: FinalizerInfo | null;
+
+  /**
+   * ✅ NEW: gate "Buy Ticket" behind sign-in
+   * - If isSignedIn === false, clicking Buy Ticket will open sign-in instead of the lottery modal.
+   * - If you don't pass these props, behavior stays exactly the same as before.
+   */
+  isSignedIn?: boolean;
+  onOpenSignIn?: () => void;
 };
 
 const short = (addr: string) => (addr ? `${addr.slice(0, 5)}...${addr.slice(-4)}` : "Unknown");
@@ -66,6 +74,10 @@ export function LotteryCard({
   hatch,
   userEntry,
   finalizer,
+
+  // ✅ NEW
+  isSignedIn,
+  onOpenSignIn,
 }: Props) {
   const { ui, actions } = useLotteryCard(lottery, nowMs);
 
@@ -173,6 +185,20 @@ export function LotteryCard({
   // ✅ NEW: remove trailing ".0" (and any decimals) for card display only
   const potUi = useMemo(() => fmtUsdcUi(ui.formattedPot, { maxDecimals: 0 }), [ui.formattedPot]);
   const priceUi = useMemo(() => fmtUsdcUi(ui.formattedPrice, { maxDecimals: 0 }), [ui.formattedPrice]);
+
+  // ✅ NEW: unified buy click handler (sign-in gate)
+  const handleBuyClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Only gate if caller explicitly tells us user is NOT signed in
+    // (keeps backward compat if you don't pass isSignedIn)
+    if (isSignedIn === false && onOpenSignIn) {
+      onOpenSignIn();
+      return;
+    }
+
+    onOpen(lottery.id);
+  };
 
   return (
     <div className={cardClass} onClick={() => onOpen(lottery.id)} role="button" tabIndex={0}>
@@ -320,13 +346,7 @@ export function LotteryCard({
         <div className="rc-stub-content">
           {/* Action Button */}
           {isLiveForCard ? (
-            <button
-              className="rc-quick-buy-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen(lottery.id);
-              }}
-            >
+            <button className="rc-quick-buy-btn" onClick={handleBuyClick}>
               ⚡ Buy Ticket
             </button>
           ) : (

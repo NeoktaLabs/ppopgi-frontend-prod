@@ -89,6 +89,9 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [cashierOpen, setCashierOpen] = useState(false);
 
+  // ✅ NEW: stable callback to open sign-in (passed into LotteryDetailsModal)
+  const openSignIn = useCallback(() => setSignInOpen(true), []);
+
   // 5) Disclaimer gate — show by default on first load
   const [showGate, setShowGate] = useState(false);
   useEffect(() => {
@@ -146,14 +149,14 @@ export default function App() {
       if (next === "dashboard" && !account) {
         setPage("home");
         setPageInUrl("home");
-        setSignInOpen(true);
+        openSignIn();
         return;
       }
 
       setPage(next);
       setPageInUrl(next);
     },
-    [account]
+    [account, openSignIn]
   );
 
   /**
@@ -169,7 +172,7 @@ export default function App() {
       if (next === "dashboard" && !account) {
         setPage("home");
         setPageInUrl("home");
-        setSignInOpen(true);
+        openSignIn();
         return;
       }
 
@@ -183,7 +186,7 @@ export default function App() {
 
     window.addEventListener("popstate", applyFromUrl);
     return () => window.removeEventListener("popstate", applyFromUrl);
-  }, [account]);
+  }, [account, openSignIn]);
 
   // 8) Session sync
   useEffect(() => {
@@ -199,7 +202,7 @@ export default function App() {
   useEffect(() => {
     const onOpenCashier = () => {
       if (account) setCashierOpen(true);
-      else setSignInOpen(true);
+      else openSignIn();
     };
 
     const onNavigate = (e: Event) => {
@@ -216,7 +219,7 @@ export default function App() {
       window.removeEventListener("ppopgi:open-cashier", onOpenCashier);
       window.removeEventListener("ppopgi:navigate", onNavigate as EventListener);
     };
-  }, [account, navigateTo]);
+  }, [account, navigateTo, openSignIn]);
 
   return (
     <>
@@ -229,9 +232,9 @@ export default function App() {
         page={page}
         onNavigate={navigateTo}
         account={account}
-        onOpenSignIn={() => setSignInOpen(true)}
-        onOpenCreate={() => (account ? setCreateOpen(true) : setSignInOpen(true))}
-        onOpenCashier={() => (account ? setCashierOpen(true) : setSignInOpen(true))}
+        onOpenSignIn={openSignIn}
+        onOpenCreate={() => (account ? setCreateOpen(true) : openSignIn())}
+        onOpenCashier={() => (account ? setCashierOpen(true) : openSignIn())}
         onSignOut={handleSignOut}
         hideChrome={anyModalOpen}
       >
@@ -258,6 +261,7 @@ export default function App() {
           lotteryId={selectedLotteryId}
           onClose={closeLottery}
           initialLottery={selectedFromStore as any}
+          onOpenSignIn={openSignIn} // ✅ NEW: makes "Connect Wallet to Buy" open SignInModal
         />
 
         {safetyId && safetyData && (
