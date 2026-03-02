@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { formatUnits } from "ethers";
 import { useHomeLotteries } from "../hooks/useHomeLotteries";
 import { useInfraStatus } from "../hooks/useInfraStatus";
+import { useGlobalStatsBillboard } from "../hooks/useGlobalStatsBillboard";
 import { LotteryCard } from "../components/LotteryCard";
 import { LotteryCardSkeleton } from "../components/LotteryCardSkeleton";
 import { ActivityBoard } from "../components/ActivityBoard";
@@ -127,9 +128,6 @@ function useAnimatedNumber(target: number, durationMs = 900) {
       const p = Math.min((now - start) / durationMs, 1);
 
       // ✅ Ease-in (slow at the beginning, faster near the end)
-      // Options:
-      // - p * p (easeInQuad)
-      // - p * p * p (easeInCubic)  <-- slightly more dramatic
       const eased = p * p * p;
 
       const next = Math.round(from + (to - from) * eased);
@@ -149,7 +147,10 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
   }, []);
 
   const infra = useInfraStatus();
-  const { bigPrizes, endingSoon, recentlyFinalized, stats, isLoading, refetch, items } = useHomeLotteries();
+  const { bigPrizes, endingSoon, recentlyFinalized, isLoading, refetch, items } = useHomeLotteries();
+
+  // ✅ Billboard uses subgraph GlobalStats singleton (via your cache worker)
+  const gs = useGlobalStatsBillboard();
 
   const finalizerForCards = useMemo(
     () => ({
@@ -164,51 +165,36 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
     const onFocus = () => {
       try {
         refetch();
+        // optional: refresh billboard on focus too (cached by worker anyway)
+        gs.refetch();
       } catch {}
     };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [refetch]);
+  }, [refetch, gs]);
 
-  // ✅ Real numeric targets (NO DRIFT)
-  const totalLotteriesTarget = Number(stats?.totalLotteries ?? 0);
-  const totalTicketsTarget = Number((stats as any)?.totalTicketsSold ?? (stats as any)?.totalTickets ?? 0);
+  // ✅ Billboard loading should be independent of page list loading
+  const billboardLoading = gs.isLoading && !gs.data;
 
-  // USD targets for counter animation (we display pretty with fmtUsd)
-  const settledUsdTarget = (() => {
-    try {
-      const s = formatUnits(stats?.settledVolume ?? 0n, 6);
-      return Math.floor(Number(s));
-    } catch {
-      return 0;
-    }
-  })();
+  // ✅ Real numeric targets from GlobalStats (NO DRIFT, no scanning items)
+  const totalLotteriesTarget = Number(gs.data?.totalLotteriesCreated ?? 0n);
+  const totalTicketsTarget = Number(gs.data?.totalTicketsSold ?? 0n);
 
-  const activeUsdTarget = (() => {
-    try {
-      const s = formatUnits(stats?.activeVolume ?? 0n, 6);
-      return Math.floor(Number(s));
-    } catch {
-      return 0;
-    }
-  })();
+  // Convert micro-USDC -> whole USD number for animation
+  const settledUsdTarget = Number((gs.data?.totalPrizesSettledUSDC ?? 0n) / 1_000_000n);
+  const activeUsdTarget = Number((gs.data?.activeVolumeUSDC ?? 0n) / 1_000_000n);
 
-  // ✅ Sub-counts: Settled & Canceled lotteries
-  const settledCountTarget = useMemo(() => {
-    return (items ?? []).filter((r) => r.status === "COMPLETED").length;
-  }, [items]);
+  // ✅ Sub-counts from GlobalStats
+  const settledCountTarget = Number(gs.data?.totalLotteriesSettled ?? 0n);
+  const canceledCountTarget = Number(gs.data?.totalLotteriesCanceled ?? 0n);
 
-  const canceledCountTarget = useMemo(() => {
-    return (items ?? []).filter((r) => r.status === "CANCELED").length;
-  }, [items]);
-
-  // ✅ Animated values
-  const animatedLotteries = useAnimatedNumber(isLoading ? 0 : totalLotteriesTarget, 900);
-  const animatedTickets = useAnimatedNumber(isLoading ? 0 : totalTicketsTarget, 900);
-  const animatedSettledUsd = useAnimatedNumber(isLoading ? 0 : settledUsdTarget, 1000);
-  const animatedActiveUsd = useAnimatedNumber(isLoading ? 0 : activeUsdTarget, 1000);
-  const animatedSettledCount = useAnimatedNumber(isLoading ? 0 : settledCountTarget, 800);
-  const animatedCanceledCount = useAnimatedNumber(isLoading ? 0 : canceledCountTarget, 800);
+  // ✅ Animated values (billboard uses billboardLoading)
+  const animatedLotteries = useAnimatedNumber(billboardLoading ? 0 : totalLotteriesTarget, 900);
+  const animatedTickets = useAnimatedNumber(billboardLoading ? 0 : totalTicketsTarget, 900);
+  const animatedSettledUsd = useAnimatedNumber(billboardLoading ? 0 : settledUsdTarget, 1000);
+  const animatedActiveUsd = useAnimatedNumber(billboardLoading ? 0 : activeUsdTarget, 1000);
+  const animatedSettledCount = useAnimatedNumber(billboardLoading ? 0 : settledCountTarget, 800);
+  const animatedCanceledCount = useAnimatedNumber(billboardLoading ? 0 : canceledCountTarget, 800);
 
   const endingRef = useRef<HTMLDivElement | null>(null);
   const settledRef = useRef<HTMLDivElement | null>(null);
@@ -307,20 +293,28 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
 
             <div className="hp-stats-row">
               <div className="hp-stat-item">
-                <div className="hp-stat-val hp-count-pop">{isLoading ? "..." : animatedLotteries.toLocaleString("en-US")}</div>
+                <div className="hp-stat-val hp-count-pop">
+                  {billboardLoading ? "..." : animatedLotteries.toLocaleString("en-US")}
+                </div>
                 <div className="hp-stat-lbl">Lotteries Created</div>
 
                 {/* ✅ Sub-counts */}
                 <div className="hp-stat-sub">
-                  <span className="hp-chip settled">✅ {isLoading ? "..." : animatedSettledCount.toLocaleString("en-US")} Settled</span>
-                  <span className="hp-chip canceled">❌ {isLoading ? "..." : animatedCanceledCount.toLocaleString("en-US")} Canceled</span>
+                  <span className="hp-chip settled">
+                    ✅ {billboardLoading ? "..." : animatedSettledCount.toLocaleString("en-US")} Settled
+                  </span>
+                  <span className="hp-chip canceled">
+                    ❌ {billboardLoading ? "..." : animatedCanceledCount.toLocaleString("en-US")} Canceled
+                  </span>
                 </div>
               </div>
 
               <div className="hp-stat-sep" />
 
               <div className="hp-stat-item">
-                <div className="hp-stat-val hp-count-pop">{isLoading ? "..." : animatedTickets.toLocaleString("en-US")}</div>
+                <div className="hp-stat-val hp-count-pop">
+                  {billboardLoading ? "..." : animatedTickets.toLocaleString("en-US")}
+                </div>
                 <div className="hp-stat-lbl">Tickets Sold</div>
               </div>
 
@@ -328,7 +322,7 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
 
               <div className="hp-stat-item">
                 <div className="hp-stat-val hp-count-pop">
-                  {isLoading ? "..." : fmtUsd(BigInt(animatedSettledUsd) * 1_000_000n)}
+                  {billboardLoading ? "..." : fmtUsd(BigInt(animatedSettledUsd) * 1_000_000n)}
                 </div>
                 <div className="hp-stat-lbl">Prizes Settled</div>
               </div>
@@ -337,7 +331,7 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
 
               <div className="hp-stat-item highlight">
                 <div className="hp-stat-val hp-count-pop">
-                  {isLoading ? "..." : fmtUsd(BigInt(animatedActiveUsd) * 1_000_000n)}
+                  {billboardLoading ? "..." : fmtUsd(BigInt(animatedActiveUsd) * 1_000_000n)}
                 </div>
                 <div className="hp-stat-lbl">Active Volume</div>
               </div>

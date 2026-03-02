@@ -224,6 +224,7 @@ export function useInfraStatus() {
   const botUrl = useMemo(() => env("VITE_FINALIZER_STATUS_URL"), []);
 
   // revalidate tick (app can "poke" infra refresh after actions)
+  // ✅ Optionally debounce: useRevalidate({ debounceMs: 300 })
   const rvTick = useRevalidate();
   const lastRvAtRef = useRef<number>(0);
 
@@ -528,6 +529,7 @@ export function useInfraStatus() {
   }, [pollMs, rpcUrl, subgraphUrl, botUrl, finalizerEverySec]);
 
   // revalidate-driven "poke" (throttled)
+  // ✅ Change: revalidate poke is bot-only (prevents RPC + indexer meta spam)
   useEffect(() => {
     if (!rvTick) return;
     if (isHidden()) return;
@@ -537,7 +539,7 @@ export function useInfraStatus() {
     if (now - lastRvAtRef.current < 15_000) return;
     lastRvAtRef.current = now;
 
-    void runOnce();
+    void runBotOnlyOnce();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rvTick]);
 

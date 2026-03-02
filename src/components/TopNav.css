@@ -47,13 +47,20 @@
   padding: 8px 16px 8px 20px;
 }
 
-/* Infra row */
+/* ✅ Infra row (Demarcated with border and subtle background) */
 .topnav-infra {
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 0 12px 12px 12px;
+  align-items: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.015); /* Very subtle shading */
+  border-top: 1px solid rgba(0, 0, 0, 0.05); /* Clean demarcation line */
   pointer-events: auto;
+}
+
+.topnav-infra .isp-summary {
+  margin: 0 auto;
 }
 
 /* --- BRAND --- */
@@ -286,7 +293,7 @@
   transform: translateY(-4px) rotate(-45deg);
 }
 
-/* ✅ Mobile quick balance (STACKED: USDC + XTZ) */
+/* Mobile quick balance (STACKED: USDC + XTZ) */
 .mobile-quick-bal {
   display: none;
   padding: 8px 12px;
@@ -434,7 +441,6 @@
   border-radius: 2px;
 }
 
-/* Mobile Balances (in menu) */
 .mobile-balances {
   background: #f8fafc;
   border: 1px solid rgba(0,0,0,0.05);

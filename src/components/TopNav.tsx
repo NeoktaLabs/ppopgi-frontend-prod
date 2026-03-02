@@ -233,7 +233,12 @@ export const TopNav = memo(function TopNav({
                   Sign In
                 </button>
               ) : (
-                <button type="button" className="nav-link primary-pill-btn" onClick={() => handleNav(onSignOut)} title="Log Off">
+                <button
+                  type="button"
+                  className="nav-link primary-pill-btn"
+                  onClick={() => handleNav(onSignOut)}
+                  title="Log Off"
+                >
                   <div className="acct-stack">
                     <div className="acct-top">Log Off</div>
                     <div className="acct-bottom">{short(account)}</div>
@@ -271,6 +276,7 @@ export const TopNav = memo(function TopNav({
           </div>
         </div>
 
+        {/* ✅ Collapsible systems status (collapsed by default, state lives in InfraStatusPill) */}
         <div className="topnav-infra">
           <InfraStatusPill />
         </div>

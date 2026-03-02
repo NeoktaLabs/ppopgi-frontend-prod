@@ -1,5 +1,4 @@
 // src/hooks/useHomeLotteries.ts
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LotteryListItem } from "../indexer/subgraph";
 import { fetchLotteriesOnChainFallback } from "../onchain/fallbackLotteries";
@@ -18,7 +17,6 @@ function numOr0(v?: string | null) {
 function intOr0(v?: string | number | null) {
   const n = typeof v === "number" ? v : Number(v ?? 0);
   if (!Number.isFinite(n)) return 0;
-  // sold should never be negative, but clamp anyway
   return Math.max(0, Math.floor(n));
 }
 
@@ -49,6 +47,8 @@ function shouldFallback(note: string | null) {
     s.includes("timeout")
   );
 }
+
+// --------------------- hook ---------------------
 
 export function useHomeLotteries() {
   // ✅ Shared store snapshot (indexer)
@@ -97,7 +97,7 @@ export function useHomeLotteries() {
     void refreshLotteryStore(false, true);
   }, []);
 
-  // ✅ Background refresh on revalidate tick (throttled) — use soft refresh to avoid UI snapping
+  // ✅ Background refresh on revalidate tick (throttled)
   useEffect(() => {
     if (!rvTick) return;
 
@@ -133,7 +133,6 @@ export function useHomeLotteries() {
       shouldFallback(indexerNote);
 
     if (!canTry) {
-      // if store has an error note, show it (but don't constantly overwrite)
       if (indexerNote && !isRateLimitNote(indexerNote)) setNote(indexerNote);
       return;
     }
@@ -217,36 +216,14 @@ export function useHomeLotteries() {
       .slice(0, 5);
   }, [all, mode]);
 
-  // ✅ REAL billboard stats (no fake drift)
-  const stats = useMemo(() => {
-    const totalLotteries = all.length;
-
-    // ✅ total tickets sold across ALL lotteries (OPEN, COMPLETED, CANCELED…)
-    const totalTicketsSold = all.reduce((acc, r) => {
-      return acc + intOr0(r.sold);
-    }, 0);
-
-    // ✅ total prizes settled = COMPLETED only
-    const settledVolume = all.reduce((acc, r) => {
-      if (r.status === "COMPLETED") return acc + BigInt(r.winningPot || "0");
-      return acc;
-    }, 0n);
-
-    // ✅ active volume = OPEN + FUNDING_PENDING only
-    const activeVolume = active.reduce((acc, r) => acc + BigInt(r.winningPot || "0"), 0n);
-
-    return { totalLotteries, totalTicketsSold, settledVolume, activeVolume };
-  }, [all, active]);
-
   return {
     items,
     bigPrizes,
     endingSoon,
     recentlyFinalized,
-    stats,
     mode,
     note,
     isLoading,
-    refetch, // manual/hard refresh
+    refetch,
   };
 }

@@ -59,6 +59,10 @@ export type LotteryListItem = {
 
   // Accounting snapshots
   totalReservedUSDC: string | null;
+
+  // ---- Indexer bookkeeping (new schema fields) ----
+  templateSpawned?: boolean; // optional for frontend
+  indexedAt?: string | null; // optional for frontend
 };
 
 export type UserLotteryItem = {
@@ -71,6 +75,27 @@ export type UserLotteryItem = {
 
   ticketRefundAmount: string;
   fundsClaimedAmount: string;
+
+  updatedAt: string;
+  updatedTx: string;
+};
+
+/**
+ * ✅ Billboard stats (GlobalStats singleton)
+ * These values are incrementally maintained by the subgraph mappings.
+ */
+export type GlobalStats = {
+  id: string; // "global"
+
+  totalLotteriesCreated: string;
+  totalLotteriesSettled: string;
+  totalLotteriesCanceled: string;
+
+  totalTicketsSold: string;
+  totalTicketRevenueUSDC: string;
+
+  totalPrizesSettledUSDC: string;
+  activeVolumeUSDC: string;
 
   updatedAt: string;
   updatedTx: string;
@@ -167,6 +192,10 @@ function statusFromInt(s: any): LotteryStatus {
 const LOTTERY_FIELDS = `
   id
 
+  # ---- Indexer bookkeeping ----
+  templateSpawned
+  indexedAt
+
   typeId
   creator
   registeredAt
@@ -225,6 +254,10 @@ const LOTTERY_CARD_FIELDS = `
   ticketRevenue
   registeredAt
 
+  # ---- Indexer bookkeeping (optional, nice for debugging/UX) ----
+  templateSpawned
+  indexedAt
+
   # ✅ needed for Dashboard "Winner" vs "Better luck next time"
   winner
 
@@ -280,6 +313,10 @@ function normalizeLottery(r: any): LotteryListItem {
     creatorPotRefunded: typeof r.creatorPotRefunded === "boolean" ? r.creatorPotRefunded : null,
 
     totalReservedUSDC: r.totalReservedUSDC != null ? String(r.totalReservedUSDC) : null,
+
+    // new fields
+    templateSpawned: typeof r.templateSpawned === "boolean" ? r.templateSpawned : undefined,
+    indexedAt: r.indexedAt != null ? String(r.indexedAt) : null,
   };
 }
 
@@ -300,7 +337,55 @@ function normalizeUserLottery(p: any): UserLotteryItem {
   };
 }
 
+function normalizeGlobalStats(g: any): GlobalStats {
+  return {
+    id: String(g.id ?? "global"),
+
+    totalLotteriesCreated: String(g.totalLotteriesCreated ?? "0"),
+    totalLotteriesSettled: String(g.totalLotteriesSettled ?? "0"),
+    totalLotteriesCanceled: String(g.totalLotteriesCanceled ?? "0"),
+
+    totalTicketsSold: String(g.totalTicketsSold ?? "0"),
+    totalTicketRevenueUSDC: String(g.totalTicketRevenueUSDC ?? "0"),
+
+    totalPrizesSettledUSDC: String(g.totalPrizesSettledUSDC ?? "0"),
+    activeVolumeUSDC: String(g.activeVolumeUSDC ?? "0"),
+
+    updatedAt: String(g.updatedAt ?? "0"),
+    updatedTx: (normHex(g.updatedTx) as string) || "0x",
+  };
+}
+
 // -------------------- Public API --------------------
+
+/**
+ * ✅ Fetch billboard stats from GlobalStats singleton.
+ * This scales no matter how many lotteries exist.
+ */
+export async function fetchGlobalStatsFromSubgraph(opts: FetchOpts = {}): Promise<GlobalStats | null> {
+  const url = mustEnv("VITE_SUBGRAPH_URL");
+
+  const query = `
+    query GlobalStats {
+      globalStats(id: "global") {
+        id
+        totalLotteriesCreated
+        totalLotteriesSettled
+        totalLotteriesCanceled
+        totalTicketsSold
+        totalTicketRevenueUSDC
+        totalPrizesSettledUSDC
+        activeVolumeUSDC
+        updatedAt
+        updatedTx
+      }
+    }
+  `;
+
+  type Resp = { globalStats: any | null };
+  const data = await gqlFetch<Resp>(url, query, {}, opts);
+  return data.globalStats ? normalizeGlobalStats(data.globalStats) : null;
+}
 
 export async function fetchLotteriesFromSubgraph(
   opts: { first?: number; skip?: number } & FetchOpts = {}
