@@ -314,7 +314,6 @@ function normalizeLottery(r: any): LotteryListItem {
 
     totalReservedUSDC: r.totalReservedUSDC != null ? String(r.totalReservedUSDC) : null,
 
-    // new fields
     templateSpawned: typeof r.templateSpawned === "boolean" ? r.templateSpawned : undefined,
     indexedAt: r.indexedAt != null ? String(r.indexedAt) : null,
   };
@@ -323,7 +322,7 @@ function normalizeLottery(r: any): LotteryListItem {
 function normalizeUserLottery(p: any): UserLotteryItem {
   return {
     id: normHex(p.id) as string,
-    lottery: normHex(p.lottery?.id ?? p.lottery) as string, // depending on subgraph response shape
+    lottery: normHex(p.lottery?.id ?? p.lottery) as string,
     user: normHex(p.user) as string,
 
     ticketsPurchased: String(p.ticketsPurchased ?? "0"),
@@ -414,13 +413,16 @@ export async function fetchLotteriesFromSubgraph(
 
 export async function fetchLotteryById(id: string, opts: FetchOpts = {}): Promise<LotteryListItem | null> {
   const url = mustEnv("VITE_SUBGRAPH_URL");
+
+  // ✅ FIX: `lottery(id: ...)` expects ID!, not Bytes!
   const query = `
-    query LotteryById($id: Bytes!) {
+    query LotteryById($id: ID!) {
       lottery(id: $id) {
         ${LOTTERY_FIELDS}
       }
     }
   `;
+
   type Resp = { lottery: any | null };
   const data = await gqlFetch<Resp>(url, query, { id: id.toLowerCase() }, opts);
   return data.lottery ? normalizeLottery(data.lottery) : null;

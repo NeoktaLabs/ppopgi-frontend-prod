@@ -147,7 +147,7 @@ export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
   }, []);
 
   const infra = useInfraStatus();
-  const { bigPrizes, endingSoon, recentlyFinalized, isLoading, refetch, items } = useHomeLotteries();
+  const { bigPrizes, endingSoon, recentlyFinalized, isLoading, refetch } = useHomeLotteries();
 
   // ✅ Billboard uses subgraph GlobalStats singleton (via your cache worker)
   const gs = useGlobalStatsBillboard();

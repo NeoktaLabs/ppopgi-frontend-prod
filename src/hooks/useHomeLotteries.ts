@@ -13,13 +13,6 @@ function numOr0(v?: string | null) {
   return Number.isFinite(n) ? n : 0;
 }
 
-// ✅ Safe integer parsing for counters like "sold"
-function intOr0(v?: string | number | null) {
-  const n = typeof v === "number" ? v : Number(v ?? 0);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.floor(n));
-}
-
 // Sort helper: treat 0 / missing deadlines as "far future" so they don't appear as "ending soon"
 function deadlineSortKey(deadline?: string | null) {
   const d = numOr0(deadline);
