@@ -39,6 +39,13 @@ function fmtLatency(ms: number | null): string {
 
 function dotLevel(level: string): string {
   const l = String(level || "").toLowerCase();
+
+  // ✅ Treat bot lifecycle states as healthy
+  // (Many status endpoints call these "running"/"ready"/"ok")
+  if (l === "running") return "healthy";
+  if (l === "ready") return "healthy";
+  if (l === "ok") return "healthy";
+
   if (l === "healthy") return "healthy";
   if (l === "late") return "late";
   if (l === "down") return "down";
@@ -49,13 +56,18 @@ function dotLevel(level: string): string {
 
 export function InfraStatusPill() {
   const s = useInfraStatus();
-
   const [expanded, setExpanded] = useState(false);
 
   const idxDot = useMemo(() => dotLevel(s.indexer.level), [s.indexer.level]);
   const rpcDot = useMemo(() => dotLevel(s.rpc.level), [s.rpc.level]);
-  const botDot = useMemo(() => dotLevel(s.bot?.level || "unknown"), [s.bot?.level]);
 
+  // ✅ Bot dot: if bot is actively running, force it to "healthy" no matter what the hook returns.
+  const botDot = useMemo(() => {
+    if (s.bot?.running) return "healthy";
+    return dotLevel(s.bot?.level || "unknown");
+  }, [s.bot?.running, s.bot?.level]);
+
+  // ✅ Overall health: running bot should not count as degraded.
   const overallHealthy =
     idxDot === "healthy" &&
     rpcDot === "healthy" &&
@@ -79,7 +91,6 @@ export function InfraStatusPill() {
             <span className={`isp-dot ${botDot}`} />
           </span>
 
-          {/* ✅ Professional Side-by-Side text layout */}
           <div className="isp-summary-text">
             <span className="isp-summary-title">Ppopgi Systems Status</span>
             <span className="isp-summary-state">
