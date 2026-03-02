@@ -751,7 +751,7 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery, 
                         }}
                         aria-label="Open sign in"
                       >
-                        <span>Connect Wallet to Buy</span>
+                        <span>Join PPopgi (뽑기) !</span>
                       </button>
                     )}
                   </div>
