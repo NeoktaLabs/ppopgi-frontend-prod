@@ -1,0 +1,313 @@
+/* src/components/NotificationCenter.css */
+
+/* --- Wrapper Base --- */
+.pp-toast-wrap {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+}
+
+/* 1. TOAST POSITIONING (Dead Center) */
+.pp-toast-wrap.is-toast {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0;
+  overflow: visible;
+  transform: translateY(-50%);
+}
+
+/* 2. MODAL POSITIONING (Centered Overlay) */
+.pp-toast-wrap.is-modal {
+  inset: 0;
+  background: rgba(43, 43, 51, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  align-items: center;
+  pointer-events: auto;
+  animation: ppModalFadeIn 0.3s ease-out;
+}
+
+/* --- THE CARD STYLE (Ppopgi Glass Base) --- */
+.pp-toast {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 28px;
+  pointer-events: auto;
+  color: var(--ink);
+  margin: 0;
+  width: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* --- TOAST SPECIFIC STYLES (THE "PUNCHY" POPUP) --- */
+.pp-toast-wrap.is-toast .pp-toast {
+  padding: 24px 32px;
+  
+  width: 90%;
+  max-width: 700px; 
+
+  cursor: pointer;
+  
+  /* Start off-screen left */
+  transform: translateX(-150vw);
+
+  /* Animation: Fly Left -> Stop Center -> Fly Right */
+  animation: ppPunchySlide 5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* --- ONE LINE LAYOUT --- */
+.pp-toast-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+}
+
+.pp-toast-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 18px; 
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.pp-toast-title-inline {
+  font-weight: 900;
+  font-size: 20px;
+  margin-right: 8px;
+  letter-spacing: -0.5px;
+}
+
+.pp-toast-body-inline {
+  font-weight: 600;
+  opacity: 0.75;
+  font-size: 17px;
+}
+
+/* --- ICONS & COLORS (THE PPOPGI PALETTE) --- */
+
+.pp-toast-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 28px;
+  flex-shrink: 0;
+  border: 3px solid rgba(255,255,255,0.5);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* 🏆 SUCCESS: Warm Lantern (Peach/Gold) - "The Prize" */
+.pp-toast.pp-success {
+  border: 3px solid #f59e0b; /* Amber 500 */
+  background: linear-gradient(135deg, #fffbeb 0%, #fff7ed 100%);
+  /* Golden Glow Shadow */
+  box-shadow: 
+    0 24px 60px -12px rgba(245, 158, 11, 0.3),
+    0 12px 24px -4px rgba(245, 158, 11, 0.15);
+}
+.pp-toast.pp-success .pp-toast-icon {
+  background: #fef3c7; /* Amber 100 */
+  color: #b45309; /* Amber 700 */
+  border-color: #f59e0b;
+}
+.pp-toast.pp-success .pp-toast-title-inline { color: #b45309; }
+
+
+/* ⛔ DANGER: Lavender/Rose - "The Void" */
+.pp-toast.pp-danger {
+  border: 3px solid #db2777; /* Pink 600 */
+  background: linear-gradient(135deg, #fff1f2 0%, #fdf2f8 100%);
+  /* Rose Glow Shadow */
+  box-shadow: 
+    0 24px 60px -12px rgba(219, 39, 119, 0.25),
+    0 12px 24px -4px rgba(219, 39, 119, 0.15);
+}
+.pp-toast.pp-danger .pp-toast-icon {
+  background: #fce7f3; /* Pink 100 */
+  color: #9d174d; /* Pink 800 */
+  border-color: #db2777;
+}
+.pp-toast.pp-danger .pp-toast-title-inline { color: #9d174d; }
+
+
+/* 🎟️ INFO: Sky/Sakura - "Fresh Ticket" */
+.pp-toast.pp-info {
+  border: 3px solid #3b82f6; /* Blue 500 */
+  background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+  /* Sky Glow Shadow */
+  box-shadow: 
+    0 24px 60px -12px rgba(59, 130, 246, 0.25),
+    0 12px 24px -4px rgba(59, 130, 246, 0.15);
+}
+.pp-toast.pp-info .pp-toast-icon {
+  background: #e0f2fe; /* Sky 100 */
+  color: #0369a1; /* Sky 700 */
+  border-color: #3b82f6;
+}
+.pp-toast.pp-info .pp-toast-title-inline { color: #0369a1; }
+
+
+/* ✅ THE SHIMMER EFFECT (Shininess) */
+.pp-toast-wrap.is-toast .pp-toast::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.8) 40%,
+    transparent 80%
+  );
+  transform: translateX(-150%);
+  animation: ppShimmer 1.5s ease-out 0.4s forwards;
+  opacity: 0.7;
+}
+
+/* --- MODAL SPECIFIC STYLES --- */
+.pp-toast.pp-modal {
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh; 
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: ppScaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 1px solid rgba(246, 182, 200, 0.4);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+}
+
+.pp-toast-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0; 
+}
+
+.pp-toast-header .pp-toast-title {
+  font-size: 18px;
+  margin: 0;
+  font-weight: 900;
+}
+
+.pp-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  font-weight: 800;
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 4px;
+}
+.pp-modal-close:hover { opacity: 1; }
+
+.pp-summary-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.pp-summary-list::-webkit-scrollbar { width: 6px; }
+.pp-summary-list::-webkit-scrollbar-track { background: rgba(0,0,0,0.03); border-radius: 4px; }
+.pp-summary-list::-webkit-scrollbar-thumb { background: rgba(43, 43, 51, 0.2); border-radius: 4px; }
+.pp-summary-list::-webkit-scrollbar-thumb:hover { background: rgba(43, 43, 51, 0.4); }
+
+.pp-summary-list li {
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 12px;
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.pp-sl-left { display: flex; gap: 10px; align-items: flex-start; flex: 1; }
+.pp-sl-icon { font-size: 16px; line-height: 1.3; flex-shrink: 0; }
+.pp-sl-text { font-weight: 600; }
+.pp-sl-time {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.5;
+  white-space: nowrap;
+  text-align: right;
+  margin-top: 2px;
+  min-width: 90px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.pp-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 14px;
+  font-weight: 900;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.2s;
+}
+.pp-btn:hover { transform: translateY(-1px); }
+
+.pp-btn.primary {
+  background: var(--ink);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(43, 43, 51, 0.2);
+}
+
+.pp-btn.secondary {
+  background: transparent;
+  border: 2px solid rgba(0,0,0,0.1);
+  color: var(--ink);
+}
+
+/* --- ANIMATIONS --- */
+
+@keyframes ppPunchySlide {
+  0% { transform: translateX(-150vw); opacity: 0; }
+  8% { transform: translateX(0); opacity: 1; }
+  92% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(150vw); opacity: 0; }
+}
+
+@keyframes ppShimmer {
+  from { transform: translateX(-150%); }
+  to { transform: translateX(150%); }
+}
+
+@keyframes ppModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ppScaleUp {
+  from { transform: scale(0.95) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}

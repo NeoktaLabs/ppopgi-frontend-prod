@@ -33,6 +33,7 @@ function toInt(v: string): number {
 
 type DurUnit = "minutes" | "hours" | "days";
 
+const PREVIEW_ADDR = "0x0000000000000000000000000000000000000000";
 const MIN_DURATION_SEC = 10 * 60; // 10 minutes
 const MAX_DURATION_SEC = 365 * 24 * 60 * 60; // 365 days
 
@@ -262,7 +263,7 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
   // ✅ preview object must match what LotteryCard expects (LotteryListItem-ish)
   const previewLottery = useMemo(
     () => ({
-      id: "0xpreview",
+      id: PREVIEW_ADDR,
       name: form.name || "Your Lottery Name",
       status: "OPEN",
       winningPot: String(derived.winningPotU),

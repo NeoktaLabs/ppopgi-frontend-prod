@@ -24,6 +24,9 @@ import { DisclaimerGate } from "./components/DisclaimerGate";
 // ✅ global sync refresher
 import { GlobalDataRefresher } from "./components/GlobalDataRefresher";
 
+// ✅ NEW: notifications + “while you were away”
+import { NotificationCenter } from "./components/NotificationCenter";
+
 // --- Hooks / State ---
 import { useSession } from "./state/useSession";
 import { useAppRouting } from "./hooks/useAppRouting";
@@ -205,7 +208,7 @@ export default function App() {
       else openSignIn();
     };
 
-    // ✅ NEW: global sign-in request (used by LotteryCard fallback)
+    // ✅ global sign-in request (used by LotteryCard fallback)
     const onOpenSignIn = () => {
       openSignIn();
     };
@@ -231,6 +234,9 @@ export default function App() {
   return (
     <>
       <GlobalDataRefresher intervalMs={5000} />
+
+      {/* ✅ NEW: mid-screen toasts + “while you were away” summary */}
+      <NotificationCenter />
 
       {/* ✅ Always blocks the app until accepted (on first visit) */}
       <DisclaimerGate open={showGate} onAccept={handleAcceptGate} />

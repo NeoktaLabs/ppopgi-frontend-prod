@@ -562,22 +562,25 @@ export async function fetchUserLotteriesByUser(
 
 /**
  * ✅ Global Activity stream from your real entities:
- * - BUY: TicketPurchaseEvent
- * - WIN: WinnerPickedEvent
- * - CANCEL: LotteryCanceledEvent
- * - CREATE: Prefer DeployerEvent(kind="LotteryDeployed"), fallback RegistryEvent(kind="LotteryRegistered")
+ * - BUY: TicketPurchaseEvent (ticketPurchaseEvents)
+ * - WIN: WinnerPickedEvent (winnerPickedEvents)
+ * - CANCEL: LotteryCanceledEvent (lotteryCanceledEvents)
+ * - CREATE: Prefer DeployerEvent(kind="LotteryDeployed") (deployerEvents), fallback RegistryEvent(kind="LotteryRegistered") (registryEvents)
  *
- * Note: CREATE name may be unknown depending on which source is used:
- * - DeployerEvent includes name
- * - RegistryEvent does not include name
+ * History:
+ * - If you pass `sinceSec`, we fetch ONLY events with timestamp_gt sinceSec (server-side filter).
+ * - Otherwise, we fetch the latest `first` items (default 10, max 50).
  */
 export async function fetchGlobalActivity(
-  opts: { first?: number } & FetchOpts = {}
+  opts: { first?: number; sinceSec?: number } & FetchOpts = {}
 ): Promise<GlobalActivityItem[]> {
   const url = mustEnv("VITE_SUBGRAPH_URL");
   const first = Math.min(Math.max(opts.first ?? 10, 1), 50);
 
-  const query = `
+  const sinceSecRaw = Number(opts.sinceSec ?? 0);
+  const sinceSec = Number.isFinite(sinceSecRaw) && sinceSecRaw > 0 ? Math.floor(sinceSecRaw) : 0;
+
+  const queryNoSince = `
     query GlobalFeed($first: Int!) {
       buys: ticketPurchaseEvents(
         first: $first
@@ -612,7 +615,6 @@ export async function fetchGlobalActivity(
         txHash
       }
 
-      # Preferred creation source (if you emit these)
       createsDeployer: deployerEvents(
         first: $first
         orderBy: timestamp
@@ -627,12 +629,78 @@ export async function fetchGlobalActivity(
         txHash
       }
 
-      # Fallback creation source
       createsRegistry: registryEvents(
         first: $first
         orderBy: timestamp
         orderDirection: desc
         where: { kind: "LotteryRegistered" }
+      ) {
+        lottery
+        creator
+        timestamp
+        txHash
+      }
+    }
+  `;
+
+  // ✅ Server-side "since" filter (timestamp_gt) — supported by your schema (timestamp: BigInt!)
+  const queryWithSince = `
+    query GlobalFeedSince($first: Int!, $since: BigInt!) {
+      buys: ticketPurchaseEvents(
+        first: $first
+        orderBy: timestamp
+        orderDirection: desc
+        where: { timestamp_gt: $since }
+      ) {
+        lottery { id name }
+        buyer
+        count
+        timestamp
+        txHash
+      }
+
+      wins: winnerPickedEvents(
+        first: $first
+        orderBy: timestamp
+        orderDirection: desc
+        where: { timestamp_gt: $since }
+      ) {
+        lottery { id name winningPot }
+        winner
+        timestamp
+        txHash
+      }
+
+      cancels: lotteryCanceledEvents(
+        first: $first
+        orderBy: timestamp
+        orderDirection: desc
+        where: { timestamp_gt: $since }
+      ) {
+        lottery { id name creator }
+        timestamp
+        txHash
+      }
+
+      createsDeployer: deployerEvents(
+        first: $first
+        orderBy: timestamp
+        orderDirection: desc
+        where: { kind: "LotteryDeployed", timestamp_gt: $since }
+      ) {
+        lottery
+        creator
+        name
+        winningPot
+        timestamp
+        txHash
+      }
+
+      createsRegistry: registryEvents(
+        first: $first
+        orderBy: timestamp
+        orderDirection: desc
+        where: { kind: "LotteryRegistered", timestamp_gt: $since }
       ) {
         lottery
         creator
@@ -650,7 +718,12 @@ export async function fetchGlobalActivity(
     createsRegistry: any[];
   };
 
-  const data = await gqlFetch<Resp>(url, query, { first }, opts);
+  const data = await gqlFetch<Resp>(
+    url,
+    sinceSec > 0 ? queryWithSince : queryNoSince,
+    sinceSec > 0 ? { first, since: String(sinceSec) } : { first },
+    opts
+  );
 
   const buys = (data.buys ?? []).map((e) => ({
     type: "BUY" as const,
