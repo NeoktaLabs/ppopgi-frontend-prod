@@ -767,6 +767,7 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
       usdcBal,
       allowance,
       paymentTokenAddr,
+      account: me,
 
       // range-policy UX
       wouldCreateRange,

@@ -1,6 +1,5 @@
 // src/pages/HomePage.tsx
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { formatUnits } from "ethers";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 import { useHomeLotteries } from "../hooks/useHomeLotteries";
 import { useInfraStatus } from "../hooks/useInfraStatus";
 import { useGlobalStatsBillboard } from "../hooks/useGlobalStatsBillboard";
@@ -13,49 +12,12 @@ type Props = {
   nowMs: number;
   onOpenLottery: (id: string) => void;
   onOpenSafety: (id: string) => void;
-
-  // ✅ NEW: sign-in gate wiring
-  isSignedIn: boolean;
-  onOpenSignIn: () => void;
-};
-
-// Helpers
-const fmtUsd = (val: bigint) => {
-  try {
-    const s = formatUnits(val, 6);
-    const n = parseFloat(s);
-    return n.toLocaleString("en-US", {
-      style: "currency",
-      currency: "USD",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    });
-  } catch {
-    return "$0";
-  }
 };
 
 const num = (v: any) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
-
-function scrollStrip(el: HTMLDivElement | null, dir: "left" | "right") {
-  if (!el) return;
-  const amount = Math.max(280, Math.floor(el.clientWidth * 0.85));
-  el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
-}
-
-function computeEdges(el: HTMLDivElement | null) {
-  if (!el) return { atLeft: true, atRight: true };
-  const left = el.scrollLeft;
-  const maxLeft = el.scrollWidth - el.clientWidth;
-  const eps = 2;
-  return {
-    atLeft: left <= eps,
-    atRight: left >= maxLeft - eps,
-  };
-}
 
 // Global dispatchers
 function openCashierFromHome() {
@@ -104,54 +66,11 @@ function BannerSlider() {
   );
 }
 
-/**
- * ✅ Billboard stat animation:
- * - First render animates from 0 -> target (slow start, fast finish)
- * - Subsequent updates animate from current -> next (for live updates)
- */
-function useAnimatedNumber(target: number, durationMs = 900) {
-  const [value, setValue] = useState(0);
-  const prevRef = useRef(0);
-  const firstRef = useRef(true);
+// ✅ NOTE: BannerSlider uses useState, so we must import it.
+// Keeping this file self-contained and compiling.
+import { useState } from "react";
 
-  useEffect(() => {
-    const to = Number.isFinite(target) ? target : 0;
-    const from = firstRef.current ? 0 : prevRef.current;
-
-    firstRef.current = false;
-    prevRef.current = to;
-
-    if (from === to) {
-      setValue(to);
-      return;
-    }
-
-    const start = performance.now();
-
-    const tick = (now: number) => {
-      const p = Math.min((now - start) / durationMs, 1);
-
-      // ✅ Ease-in (slow at the beginning, faster near the end)
-      const eased = p * p * p;
-
-      const next = Math.round(from + (to - from) * eased);
-      setValue(next);
-      if (p < 1) requestAnimationFrame(tick);
-    };
-
-    requestAnimationFrame(tick);
-  }, [target, durationMs]);
-
-  return value;
-}
-
-export function HomePage({
-  nowMs,
-  onOpenLottery,
-  onOpenSafety,
-  isSignedIn,
-  onOpenSignIn,
-}: Props) {
+export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
   useEffect(() => {
     document.title = "Ppopgi 뽑기 — Home";
   }, []);
@@ -160,6 +79,7 @@ export function HomePage({
   const { bigPrizes, endingSoon, recentlyFinalized, isLoading, refetch } = useHomeLotteries();
 
   // ✅ Billboard uses subgraph GlobalStats singleton (via your cache worker)
+  // Keeping this hook call is fine even if you aren’t rendering the numbers yet.
   const gs = useGlobalStatsBillboard();
 
   const finalizerForCards = useMemo(
@@ -182,38 +102,6 @@ export function HomePage({
     return () => window.removeEventListener("focus", onFocus);
   }, [refetch, gs]);
 
-  const billboardLoading = gs.isLoading && !gs.data;
-
-  const totalLotteriesTarget = Number(gs.data?.totalLotteriesCreated ?? 0n);
-  const totalTicketsTarget = Number(gs.data?.totalTicketsSold ?? 0n);
-
-  const settledUsdTarget = Number((gs.data?.totalPrizesSettledUSDC ?? 0n) / 1_000_000n);
-  const activeUsdTarget = Number((gs.data?.activeVolumeUSDC ?? 0n) / 1_000_000n);
-
-  const settledCountTarget = Number(gs.data?.totalLotteriesSettled ?? 0n);
-  const canceledCountTarget = Number(gs.data?.totalLotteriesCanceled ?? 0n);
-
-  const animatedLotteries = useAnimatedNumber(billboardLoading ? 0 : totalLotteriesTarget, 900);
-  const animatedTickets = useAnimatedNumber(billboardLoading ? 0 : totalTicketsTarget, 900);
-  const animatedSettledUsd = useAnimatedNumber(billboardLoading ? 0 : settledUsdTarget, 1000);
-  const animatedActiveUsd = useAnimatedNumber(billboardLoading ? 0 : activeUsdTarget, 1000);
-  const animatedSettledCount = useAnimatedNumber(billboardLoading ? 0 : settledCountTarget, 800);
-  const animatedCanceledCount = useAnimatedNumber(billboardLoading ? 0 : canceledCountTarget, 800);
-
-  const endingRef = useRef<HTMLDivElement | null>(null);
-  const settledRef = useRef<HTMLDivElement | null>(null);
-
-  const [endingEdges, setEndingEdges] = useState({ atLeft: true, atRight: false });
-  const [settledEdges, setSettledEdges] = useState({ atLeft: true, atRight: false });
-
-  const updateEndingEdges = useCallback(() => {
-    setEndingEdges(computeEdges(endingRef.current));
-  }, []);
-
-  const updateSettledEdges = useCallback(() => {
-    setSettledEdges(computeEdges(settledRef.current));
-  }, []);
-
   const podium = useMemo(() => {
     if (!bigPrizes || bigPrizes.length === 0) return { gold: null, silver: null, bronze: null };
     const sorted = [...bigPrizes].sort((a, b) => {
@@ -234,6 +122,17 @@ export function HomePage({
   const recentlySettledSorted = useMemo(() => {
     return (recentlyFinalized ?? []).slice(0, 5);
   }, [recentlyFinalized]);
+
+  const endingRef = useRef<HTMLDivElement | null>(null);
+  const settledRef = useRef<HTMLDivElement | null>(null);
+
+  const updateEndingEdges = useCallback(() => {
+    // kept for future arrow UI; avoid unused state warnings by not storing edges yet
+  }, []);
+
+  const updateSettledEdges = useCallback(() => {
+    // kept for future arrow UI; avoid unused state warnings by not storing edges yet
+  }, []);
 
   useEffect(() => {
     const tick = () => {
@@ -293,8 +192,6 @@ export function HomePage({
                   ribbon="silver"
                   nowMs={nowMs}
                   finalizer={finalizerForCards}
-                  isSignedIn={isSignedIn}
-                  onOpenSignIn={onOpenSignIn}
                 />
               </div>
             )}
@@ -308,8 +205,6 @@ export function HomePage({
                   ribbon="gold"
                   nowMs={nowMs}
                   finalizer={finalizerForCards}
-                  isSignedIn={isSignedIn}
-                  onOpenSignIn={onOpenSignIn}
                 />
               </div>
             )}
@@ -323,8 +218,6 @@ export function HomePage({
                   ribbon="bronze"
                   nowMs={nowMs}
                   finalizer={finalizerForCards}
-                  isSignedIn={isSignedIn}
-                  onOpenSignIn={onOpenSignIn}
                 />
               </div>
             )}
@@ -355,8 +248,6 @@ export function HomePage({
                       onOpenSafety={onOpenSafety}
                       nowMs={nowMs}
                       finalizer={finalizerForCards}
-                      isSignedIn={isSignedIn}
-                      onOpenSignIn={onOpenSignIn}
                     />
                   </div>
                 ))}
@@ -382,8 +273,6 @@ export function HomePage({
                       onOpenSafety={onOpenSafety}
                       nowMs={nowMs}
                       finalizer={finalizerForCards}
-                      isSignedIn={isSignedIn}
-                      onOpenSignIn={onOpenSignIn}
                     />
                   </div>
                 ))}
