@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { refresh as refreshLotteryStore } from "../hooks/useLotteryStore";
 import { refresh as refreshActivityStore } from "../hooks/useActivityStore";
 
 function isVisible() {
@@ -10,56 +9,43 @@ function isVisible() {
   }
 }
 
-export function GlobalDataRefresher({ intervalMs = 5000 }: { intervalMs?: number }) {
+export function GlobalDataRefresher({ intervalMs = 15_000 }: { intervalMs?: number }) {
   const runningRef = useRef(false);
-  const lastLotteryRefreshAtRef = useRef(0);
+  const lastActivityRefreshAtRef = useRef(0);
 
   const tick = async (background = false) => {
     if (runningRef.current) return;
     if (background && !isVisible()) return;
 
     runningRef.current = true;
-
     try {
       const now = Date.now();
-      const RAFFLE_REFRESH_MIN_GAP_MS = 20_000;
 
-      const shouldRefreshLotteries = !background || now - lastLotteryRefreshAtRef.current >= RAFFLE_REFRESH_MIN_GAP_MS;
+      // Activity is cheap, but don’t spam
+      const ACTIVITY_MIN_GAP_MS = 15_000;
 
-      if (shouldRefreshLotteries) lastLotteryRefreshAtRef.current = now;
+      const shouldRefreshActivity = !background || now - lastActivityRefreshAtRef.current >= ACTIVITY_MIN_GAP_MS;
+      if (!shouldRefreshActivity) return;
 
-      // ✅ Run in parallel; don't let Activity block everything else.
-      const tasks: Promise<any>[] = [];
+      lastActivityRefreshAtRef.current = now;
 
-      // Activity: light + frequent
-      tasks.push(refreshActivityStore(true, true));
-
-      // Lotteries: heavier + throttled
-      if (shouldRefreshLotteries) {
-        tasks.push(refreshLotteryStore(true, true));
-      }
-
-      // Never throw from refresher (stores already handle their own errors/backoff)
-      await Promise.allSettled(tasks);
-
-      // Notify listeners to recompute derived UI state
-      try {
-        window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
-      } catch {}
+      // IMPORTANT: do NOT force-fresh on polling.
+      await refreshActivityStore(true, false);
     } finally {
       runningRef.current = false;
     }
   };
 
   useEffect(() => {
+    // Initial warm-up
     void tick(false);
 
     const id = window.setInterval(() => void tick(true), intervalMs);
 
-    const onFocus = () => void tick(false);
+    const onFocus = () => void tick(true);
     const onVis = () => {
       try {
-        if (document.visibilityState === "visible") void tick(false);
+        if (document.visibilityState === "visible") void tick(true);
       } catch {}
     };
 

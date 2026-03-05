@@ -1,6 +1,12 @@
 // src/hooks/useInfraStatus.ts
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRevalidate } from "../hooks/useRevalidateTick";
+import { useSyncExternalStore } from "react";
+
+/**
+ * Phase 2:
+ * - Make infra polling a true singleton (one poll loop app-wide)
+ * - Add smart bot-only “poke” handling + focus/visibility revalidate
+ * - Keep UI “alive” with locally computed countdowns (1s tick) without duplicating network calls
+ */
 
 type IndexerLevel = "healthy" | "degraded" | "late" | "down";
 type RpcLevel = "healthy" | "degraded" | "slow" | "down";
@@ -63,34 +69,45 @@ type InfraStatus = {
   isLoading: boolean;
 };
 
+/* -------------------- env helpers -------------------- */
+
 function mustEnv(name: string): string {
   const v = (import.meta as any).env?.[name];
   if (!v) throw new Error(`MISSING_ENV_${name}`);
   return v;
 }
-
 function env(name: string): string | null {
   const v = (import.meta as any).env?.[name];
   return v ? String(v) : null;
 }
+
+/* -------------------- small utils -------------------- */
 
 function clampInt(n: any): number | null {
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
   return Math.max(0, Math.floor(x));
 }
-
 function clampSec(n: any): number | null {
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
   return Math.max(0, Math.floor(x));
 }
-
 function median(nums: number[]): number {
   const a = [...nums].sort((x, y) => x - y);
   const mid = Math.floor(a.length / 2);
   return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
 }
+
+function isHidden() {
+  try {
+    return typeof document !== "undefined" && document.hidden;
+  } catch {
+    return false;
+  }
+}
+
+/* -------------------- status mapping -------------------- */
 
 function indexerStatus(blocksBehind: number | null): { level: IndexerLevel; label: string } {
   if (blocksBehind === null) return { level: "down", label: "Down" };
@@ -152,6 +169,8 @@ function worstOverall(
   return { level: "healthy", label: "Healthy" };
 }
 
+/* -------------------- network helpers -------------------- */
+
 async function withTimeout<T>(p: Promise<T>, ms: number, label = "timeout"): Promise<T> {
   let t: any;
   const timeout = new Promise<T>((_, rej) => {
@@ -210,71 +229,52 @@ async function fetchBotStatus(statusUrl: string, timeoutMs: number) {
   return json;
 }
 
-function isHidden() {
-  try {
-    return typeof document !== "undefined" && document.hidden;
-  } catch {
-    return false;
-  }
-}
+/* -------------------- singleton store -------------------- */
 
-export function useInfraStatus() {
-  const subgraphUrl = useMemo(() => mustEnv("VITE_SUBGRAPH_URL"), []);
-  const rpcUrl = useMemo(() => mustEnv("VITE_ETHERLINK_RPC_URL"), []);
-  const botUrl = useMemo(() => env("VITE_FINALIZER_STATUS_URL"), []);
+type Listener = () => void;
 
-  // revalidate tick (app can "poke" infra refresh after actions)
-  // ✅ Optionally debounce: useRevalidate({ debounceMs: 300 })
-  const rvTick = useRevalidate();
-  const lastRvAtRef = useRef<number>(0);
+const listeners = new Set<Listener>();
 
-  const pollMs = useMemo(() => {
-    const v = env("VITE_INFRA_POLL_MS");
-    // ✅ default 60s
-    const n = v ? Number(v) : 60_000;
-    // ✅ never poll faster than 60s (prevents accidental hammering)
-    return Number.isFinite(n) ? Math.max(60_000, Math.floor(n)) : 60_000;
-  }, []);
+let started = false;
+let subscriberCount = 0;
 
-  // 3 minutes by default, configurable
-  const finalizerEverySec = useMemo(() => {
-    const v = env("VITE_FINALIZER_EVERY_SEC");
-    const n = v ? Number(v) : 180;
-    return Number.isFinite(n) ? Math.max(10, Math.floor(n)) : 180;
-  }, []);
+let fullPollTimer: number | null = null;
+let secondTickTimer: number | null = null;
 
-  const aliveRef = useRef(true);
-  const fetchingRef = useRef(false);
+let botZeroTimer: number | null = null;
+let botZeroTries = 0;
+let botZeroBackoffMs = 15_000;
 
-  // ✅ When bot "Next" hits 0, we bot-poll every 5s until it becomes > 0 (bot-only; no RPC/_meta spam)
-  const botZeroModeRef = useRef(false);
-  const botZeroIntervalRef = useRef<any>(null);
+let fetchingFull = false;
+let fetchingBot = false;
 
-  const [nowTick, setNowTick] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
+let lastPokeAtMs = 0;
+const POKE_THROTTLE_MS = 15_000;
 
-  const stopBotZeroMode = () => {
-    botZeroModeRef.current = false;
-    try {
-      clearInterval(botZeroIntervalRef.current);
-    } catch {}
-    botZeroIntervalRef.current = null;
-  };
+const subgraphUrl = mustEnv("VITE_SUBGRAPH_URL");
+const rpcUrl = mustEnv("VITE_ETHERLINK_RPC_URL");
+const botUrl = env("VITE_FINALIZER_STATUS_URL")?.trim() || null;
 
-  useEffect(() => {
-    aliveRef.current = true;
-    return () => {
-      aliveRef.current = false;
-      stopBotZeroMode();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+// Polling cadence:
+// - default 30s, min 15s (Phase 2). You can override via VITE_INFRA_POLL_MS.
+const pollMs = (() => {
+  const v = env("VITE_INFRA_POLL_MS");
+  const n = v ? Number(v) : 30_000;
+  if (!Number.isFinite(n)) return 30_000;
+  return Math.max(15_000, Math.floor(n));
+})();
 
-  const [state, setState] = useState<InfraStatus>(() => ({
-    tsMs: Date.now(),
+// Finalizer schedule (default 3 minutes)
+const finalizerEverySec = (() => {
+  const v = env("VITE_FINALIZER_EVERY_SEC");
+  const n = v ? Number(v) : 180;
+  return Number.isFinite(n) ? Math.max(10, Math.floor(n)) : 180;
+})();
+
+function mkInitial(): InfraStatus {
+  const now = Date.now();
+  return {
+    tsMs: now,
     indexer: { level: "down", label: "Down", blocksBehind: null, headBlock: null, indexedBlock: null },
     rpc: { level: "down", label: "Down", latencyMs: null, ok: false },
     bot: {
@@ -293,198 +293,65 @@ export function useInfraStatus() {
     overall: { level: "down", label: "Issues" },
     isLoading: true,
     pollMs,
-    nextPollMs: Date.now() + pollMs,
+    nextPollMs: now + pollMs,
     secondsToNextPoll: Math.floor(pollMs / 1000),
-  }));
-
-  const runBotOnlyOnce = async () => {
-    if (!botUrl) return;
-    if (isHidden()) return;
-
-    try {
-      const w = await fetchBotStatus(botUrl.trim(), 5000);
-
-      const bs = botStatusFromWire(w);
-      const botLevel = bs.level;
-      const botLabel = bs.label;
-      const botRunning = !!w?.running;
-
-      const lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
-
-      const sinceWire = clampSec(w?.secondsSinceLastRun);
-      const toWire = clampSec(w?.secondsToNextRun);
-      const lastError = w?.lastError ? String(w.lastError) : null;
-
-      let nextRunMs: number | null = null;
-      if (lastRunMs !== null) nextRunMs = lastRunMs + finalizerEverySec * 1000;
-      else nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
-
-      const now = Date.now();
-      const liveSince = lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : sinceWire;
-      const liveTo = nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : toWire;
-
-      if (!aliveRef.current) return;
-
-      setState((prev) => {
-        const overall = worstOverall(prev.indexer.level, prev.rpc.level, botLevel);
-        return {
-          ...prev,
-          tsMs: now, // optional: makes “Updated HH:MM” tick during bot-only refresh
-          bot: {
-            ...prev.bot,
-            level: botLevel,
-            label: botLabel,
-            running: botRunning,
-            lastRunMs,
-            nextRunMs,
-            finalizerEverySec,
-            secondsSinceLastRunWire: sinceWire,
-            secondsToNextRunWire: toWire,
-            secondsSinceLastRun: liveSince ?? null,
-            secondsToNextRun: liveTo ?? null,
-            lastError,
-            error: undefined,
-          },
-          overall,
-        };
-      });
-    } catch (e: any) {
-      if (!aliveRef.current) return;
-      setState((prev) => {
-        const overall = worstOverall(prev.indexer.level, prev.rpc.level, "unknown");
-        return {
-          ...prev,
-          bot: {
-            ...prev.bot,
-            level: "unknown",
-            label: "Unknown",
-            error: String(e?.message || e || "bot_error"),
-          },
-          overall,
-        };
-      });
-    }
   };
+}
 
-  const runOnce = async () => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
+let snapshot: InfraStatus = mkInitial();
 
-    const fetchedAtMs = Date.now();
-    const nextPollAt = fetchedAtMs + pollMs;
+function emit() {
+  for (const l of listeners) l();
+}
 
-    try {
-      // ---- RPC ----
-      let rpcOk = false;
-      let rpcLatency: number | null = null;
-      let headBlock: number | null = null;
-      let rpcErr: string | undefined;
+function setSnapshot(next: InfraStatus) {
+  snapshot = next;
+  emit();
+}
 
-      try {
-        // ✅ single call per poll
-        const tries = 1;
-        const latencies: number[] = [];
-        let latestBlock = 0;
+function patchSnapshot(patch: (prev: InfraStatus) => InfraStatus) {
+  const next = patch(snapshot);
+  if (next === snapshot) return;
+  setSnapshot(next);
+}
 
-        for (let i = 0; i < tries; i++) {
-          const r = await rpcEthBlockNumber(rpcUrl, 4000);
-          latencies.push(r.latencyMs);
-          latestBlock = Math.max(latestBlock, r.block);
-        }
+/* -------------------- bot-only refresh (cheap, “alive”) -------------------- */
 
-        rpcLatency = Math.round(median(latencies));
-        headBlock = latestBlock;
-        rpcOk = true;
-      } catch (e: any) {
-        rpcOk = false;
-        rpcErr = String(e?.message || e || "rpc_error");
-      }
+async function runBotOnlyOnce() {
+  if (!botUrl) return;
+  if (isHidden()) return;
+  if (fetchingBot) return;
 
-      const rpcS = rpcStatus(rpcLatency, rpcOk);
+  fetchingBot = true;
+  try {
+    const w = await fetchBotStatus(botUrl, 5000);
 
-      // ---- Subgraph meta ----
-      let indexedBlock: number | null = null;
-      let behind: number | null = null;
-      let subErr: string | undefined;
+    const bs = botStatusFromWire(w);
+    const botLevel = bs.level;
+    const botLabel = bs.label;
+    const botRunning = !!w?.running;
 
-      try {
-        indexedBlock = await subgraphIndexedBlock(subgraphUrl, 5000);
-        if (headBlock !== null) behind = Math.max(0, headBlock - indexedBlock);
-      } catch (e: any) {
-        subErr = String(e?.message || e || "subgraph_error");
-      }
+    const lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
 
-      const idxS = indexerStatus(behind);
+    const sinceWire = clampSec(w?.secondsSinceLastRun);
+    const toWire = clampSec(w?.secondsToNextRun);
+    const lastError = w?.lastError ? String(w.lastError) : null;
 
-      // ---- Bot status (only once per poll) ----
-      let botLevel: BotLevel = "unknown";
-      let botLabel = "Unknown";
-      let botRunning = false;
+    let nextRunMs: number | null = null;
+    if (lastRunMs !== null) nextRunMs = lastRunMs + finalizerEverySec * 1000;
+    else nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
 
-      let lastRunMs: number | null = null;
-      let nextRunMs: number | null = null;
+    const now = Date.now();
+    const liveSince = lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : sinceWire;
+    const liveTo = nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : toWire;
 
-      let sinceWire: number | null = null;
-      let toWire: number | null = null;
-
-      let lastError: string | null = null;
-      let botErr: string | undefined;
-
-      if (botUrl) {
-        try {
-          const w = await fetchBotStatus(botUrl.trim(), 5000);
-
-          const bs = botStatusFromWire(w);
-          botLevel = bs.level;
-          botLabel = bs.label;
-
-          botRunning = !!w?.running;
-          lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
-
-          sinceWire = clampSec(w?.secondsSinceLastRun);
-          toWire = clampSec(w?.secondsToNextRun);
-          lastError = w?.lastError ? String(w.lastError) : null;
-
-          // next = last + finalizerEverySec
-          if (lastRunMs !== null) {
-            nextRunMs = lastRunMs + finalizerEverySec * 1000;
-          } else {
-            nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
-          }
-        } catch (e: any) {
-          botErr = String(e?.message || e || "bot_error");
-          botLevel = "unknown";
-          botLabel = "Unknown";
-        }
-      }
-
-      const overall = worstOverall(idxS.level, rpcS.level, botLevel);
-      if (!aliveRef.current) return;
-
-      const liveSince =
-        lastRunMs !== null ? Math.max(0, Math.floor((Date.now() - lastRunMs) / 1000)) : sinceWire;
-
-      const liveTo =
-        nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - Date.now()) / 1000)) : toWire;
-
-      setState({
-        tsMs: fetchedAtMs,
-        indexer: {
-          level: idxS.level,
-          label: idxS.label,
-          blocksBehind: behind,
-          headBlock,
-          indexedBlock,
-          error: subErr,
-        },
-        rpc: {
-          level: rpcS.level,
-          label: rpcS.label,
-          latencyMs: rpcLatency,
-          ok: rpcOk,
-          error: rpcErr,
-        },
+    patchSnapshot((prev) => {
+      const overall = worstOverall(prev.indexer.level, prev.rpc.level, botLevel);
+      return {
+        ...prev,
+        tsMs: now,
         bot: {
+          ...prev.bot,
           level: botLevel,
           label: botLabel,
           running: botRunning,
@@ -496,109 +363,346 @@ export function useInfraStatus() {
           secondsSinceLastRun: liveSince ?? null,
           secondsToNextRun: liveTo ?? null,
           lastError,
-          error: botErr,
+          error: undefined,
         },
         overall,
-        isLoading: false,
-        pollMs,
-        nextPollMs: nextPollAt,
-        secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - Date.now()) / 1000)),
-      });
-    } finally {
-      fetchingRef.current = false;
-    }
-  };
-
-  // normal polling
-  useEffect(() => {
-    let interval: any = null;
-
-    const loop = async () => {
-      await runOnce();
-      interval = setInterval(runOnce, pollMs);
-    };
-
-    void loop();
-
-    return () => {
-      try {
-        clearInterval(interval);
-      } catch {}
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pollMs, rpcUrl, subgraphUrl, botUrl, finalizerEverySec]);
-
-  // revalidate-driven "poke" (throttled)
-  // ✅ Change: revalidate poke is bot-only (prevents RPC + indexer meta spam)
-  useEffect(() => {
-    if (!rvTick) return;
-    if (isHidden()) return;
-
-    const now = Date.now();
-    // ✅ was 3s — too aggressive for infra checks
-    if (now - lastRvAtRef.current < 15_000) return;
-    lastRvAtRef.current = now;
-
-    void runBotOnlyOnce();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rvTick]);
-
-  // every second: recompute live countdowns + bot-only refresh at 0s
-  useEffect(() => {
-    const now = nowTick;
-
-    setState((prev) => {
-      const nextPollMs = prev.nextPollMs || now + prev.pollMs;
-      const secondsToNextPoll = Math.max(0, Math.floor((nextPollMs - now) / 1000));
-
-      const lastRunMs = prev.bot.lastRunMs;
-      const nextRunMs = prev.bot.nextRunMs;
-
-      const secondsSinceLastRun =
-        lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : prev.bot.secondsSinceLastRunWire;
-
-      const secondsToNextRun =
-        nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : prev.bot.secondsToNextRunWire;
-
-      const changed =
-        secondsToNextPoll !== prev.secondsToNextPoll ||
-        secondsSinceLastRun !== prev.bot.secondsSinceLastRun ||
-        secondsToNextRun !== prev.bot.secondsToNextRun;
-
-      if (!changed) return prev;
-
-      return {
-        ...prev,
-        secondsToNextPoll,
-        bot: {
-          ...prev.bot,
-          secondsSinceLastRun: secondsSinceLastRun ?? null,
-          secondsToNextRun: secondsToNextRun ?? null,
-        },
       };
     });
+  } catch (e: any) {
+    patchSnapshot((prev) => {
+      const overall = worstOverall(prev.indexer.level, prev.rpc.level, "unknown");
+      return {
+        ...prev,
+        bot: {
+          ...prev.bot,
+          level: "unknown",
+          label: "Unknown",
+          error: String(e?.message || e || "bot_error"),
+        },
+        overall,
+      };
+    });
+  } finally {
+    fetchingBot = false;
+  }
+}
 
-    // ✅ Smart: when Next == 0, bot-poll every 5s until it changes (bot-only; no RPC/_meta spam)
-    const secToNext = state.bot.secondsToNextRun;
-    const shouldZeroPoll = !!botUrl && secToNext === 0 && !isHidden();
+/* -------------------- full refresh (rpc + meta + bot) -------------------- */
 
-    if (shouldZeroPoll && !botZeroModeRef.current) {
-      botZeroModeRef.current = true;
+async function runFullOnce() {
+  if (fetchingFull) return;
+  if (isHidden()) return;
 
-      // fire immediately, then every 5s
-      void runBotOnlyOnce();
-      botZeroIntervalRef.current = setInterval(() => {
-        void runBotOnlyOnce();
-      }, 5_000);
+  fetchingFull = true;
+
+  const fetchedAtMs = Date.now();
+  const nextPollAt = fetchedAtMs + pollMs;
+
+  try {
+    // ---- RPC ----
+    let rpcOk = false;
+    let rpcLatency: number | null = null;
+    let headBlock: number | null = null;
+    let rpcErr: string | undefined;
+
+    try {
+      const tries = 1;
+      const latencies: number[] = [];
+      let latestBlock = 0;
+
+      for (let i = 0; i < tries; i++) {
+        const r = await rpcEthBlockNumber(rpcUrl, 4000);
+        latencies.push(r.latencyMs);
+        latestBlock = Math.max(latestBlock, r.block);
+      }
+
+      rpcLatency = Math.round(median(latencies));
+      headBlock = latestBlock;
+      rpcOk = true;
+    } catch (e: any) {
+      rpcOk = false;
+      rpcErr = String(e?.message || e || "rpc_error");
     }
 
-    if (!shouldZeroPoll && botZeroModeRef.current) {
+    const rpcS = rpcStatus(rpcLatency, rpcOk);
+
+    // ---- Subgraph meta ----
+    let indexedBlock: number | null = null;
+    let behind: number | null = null;
+    let subErr: string | undefined;
+
+    try {
+      indexedBlock = await subgraphIndexedBlock(subgraphUrl, 5000);
+      if (headBlock !== null) behind = Math.max(0, headBlock - indexedBlock);
+    } catch (e: any) {
+      subErr = String(e?.message || e || "subgraph_error");
+    }
+
+    const idxS = indexerStatus(behind);
+
+    // ---- Bot status ----
+    let botLevel: BotLevel = "unknown";
+    let botLabel = "Unknown";
+    let botRunning = false;
+
+    let lastRunMs: number | null = null;
+    let nextRunMs: number | null = null;
+
+    let sinceWire: number | null = null;
+    let toWire: number | null = null;
+
+    let lastError: string | null = null;
+    let botErr: string | undefined;
+
+    if (botUrl) {
+      try {
+        const w = await fetchBotStatus(botUrl, 5000);
+        const bs = botStatusFromWire(w);
+
+        botLevel = bs.level;
+        botLabel = bs.label;
+
+        botRunning = !!w?.running;
+        lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
+
+        sinceWire = clampSec(w?.secondsSinceLastRun);
+        toWire = clampSec(w?.secondsToNextRun);
+        lastError = w?.lastError ? String(w.lastError) : null;
+
+        if (lastRunMs !== null) nextRunMs = lastRunMs + finalizerEverySec * 1000;
+        else nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
+      } catch (e: any) {
+        botErr = String(e?.message || e || "bot_error");
+        botLevel = "unknown";
+        botLabel = "Unknown";
+      }
+    }
+
+    const overall = worstOverall(idxS.level, rpcS.level, botLevel);
+
+    const now = Date.now();
+    const liveSince = lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : sinceWire;
+    const liveTo = nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : toWire;
+
+    setSnapshot({
+      tsMs: fetchedAtMs,
+      indexer: {
+        level: idxS.level,
+        label: idxS.label,
+        blocksBehind: behind,
+        headBlock,
+        indexedBlock,
+        error: subErr,
+      },
+      rpc: {
+        level: rpcS.level,
+        label: rpcS.label,
+        latencyMs: rpcLatency,
+        ok: rpcOk,
+        error: rpcErr,
+      },
+      bot: {
+        level: botLevel,
+        label: botLabel,
+        running: botRunning,
+        lastRunMs,
+        nextRunMs,
+        finalizerEverySec,
+        secondsSinceLastRunWire: sinceWire,
+        secondsToNextRunWire: toWire,
+        secondsSinceLastRun: liveSince ?? null,
+        secondsToNextRun: liveTo ?? null,
+        lastError,
+        error: botErr,
+      },
+      overall,
+      isLoading: false,
+      pollMs,
+      nextPollMs: nextPollAt,
+      secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - now) / 1000)),
+    });
+  } finally {
+    fetchingFull = false;
+  }
+}
+
+/* -------------------- timers / lifecycle -------------------- */
+
+function stopBotZeroMode() {
+  if (botZeroTimer != null) {
+    window.clearInterval(botZeroTimer);
+    botZeroTimer = null;
+  }
+  botZeroTries = 0;
+  botZeroBackoffMs = 15_000;
+}
+
+function maybeStartBotZeroMode() {
+  if (!botUrl) return;
+  if (isHidden()) return;
+
+  const secToNext = snapshot.bot.secondsToNextRun;
+  const now = Date.now();
+
+  // If nextRunMs is very stale, don't hammer every 5s indefinitely.
+  const staleSchedule =
+    snapshot.bot.nextRunMs != null ? snapshot.bot.nextRunMs < now - 60_000 : false;
+
+  const shouldZeroPoll = secToNext === 0 && !staleSchedule;
+
+  if (shouldZeroPoll && botZeroTimer == null) {
+    botZeroTries = 0;
+    botZeroBackoffMs = 15_000;
+
+    void runBotOnlyOnce();
+    botZeroTimer = window.setInterval(async () => {
+      // Cap fast tries; then back off to protect infra
+      botZeroTries += 1;
+
+      if (botZeroTries <= 6) {
+        await runBotOnlyOnce();
+        return;
+      }
+
+      // After 30s of 5s polling, stop the tight loop and back off.
       stopBotZeroMode();
-    }
+      // backoff kick: schedule one bot-only refresh later
+      window.setTimeout(() => void runBotOnlyOnce(), botZeroBackoffMs);
+      botZeroBackoffMs = Math.min(60_000, botZeroBackoffMs * 2);
+    }, 5_000);
+  }
 
-    return () => {};
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nowTick, state.bot.secondsToNextRun, botUrl, finalizerEverySec]);
+  if (!shouldZeroPoll && botZeroTimer != null) {
+    stopBotZeroMode();
+  }
+}
 
-  return state;
+function tickEverySecond() {
+  const now = Date.now();
+  patchSnapshot((prev) => {
+    const nextPollMs = prev.nextPollMs || now + prev.pollMs;
+    const secondsToNextPoll = Math.max(0, Math.floor((nextPollMs - now) / 1000));
+
+    const lastRunMs = prev.bot.lastRunMs;
+    const nextRunMs = prev.bot.nextRunMs;
+
+    const secondsSinceLastRun =
+      lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : prev.bot.secondsSinceLastRunWire;
+
+    const secondsToNextRun =
+      nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : prev.bot.secondsToNextRunWire;
+
+    const changed =
+      secondsToNextPoll !== prev.secondsToNextPoll ||
+      secondsSinceLastRun !== prev.bot.secondsSinceLastRun ||
+      secondsToNextRun !== prev.bot.secondsToNextRun;
+
+    if (!changed) return prev;
+
+    return {
+      ...prev,
+      secondsToNextPoll,
+      bot: {
+        ...prev.bot,
+        secondsSinceLastRun: secondsSinceLastRun ?? null,
+        secondsToNextRun: secondsToNextRun ?? null,
+      },
+    };
+  });
+
+  maybeStartBotZeroMode();
+}
+
+function onFocusOrVisible() {
+  // On focus, do a cheap bot refresh immediately.
+  void runBotOnlyOnce();
+
+  // If we've been away for a while, also do a full refresh.
+  const staleFull = Date.now() - snapshot.tsMs > Math.max(60_000, pollMs * 2);
+  if (staleFull) void runFullOnce();
+}
+
+function onPokeRevalidate() {
+  const now = Date.now();
+  if (now - lastPokeAtMs < POKE_THROTTLE_MS) return;
+  lastPokeAtMs = now;
+  void runBotOnlyOnce();
+}
+
+function startIfNeeded() {
+  if (started) return;
+  started = true;
+
+  // First full fetch ASAP
+  void runFullOnce();
+
+  // Full polling loop
+  fullPollTimer = window.setInterval(() => void runFullOnce(), pollMs);
+
+  // 1s tick for countdowns
+  secondTickTimer = window.setInterval(tickEverySecond, 1000);
+
+  // Focus/visibility revalidate (cheap + safe)
+  window.addEventListener("focus", onFocusOrVisible);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") onFocusOrVisible();
+  });
+
+  // Global "poke" after user actions
+  window.addEventListener("ppopgi:revalidate", onPokeRevalidate as EventListener);
+}
+
+function stopIfPossible() {
+  if (subscriberCount > 0) return;
+
+  started = false;
+
+  if (fullPollTimer != null) {
+    window.clearInterval(fullPollTimer);
+    fullPollTimer = null;
+  }
+  if (secondTickTimer != null) {
+    window.clearInterval(secondTickTimer);
+    secondTickTimer = null;
+  }
+
+  stopBotZeroMode();
+
+  window.removeEventListener("focus", onFocusOrVisible);
+  window.removeEventListener("ppopgi:revalidate", onPokeRevalidate as EventListener);
+  // visibilitychange listener was anonymous; we keep it simple and leave it (low risk),
+  // but if you want strict cleanup, we can name+remove it.
+
+  // reset poke throttle
+  lastPokeAtMs = 0;
+}
+
+/* -------------------- external store API -------------------- */
+
+function subscribe(listener: Listener) {
+  listeners.add(listener);
+  subscriberCount += 1;
+
+  startIfNeeded();
+
+  return () => {
+    listeners.delete(listener);
+    subscriberCount = Math.max(0, subscriberCount - 1);
+    stopIfPossible();
+  };
+}
+
+function getSnapshot() {
+  return snapshot;
+}
+
+function getServerSnapshot() {
+  // SSR: just return an initial snapshot
+  return snapshot;
+}
+
+/* -------------------- public hook -------------------- */
+
+export function useInfraStatus() {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

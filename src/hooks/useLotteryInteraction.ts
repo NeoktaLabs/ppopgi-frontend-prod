@@ -43,6 +43,25 @@ function safeTxHash(receipt: any): string {
   ).toLowerCase();
 }
 
+// -------------------- Phase 0: perf helpers --------------------
+
+function perfMark(name: string) {
+  try {
+    if (typeof performance === "undefined" || !performance.mark) return;
+    performance.mark(name);
+  } catch {}
+}
+
+function perfMeasure(name: string, startMark: string, endMark: string) {
+  try {
+    if (typeof performance === "undefined" || !performance.measure) return;
+    // Only measure if both marks exist (avoids noisy errors)
+    if (performance.getEntriesByName(startMark).length === 0) return;
+    if (performance.getEntriesByName(endMark).length === 0) return;
+    performance.measure(name, startMark, endMark);
+  } catch {}
+}
+
 // -------------------- App events --------------------
 
 type ActivityDetail = {
@@ -151,25 +170,57 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
   // ✅ revalidate ping (Home/Explore/ActivityBoard/etc)
   const delayedRevalRef = useRef<number | null>(null);
 
-  const emitRevalidate = useCallback((withDelayedPing = true) => {
-    try {
-      if (typeof window === "undefined") return;
-      window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
-    } catch {}
+  // Phase 0: track the "current action" marks for BUY and APPROVE flows
+  const actionRef = useRef<{
+    kind: "BUY" | "APPROVE" | null;
+    startMark?: string;
+    optimisticMark?: string;
+    confirmedMark?: string;
+    revalidatedMark?: string;
+  }>({ kind: null });
 
-    if (!withDelayedPing) return;
+  /**
+   * ✅ IMPORTANT:
+   * - Only user actions should use force=true (BUY/CREATE/CANCEL/WIN).
+   * - Approve is NOT a global state change => force=false.
+   */
+  const emitRevalidate = useCallback(
+    (opts?: { force?: boolean; withDelayedPing?: boolean }) => {
+      const force = !!opts?.force;
+      const withDelayedPing = opts?.withDelayedPing ?? true;
 
-    // delayed ping to catch subgraph ingest lag
-    try {
-      if (typeof window === "undefined") return;
-      if (delayedRevalRef.current != null) window.clearTimeout(delayedRevalRef.current);
-      delayedRevalRef.current = window.setTimeout(() => {
-        try {
-          window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
-        } catch {}
-      }, 6000);
-    } catch {}
-  }, []);
+      try {
+        if (typeof window === "undefined") return;
+        window.dispatchEvent(new CustomEvent("ppopgi:revalidate", { detail: { force } }));
+      } catch {}
+
+      // Phase 0: first revalidate mark (per action)
+      try {
+        const a = actionRef.current;
+        if (a?.startMark && !a.revalidatedMark) {
+          const m = `ppopgi:${a.kind || "ACTION"}:${lotteryId || "unknown"}:revalidated:${Date.now()}`;
+          a.revalidatedMark = m;
+          perfMark(m);
+          perfMeasure(`ppopgi:${a.kind || "ACTION"}:start_to_revalidated`, a.startMark, a.revalidatedMark);
+        }
+      } catch {}
+
+      if (!withDelayedPing) return;
+
+      // delayed ping to catch subgraph ingest lag
+      try {
+        if (typeof window === "undefined") return;
+        if (delayedRevalRef.current != null) window.clearTimeout(delayedRevalRef.current);
+        // Keep delayed ping within the short post-action burst window (~5s)
+        delayedRevalRef.current = window.setTimeout(() => {
+          try {
+            window.dispatchEvent(new CustomEvent("ppopgi:revalidate", { detail: { force } }));
+          } catch {}
+        }, 4_500);
+      } catch {}
+    },
+    [lotteryId]
+  );
 
   // ✅ optimistic store patch (instant list bump)
   const emitOptimisticBuy = useCallback(
@@ -199,6 +250,17 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
             },
           })
         );
+      } catch {}
+
+      // Phase 0: optimistic mark for BUY (how fast UI bumps locally)
+      try {
+        const a = actionRef.current;
+        if (a.kind === "BUY" && a.startMark && !a.optimisticMark) {
+          const m = `ppopgi:BUY:${lotteryId || "unknown"}:optimistic:${Date.now()}`;
+          a.optimisticMark = m;
+          perfMark(m);
+          perfMeasure("ppopgi:BUY:start_to_optimistic", a.startMark, a.optimisticMark);
+        }
       } catch {}
     },
     [lotteryId, data]
@@ -548,6 +610,11 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
       return;
     }
 
+    // Phase 0: start marks for APPROVE
+    const approveStart = `ppopgi:APPROVE:${lotteryId}:start:${Date.now()}`;
+    actionRef.current = { kind: "APPROVE", startMark: approveStart };
+    perfMark(approveStart);
+
     try {
       await refreshAllowance("preTx");
 
@@ -557,7 +624,13 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
         params: [lotteryId, MaxUint256],
       });
 
-      await sendAndConfirm(tx);
+      const receipt = await sendAndConfirm(tx);
+
+      // Phase 0: tx confirmed mark for APPROVE
+      const approveConfirmed = `ppopgi:APPROVE:${lotteryId}:confirmed:${Date.now()}`;
+      actionRef.current.confirmedMark = approveConfirmed;
+      perfMark(approveConfirmed);
+      perfMeasure("ppopgi:APPROVE:start_to_confirmed", approveStart, approveConfirmed);
 
       setBuyMsg("✅ Wallet prepared. You can now buy tickets.");
       setAllowance(MaxUint256 as any);
@@ -579,18 +652,24 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
 
       void refreshAllowance("postTx");
 
-      try {
-        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
-      } catch {}
+      // ✅ Approve is NOT a global “activity” action => soft revalidate only.
+      emitRevalidate({ force: false, withDelayedPing: false });
+
+      void receipt;
     } catch (e: any) {
       const { label } = parseTxError(e);
       setBuyMsg(label === "Purchase failed." ? "Prepare wallet failed." : label);
     }
-  }, [account?.address, usdcContract, lotteryId, sendAndConfirm, refreshAllowance, paymentTokenAddr]);
+  }, [account?.address, usdcContract, lotteryId, sendAndConfirm, refreshAllowance, paymentTokenAddr, emitRevalidate]);
 
   const buy = useCallback(async () => {
     setBuyMsg(null);
     if (!account?.address || !lotteryContract || !lotteryId) return;
+
+    // Phase 0: start marks for BUY
+    const buyStart = `ppopgi:BUY:${lotteryId}:start:${Date.now()}`;
+    actionRef.current = { kind: "BUY", startMark: buyStart };
+    perfMark(buyStart);
 
     try {
       await refreshAllowance("preTx");
@@ -620,6 +699,12 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
       });
 
       const receipt = await sendAndConfirm(tx);
+
+      // Phase 0: tx confirmed mark for BUY
+      const buyConfirmed = `ppopgi:BUY:${lotteryId}:confirmed:${Date.now()}`;
+      actionRef.current.confirmedMark = buyConfirmed;
+      perfMark(buyConfirmed);
+      perfMeasure("ppopgi:BUY:start_to_confirmed", buyStart, buyConfirmed);
 
       const txh = safeTxHash(receipt);
       const patchId = `buy:${lotteryId}:${txh || Date.now()}:${ticketCount}`;
@@ -671,7 +756,9 @@ export function useLotteryInteraction(lotteryId: string | null, isOpen: boolean)
       } catch {}
 
       void refreshAllowance("postTx");
-      emitRevalidate(true);
+
+      // ✅ BUY is a true user action => forced burst + delayed ping
+      emitRevalidate({ force: true, withDelayedPing: true });
     } catch (e: any) {
       const { label } = parseTxError(e);
       setBuyMsg(label);

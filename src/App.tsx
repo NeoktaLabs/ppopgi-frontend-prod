@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, lazy, Suspense } from "react";
 import { useAutoConnect, useActiveAccount, useActiveWallet, useDisconnect } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { thirdwebClient } from "./thirdweb/client";
@@ -9,22 +9,15 @@ import { ETHERLINK_CHAIN } from "./thirdweb/etherlink";
 import { MainLayout } from "./layouts/MainLayout";
 import { HomePage } from "./pages/HomePage";
 import { ExplorePage } from "./pages/ExplorePage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { AboutPage } from "./pages/AboutPage";
-import { FaqPage } from "./pages/FaqPage";
 
-// --- Components (Modals) ---
+// ✅ Keep SignIn + Disclaimer eager (small + frequently needed)
 import { SignInModal } from "./components/SignInModal";
-import { CreateLotteryModal } from "./components/CreateLotteryModal";
-import { LotteryDetailsModal } from "./components/LotteryDetailsModal";
-import { CashierModal } from "./components/CashierModal";
-import { SafetyProofModal } from "./components/SafetyProofModal";
 import { DisclaimerGate } from "./components/DisclaimerGate";
 
 // ✅ global sync refresher
 import { GlobalDataRefresher } from "./components/GlobalDataRefresher";
 
-// ✅ NEW: notifications + “while you were away”
+// ✅ notifications
 import { NotificationCenter } from "./components/NotificationCenter";
 
 // --- Hooks / State ---
@@ -32,6 +25,36 @@ import { useSession } from "./state/useSession";
 import { useAppRouting } from "./hooks/useAppRouting";
 import { useLotteryDetails } from "./hooks/useLotteryDetails";
 import { useLotteryStore } from "./hooks/useLotteryStore";
+
+// ==============================
+// ✅ Lazy-loaded pages (non-critical on first paint)
+// ==============================
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const AboutPage = lazy(() => import("./pages/AboutPage").then((m) => ({ default: m.AboutPage })));
+const FaqPage = lazy(() => import("./pages/FaqPage").then((m) => ({ default: m.FaqPage })));
+
+// ==============================
+// ✅ Lazy-loaded modals (heavy / not needed immediately)
+// ==============================
+const CreateLotteryModal = lazy(() =>
+  import("./components/CreateLotteryModal").then((m) => ({ default: m.CreateLotteryModal }))
+);
+const LotteryDetailsModal = lazy(() =>
+  import("./components/LotteryDetailsModal").then((m) => ({ default: m.LotteryDetailsModal }))
+);
+const CashierModal = lazy(() => import("./components/CashierModal").then((m) => ({ default: m.CashierModal })));
+const SafetyProofModal = lazy(() => import("./components/SafetyProofModal").then((m) => ({ default: m.SafetyProofModal })));
+
+// ✅ Tiny helper: best-effort preload on hover/click (keeps “instant” feel)
+const preload = {
+  dashboard: () => import("./pages/DashboardPage"),
+  about: () => import("./pages/AboutPage"),
+  faq: () => import("./pages/FaqPage"),
+  create: () => import("./components/CreateLotteryModal"),
+  details: () => import("./components/LotteryDetailsModal"),
+  cashier: () => import("./components/CashierModal"),
+  safety: () => import("./components/SafetyProofModal"),
+};
 
 type Page = "home" | "explore" | "dashboard" | "about" | "faq";
 
@@ -60,6 +83,18 @@ function setPageInUrl(next: Page) {
 }
 
 export default function App() {
+  // --- Phase 0: baseline perf marks (app mounted) ---
+  useEffect(() => {
+    try {
+      performance.mark("ppopgi:app_mounted");
+      if (performance.getEntriesByName("ppopgi:boot_start").length > 0) {
+        performance.measure("ppopgi:boot_to_app_mounted", "ppopgi:boot_start", "ppopgi:app_mounted");
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // 1) Thirdweb
   useAutoConnect({
     client: thirdwebClient,
@@ -76,7 +111,7 @@ export default function App() {
 
   // 3) Routing (page + lottery deep-link)
   const [page, setPage] = useState<Page>(() => (typeof window !== "undefined" ? getPageFromUrl() : "home"));
-  const { selectedLotteryId, openLottery, closeLottery } = useAppRouting(); // keep name for URL param compatibility
+  const { selectedLotteryId, openLottery, closeLottery } = useAppRouting();
 
   // ✅ store (same items used by cards)
   const store = useLotteryStore("app-modal", 20_000);
@@ -92,7 +127,6 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [cashierOpen, setCashierOpen] = useState(false);
 
-  // ✅ stable callback to open sign-in (used by layout + details modal + global events)
   const openSignIn = useCallback(() => setSignInOpen(true), []);
 
   // 5) Disclaimer gate — show by default on first load
@@ -107,13 +141,6 @@ export default function App() {
     setShowGate(false);
   };
 
-  // 6) Clock
-  const [nowMs, setNowMs] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
   // Actions
   const handleSignOut = () => {
     if (activeWallet) disconnect(activeWallet);
@@ -123,6 +150,10 @@ export default function App() {
   const [safetyId, setSafetyId] = useState<string | null>(null);
 
   const handleOpenSafety = (id: string) => {
+    // Preload the chunk so opening feels instant
+    try {
+      void preload.safety();
+    } catch {}
     closeLottery();
     setSafetyId(id);
   };
@@ -141,12 +172,6 @@ export default function App() {
     };
   }, [anyModalOpen]);
 
-  /**
-   * Navigate helper:
-   * - updates React state
-   * - updates URL (?page=...)
-   * - gates dashboard behind wallet
-   */
   const navigateTo = useCallback(
     (next: Page) => {
       if (next === "dashboard" && !account) {
@@ -156,17 +181,20 @@ export default function App() {
         return;
       }
 
+      // ✅ Preload page chunk on navigation (still lazy overall)
+      try {
+        if (next === "dashboard") void preload.dashboard();
+        if (next === "about") void preload.about();
+        if (next === "faq") void preload.faq();
+      } catch {}
+
       setPage(next);
       setPageInUrl(next);
     },
     [account, openSignIn]
   );
 
-  /**
-   * Sync page from URL on:
-   * - first load
-   * - browser back/forward
-   */
+  // Sync page from URL on back/forward
   const didInitRef = useRef(false);
   useEffect(() => {
     const applyFromUrl = () => {
@@ -191,7 +219,7 @@ export default function App() {
     return () => window.removeEventListener("popstate", applyFromUrl);
   }, [account, openSignIn]);
 
-  // 8) Session sync
+  // Session sync
   useEffect(() => {
     setSession({ account, connector: account ? "thirdweb" : null });
 
@@ -201,14 +229,17 @@ export default function App() {
     }
   }, [account, page, setSession]);
 
-  // 9) Global events
+  // Global events
   useEffect(() => {
     const onOpenCashier = () => {
-      if (account) setCashierOpen(true);
-      else openSignIn();
+      if (account) {
+        try {
+          void preload.cashier();
+        } catch {}
+        setCashierOpen(true);
+      } else openSignIn();
     };
 
-    // ✅ global sign-in request (used by LotteryCard fallback)
     const onOpenSignIn = () => {
       openSignIn();
     };
@@ -233,12 +264,8 @@ export default function App() {
 
   return (
     <>
-      <GlobalDataRefresher intervalMs={5000} />
-
-      {/* ✅ NEW: mid-screen toasts + “while you were away” summary */}
+      <GlobalDataRefresher intervalMs={15000} />
       <NotificationCenter />
-
-      {/* ✅ Always blocks the app until accepted (on first visit) */}
       <DisclaimerGate open={showGate} onAccept={handleAcceptGate} />
 
       <MainLayout
@@ -246,39 +273,70 @@ export default function App() {
         onNavigate={navigateTo}
         account={account}
         onOpenSignIn={openSignIn}
-        onOpenCreate={() => (account ? setCreateOpen(true) : openSignIn())}
-        onOpenCashier={() => (account ? setCashierOpen(true) : openSignIn())}
+        onOpenCreate={() => {
+          if (!account) return openSignIn();
+          try {
+            void preload.create();
+          } catch {}
+          setCreateOpen(true);
+        }}
+        onOpenCashier={() => {
+          if (!account) return openSignIn();
+          try {
+            void preload.cashier();
+          } catch {}
+          setCashierOpen(true);
+        }}
         onSignOut={handleSignOut}
         hideChrome={anyModalOpen}
       >
-        {page === "home" && <HomePage nowMs={nowMs} onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />}
-
+        {page === "home" && <HomePage onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />}
         {page === "explore" && <ExplorePage onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />}
 
+        {/* ✅ Lazy pages */}
         {page === "dashboard" && (
-          <DashboardPage account={account} onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />
+          <Suspense fallback={null}>
+            <DashboardPage account={account} onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />
+          </Suspense>
         )}
 
-        {page === "about" && <AboutPage />}
-        {page === "faq" && <FaqPage />}
+        {page === "about" && (
+          <Suspense fallback={null}>
+            <AboutPage />
+          </Suspense>
+        )}
+
+        {page === "faq" && (
+          <Suspense fallback={null}>
+            <FaqPage />
+          </Suspense>
+        )}
 
         {/* --- Modals --- */}
         <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
 
-        <CreateLotteryModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => {}} />
+        <Suspense fallback={null}>
+          <CreateLotteryModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => {}} />
+        </Suspense>
 
-        <CashierModal open={cashierOpen} onClose={() => setCashierOpen(false)} />
+        <Suspense fallback={null}>
+          <CashierModal open={cashierOpen} onClose={() => setCashierOpen(false)} />
+        </Suspense>
 
-        <LotteryDetailsModal
-          open={!!selectedLotteryId}
-          lotteryId={selectedLotteryId}
-          onClose={closeLottery}
-          initialLottery={selectedFromStore as any}
-          onOpenSignIn={openSignIn} // ✅ makes "Connect Wallet to Buy" open SignInModal
-        />
+        <Suspense fallback={null}>
+          <LotteryDetailsModal
+            open={!!selectedLotteryId}
+            lotteryId={selectedLotteryId}
+            onClose={closeLottery}
+            initialLottery={selectedFromStore as any}
+            onOpenSignIn={openSignIn}
+          />
+        </Suspense>
 
         {safetyId && safetyData && (
-          <SafetyProofModal open={!!safetyId} onClose={() => setSafetyId(null)} lottery={safetyData as any} />
+          <Suspense fallback={null}>
+            <SafetyProofModal open={!!safetyId} onClose={() => setSafetyId(null)} lottery={safetyData as any} />
+          </Suspense>
         )}
       </MainLayout>
     </>

@@ -176,6 +176,7 @@ export function useDashboardController() {
   const account = accountObj?.address ?? null;
   const { mutateAsync: sendAndConfirm } = useSendAndConfirmTransaction();
 
+  // ✅ KEEP polling as-is per your request
   const store = useLotteryStore("dashboard", 15_000);
   const allLotteries = useMemo(() => (store.items ?? []) as LotteryListItem[], [store.items]);
 
@@ -376,11 +377,8 @@ export function useDashboardController() {
         const userLots = await getUserLotteries();
         if (runId !== runIdRef.current) return;
 
-        // ✅ All rows for this user (keep for claim history & roles)
         const joinedRowsAll = (userLots ?? []).filter((x) => (x.user || "").toLowerCase() === myAddr);
 
-        // ✅ Joined tab should mean "actually bought tickets"
-        //    Prevents creator/feeRecipient rows that exist for accounting but have 0 tickets.
         const joinedRowsPurchased = joinedRowsAll.filter((x) => {
           try {
             return BigInt(x.ticketsPurchased ?? "0") > 0n;
@@ -389,7 +387,6 @@ export function useDashboardController() {
           }
         });
 
-        // ✅ Joined IDs only from purchased rows
         const joinedIds = joinedRowsPurchased.map((x) => normId(x.lottery));
 
         const storeById = new Map<string, LotteryListItem>();
@@ -435,7 +432,6 @@ export function useDashboardController() {
           })
           .slice(0, 600);
 
-        // ✅ IMPORTANT: keep lookup map from ALL rows (claim history / participatedEver)
         const joinedRowById = new Map<string, UserLotteryItem>();
         for (const row of joinedRowsAll) joinedRowById.set(normId(row.lottery), row);
 
@@ -584,7 +580,8 @@ export function useDashboardController() {
       return;
     }
     void (async () => {
-      await refreshLotteryStore(false, true);
+      // ✅ Initial bootstrap should be cached (NOT forced burst)
+      await refreshLotteryStore(false, false);
       await recompute(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -598,13 +595,15 @@ export function useDashboardController() {
 
   useEffect(() => {
     const onFocus = () => {
-      void refreshLotteryStore(true, true);
+      // ✅ Focus/visible is NOT a user action => cached refresh only
+      void refreshLotteryStore(true, false);
       void recompute(true);
     };
 
     const onVis = () => {
       if (document.visibilityState === "visible") {
-        void refreshLotteryStore(true, true);
+        // ✅ Visible again => cached refresh only
+        void refreshLotteryStore(true, false);
         void recompute(true);
       }
     };
@@ -635,10 +634,11 @@ export function useDashboardController() {
     [claimables, hiddenClaimables]
   );
 
-  function emitRevalidate() {
+  // ✅ Make revalidate support force flag (burst only after real actions)
+  function emitRevalidate(force = false) {
     try {
       if (typeof window === "undefined") return;
-      window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
+      window.dispatchEvent(new CustomEvent("ppopgi:revalidate", { detail: { force } }));
     } catch {}
   }
 
@@ -674,7 +674,9 @@ export function useDashboardController() {
       );
 
       clearRpcCacheFor(lid, account);
-      emitRevalidate();
+
+      // ✅ Claim is a real user action => forced burst
+      emitRevalidate(true);
 
       let stillHasSomething = true;
       try {
@@ -704,8 +706,11 @@ export function useDashboardController() {
       feeLotsCacheRef.current = null;
       feeLotsBackoffMsRef.current = 0;
 
-      await refreshLotteryStore(true, true);
+      // ✅ FIX #1: avoid double forcing.
+      // Forced revalidate already triggers the burst refresh in other stores.
+      // We only recompute local derived state.
       await recompute(true);
+
       return true;
     } catch (e) {
       console.error("Claim failed", e);
@@ -726,6 +731,8 @@ export function useDashboardController() {
     feeLotsCacheRef.current = null;
     feeLotsBackoffMsRef.current = 0;
 
+    // ✅ FIX #2: manual refresh should fetch the latest (user intent).
+    emitRevalidate(true);
     await refreshLotteryStore(false, true);
     await recompute(false);
   };

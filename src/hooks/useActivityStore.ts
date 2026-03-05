@@ -13,8 +13,12 @@ const MAX_ITEMS = 10;
 // Safety poll only (store does NOT do fast polling itself)
 const SAFETY_POLL_MS = 60_000;
 
-// After a user action, do a small "force-fresh" burst (catches indexer lag)
-const FORCE_FRESH_BURST_MS = [1_000, 2_000, 3_000];
+/**
+ * ✅ Burst schedule after a user action.
+ * We retry a few times inside the 5s window to catch indexer lag quickly
+ * without hammering long-term.
+ */
+const FORCE_FRESH_BURST_MS = [0, 1500, 3000, 4500];
 
 // Backoff when rate-limited
 const RATE_LIMIT_BACKOFF_MS = [10_000, 15_000, 30_000, 60_000, 120_000, 120_000];
@@ -92,24 +96,47 @@ function schedule(ms: number, forceFresh: boolean) {
   timer = window.setTimeout(() => void load(true, forceFresh), ms);
 }
 
+/**
+ * ✅ Revalidate dispatcher:
+ * - soft: derived UI recompute, cached store refresh
+ * - forced: user action -> burst force-fresh in other stores
+ */
 function dispatchRevalidateThrottledFactory() {
   let lastAt = 0;
-  return () => {
+  return (force = false) => {
     const now = Date.now();
     if (now - lastAt < 1_000) return;
     lastAt = now;
     try {
-      window.dispatchEvent(new CustomEvent("ppopgi:revalidate"));
+      window.dispatchEvent(new CustomEvent("ppopgi:revalidate", { detail: { force } }));
     } catch {}
   };
 }
 const dispatchRevalidate = dispatchRevalidateThrottledFactory();
 
+// ✅ Force-fresh window ONLY after user actions (burst)
+let forceFreshUntilMs = 0;
+
+// ✅ Your target: 5s burst window
+const FORCE_FRESH_WINDOW_MS = 5_000;
+
+function enterForceFreshWindow(ms = FORCE_FRESH_WINDOW_MS) {
+  forceFreshUntilMs = Math.max(forceFreshUntilMs, Date.now() + ms);
+}
+function inForceFreshWindow() {
+  return Date.now() < forceFreshUntilMs;
+}
+
 async function load(isBackground: boolean, forceFresh = false) {
+  const effectiveForceFresh = forceFresh || inForceFreshWindow();
+
+  // Background tab protection (unless it was a forced call, which still gets blocked here
+  // to avoid invisible hammering; it will catch up on focus/visible + next burst tick)
   if (isBackground && isHidden()) {
     schedule(SAFETY_POLL_MS, false);
     return;
   }
+
   if (inFlight) return;
   inFlight = true;
 
@@ -123,12 +150,17 @@ async function load(isBackground: boolean, forceFresh = false) {
     // Only show spinner if we truly have nothing
     if (state.items.length === 0) setState({ isLoading: true });
 
-    const data = await fetchGlobalActivity({ first: MAX_ITEMS, signal: ac.signal, forceFresh });
+    const data = await fetchGlobalActivity({
+      first: MAX_ITEMS,
+      signal: ac.signal,
+      forceFresh: effectiveForceFresh,
+    });
+
     if (ac.signal.aborted) return;
 
     const real = (data ?? []) as LocalActivityItem[];
 
-    // detect "new real item" to poke other stores
+    // detect "new real item" to poke other stores (soft)
     const prevRealHashes = new Set(state.items.filter((x) => !x.pending).map((x) => x.txHash));
     const nextRealHashes = new Set(real.map((x) => x.txHash));
 
@@ -155,15 +187,15 @@ async function load(isBackground: boolean, forceFresh = false) {
     schedule(SAFETY_POLL_MS, false);
 
     if (hasNew) {
-      dispatchRevalidate();
-      void refreshLotteryStore(true, true);
+      // ✅ NOT a user action. Indexer just caught up -> soft refresh only.
+      dispatchRevalidate(false);
+      void refreshLotteryStore(true, false);
     }
   } catch (e: any) {
     if (isAbortError(e)) return;
 
     console.error("[useActivityStore] load failed", e);
 
-    // surface note
     const rateLimited = isRateLimitError(e);
     setState({
       isLoading: false,
@@ -174,7 +206,6 @@ async function load(isBackground: boolean, forceFresh = false) {
       backoffStep = Math.min(backoffStep + 1, RATE_LIMIT_BACKOFF_MS.length - 1);
       schedule(RATE_LIMIT_BACKOFF_MS[backoffStep], false);
     } else {
-      // retry sooner if user initiated; otherwise wait a bit
       schedule(isBackground ? 15_000 : 10_000, false);
     }
   } finally {
@@ -182,7 +213,12 @@ async function load(isBackground: boolean, forceFresh = false) {
   }
 }
 
+/**
+ * ✅ Burst only after a user action (optimistic event).
+ * This allows activity to become "real" quickly without permanent hammering.
+ */
 function triggerForceFreshBurst() {
+  enterForceFreshWindow(FORCE_FRESH_WINDOW_MS);
   for (const ms of FORCE_FRESH_BURST_MS) {
     window.setTimeout(() => void load(true, true), ms);
   }
@@ -216,13 +252,32 @@ function start() {
       items: [item, ...state.items.filter((x) => x.txHash !== item.txHash)].slice(0, MAX_ITEMS),
     });
 
-    // poke the rest of the app + run a small force-fresh burst
-    dispatchRevalidate();
+    // ✅ This IS a user action -> forced revalidate + force-fresh burst
+    dispatchRevalidate(true);
     void refreshLotteryStore(true, true);
     triggerForceFreshBurst();
   };
 
   window.addEventListener("ppopgi:activity", onOptimistic as any);
+
+  /**
+   * ✅ Revalidate listener:
+   * - If {force:true} (user action), do ONE force-fresh load (+ 5s window)
+   * - Otherwise (soft tick), do cached load (no force)
+   */
+  const onRevalidate = (e: Event) => {
+    const ce = e as CustomEvent<{ force?: boolean }>;
+    const forced = !!ce?.detail?.force;
+
+    if (forced) {
+      enterForceFreshWindow(FORCE_FRESH_WINDOW_MS);
+      void load(true, true);
+      return;
+    }
+
+    void load(true, false);
+  };
+  window.addEventListener("ppopgi:revalidate", onRevalidate as any);
 
   const onFocus = () => void load(true, false);
   const onVis = () => {
@@ -231,6 +286,8 @@ function start() {
 
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVis);
+
+  // NOTE: singleton lifetime; no cleanup needed.
 }
 
 export function useActivityStore() {
@@ -241,7 +298,6 @@ export function useActivityStore() {
     const sub = () => force((x) => x + 1);
     subs.add(sub);
 
-    // ✅ FIX: cleanup must return void (not boolean)
     return () => {
       subs.delete(sub);
     };

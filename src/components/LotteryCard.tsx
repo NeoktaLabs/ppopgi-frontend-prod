@@ -10,6 +10,15 @@ import { fmtUsdcUi } from "../lib/format";
 const EXPLORER_URL = "https://explorer.etherlink.com/address/";
 const EXPLORER_TX_URL = "https://explorer.etherlink.com/tx/";
 
+// ==============================
+// ✅ Phase 4: Lazy chunk preloads (best-effort)
+// Keeps UI feeling instant while keeping initial bundle small.
+// ==============================
+const preload = {
+  details: () => import("../components/LotteryDetailsModal"),
+  safety: () => import("../components/SafetyProofModal"),
+};
+
 type HatchUI = {
   show: boolean;
   ready: boolean;
@@ -162,7 +171,7 @@ export function LotteryCard({
   const hostAddr = (lottery as any).creator || (lottery as any).owner;
 
   // ✅ creator cannot participate (same behavior as details modal)
-  const connectedAddr = normAddr((qbState as any)?.account); // requires hook returning state.account
+  const connectedAddr = normAddr((qbState as any)?.account);
   const creatorAddr = normAddr(hostAddr);
   const isCreatorConnected = !!connectedAddr && !!creatorAddr && connectedAddr === creatorAddr;
 
@@ -209,15 +218,9 @@ export function LotteryCard({
 
   const showSuccess = qbOpen && !!qbState.lastBuy;
 
-  // ✅ Gate logic:
-  // - if app told us explicitly the user is NOT signed in => gate
-  // - otherwise, fall back to “connected” from interaction hook
   const shouldGate = isSignedIn === false || (!isSignedIn && !qbState.isConnected);
   const blurBuy = qbOpen && shouldGate;
 
-  // ✅ Overlay priority:
-  // 1) creator block
-  // 2) sign-in / connect gate
   const showCreatorOverlay = qbOpen && isCreatorConnected && !showSuccess;
   const showConnectOverlay = qbOpen && !showCreatorOverlay && blurBuy && !showSuccess;
 
@@ -237,7 +240,9 @@ export function LotteryCard({
   }, [qbState.usdcBal, ticketPriceU]);
 
   const remainingCap = Math.max(0, Number(qbMath.maxBuy || 0));
-  const effectiveMaxBuy = Number.isFinite(affordableMaxBuy) ? Math.max(0, Math.min(remainingCap, affordableMaxBuy)) : remainingCap;
+  const effectiveMaxBuy = Number.isFinite(affordableMaxBuy)
+    ? Math.max(0, Math.min(remainingCap, affordableMaxBuy))
+    : remainingCap;
 
   const uiMaxForStepper = Math.max(1, effectiveMaxBuy);
   const uiTicket = clampTicketsUi(qbState.tickets);
@@ -283,20 +288,28 @@ export function LotteryCard({
     if (!isLiveForCard) handleCollapseQuickBuy();
   }, [qbOpen, isLiveForCard, handleCollapseQuickBuy]);
 
+  // ✅ Phase 4: Preload details chunk when user indicates intent
+  const warmDetails = useCallback(() => {
+    try {
+      void preload.details();
+    } catch {}
+  }, []);
+
   const handleCardClick = useCallback(() => {
     if (qbOpen) {
       handleCollapseQuickBuy();
       return;
     }
+    // warmDetails() is already called on hover/touch, but calling again is safe
+    warmDetails();
     onOpen(lottery.id);
-  }, [qbOpen, handleCollapseQuickBuy, onOpen, lottery.id]);
+  }, [qbOpen, handleCollapseQuickBuy, onOpen, lottery.id, warmDetails]);
 
   const handleBuyClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!isLiveForCard) return;
 
-      // ✅ If caller explicitly says "not signed in", open sign-in instead of expanding
       if (isSignedIn === false) {
         requestSignIn();
         return;
@@ -317,11 +330,27 @@ export function LotteryCard({
 
   const handleCreatorOverlayClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    // no-op: creator cannot participate
+    // no-op
+  }, []);
+
+  const handleShieldWarm = useCallback(() => {
+    // don't stop propagation here; only warm
+    try {
+      void preload.safety();
+    } catch {}
   }, []);
 
   return (
-    <div className={cardClass} onClick={handleCardClick} role="button" tabIndex={0}>
+    <div
+      className={cardClass}
+      onClick={handleCardClick}
+      role="button"
+      tabIndex={0}
+      // ✅ Warm details on intent (mouse + touch)
+      onMouseEnter={warmDetails}
+      onFocus={warmDetails}
+      onTouchStart={warmDetails}
+    >
       <div className="rc-notch left" />
       <div className="rc-notch right" />
       {ui.copyMsg && <div className="rc-toast">{ui.copyMsg}</div>}
@@ -335,6 +364,9 @@ export function LotteryCard({
         <div className="rc-actions">
           <button
             className="rc-shield-btn"
+            onMouseEnter={handleShieldWarm}
+            onFocus={handleShieldWarm}
+            onTouchStart={handleShieldWarm}
             onClick={(e) => {
               e.stopPropagation();
               onOpenSafety?.(lottery.id);
@@ -464,9 +496,6 @@ export function LotteryCard({
         <div className="rc-perforation-line" />
 
         <div className="rc-stub-content" onClick={(e) => e.stopPropagation()}>
-          {/* =========================
-              QUICK BUY (collapsed)
-             ========================= */}
           {!qbOpen && (
             <>
               {isLiveForCard ? (
@@ -494,12 +523,8 @@ export function LotteryCard({
             </>
           )}
 
-          {/* =========================
-              QUICK BUY (expanded)
-             ========================= */}
           {qbOpen && (
             <div className="rc-qb-wrap">
-              {/* ✅ Global Close Button (Sits above overlays) */}
               <button
                 className="rc-qb-close"
                 onClick={(e) => {
@@ -512,7 +537,6 @@ export function LotteryCard({
               </button>
 
               {showSuccess && qbState.lastBuy ? (
-                // ✅ SUCCESS VIEW
                 <div style={{ textAlign: "center", padding: "4px 4px 0 4px" }}>
                   <div style={{ fontWeight: 900, fontSize: 14, marginBottom: 6 }}>✓ Tickets Purchased!</div>
                   <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 10 }}>
@@ -547,7 +571,6 @@ export function LotteryCard({
                   )}
                 </div>
               ) : (
-                // ✅ COMPACT BUY VIEW
                 <div className={`rc-qb-inner ${blurBuy || showCreatorOverlay ? "blurred" : ""}`}>
                   <div className="rc-qb-top">
                     <span>Bal: {balanceUi} USDC</span>
@@ -613,7 +636,6 @@ export function LotteryCard({
                 </div>
               )}
 
-              {/* ✅ Creator cannot participate overlay (highest priority) */}
               {showCreatorOverlay && (
                 <button
                   type="button"
@@ -625,9 +647,13 @@ export function LotteryCard({
                 </button>
               )}
 
-              {/* ✅ Connect overlay (only if not creator) */}
               {showConnectOverlay && (
-                <button type="button" className="rc-qb-overlay" onClick={handleOverlayConnectClick} aria-label="Open sign in">
+                <button
+                  type="button"
+                  className="rc-qb-overlay"
+                  onClick={handleOverlayConnectClick}
+                  aria-label="Open sign in"
+                >
                   <span>Join PPopgi (뽑기) !</span>
                 </button>
               )}

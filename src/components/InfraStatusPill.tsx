@@ -41,7 +41,6 @@ function dotLevel(level: string): string {
   const l = String(level || "").toLowerCase();
 
   // ✅ Treat bot lifecycle states as healthy
-  // (Many status endpoints call these "running"/"ready"/"ok")
   if (l === "running") return "healthy";
   if (l === "ready") return "healthy";
   if (l === "ok") return "healthy";
@@ -68,10 +67,15 @@ export function InfraStatusPill() {
   }, [s.bot?.running, s.bot?.level]);
 
   // ✅ Overall health: running bot should not count as degraded.
-  const overallHealthy =
-    idxDot === "healthy" &&
-    rpcDot === "healthy" &&
-    botDot === "healthy";
+  const overallHealthy = idxDot === "healthy" && rpcDot === "healthy" && botDot === "healthy";
+
+  const updatedLabel = useMemo(() => {
+    try {
+      return new Date(s.tsMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "";
+    }
+  }, [s.tsMs]);
 
   // ---------------------------
   // COLLAPSED VIEW (DEFAULT)
@@ -94,22 +98,11 @@ export function InfraStatusPill() {
           <div className="isp-summary-text">
             <span className="isp-summary-title">Ppopgi Systems Status</span>
             <span className="isp-summary-state">
-              {s.isLoading
-                ? "Checking..."
-                : overallHealthy
-                ? "All Systems Operational"
-                : "Some Systems Degraded"}
+              {s.isLoading ? "Checking..." : overallHealthy ? "All Systems Operational" : "Some Systems Degraded"}
             </span>
           </div>
 
-          {!s.isLoading && (
-            <span className="isp-summary-updated">
-              {new Date(s.tsMs).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          )}
+          {!s.isLoading && <span className="isp-summary-updated">{updatedLabel}</span>}
         </button>
       </div>
     );
@@ -129,9 +122,7 @@ export function InfraStatusPill() {
               <span className="isp-item-name">Indexer</span>
             </div>
             <div className="isp-item-data">
-              <div className="isp-item-val">
-                {fmtBlocksBehind(s.indexer.blocksBehind)}
-              </div>
+              <div className="isp-item-val">{fmtBlocksBehind(s.indexer.blocksBehind)}</div>
               <div className="isp-item-sub">{s.indexer.label}</div>
             </div>
           </div>
@@ -143,9 +134,7 @@ export function InfraStatusPill() {
               <span className="isp-item-name">Etherlink RPC</span>
             </div>
             <div className="isp-item-data">
-              <div className="isp-item-val">
-                {fmtLatency(s.rpc.latencyMs)}
-              </div>
+              <div className="isp-item-val">{fmtLatency(s.rpc.latencyMs)}</div>
               <div className="isp-item-sub">{s.rpc.label}</div>
             </div>
           </div>
@@ -157,25 +146,15 @@ export function InfraStatusPill() {
               <span className="isp-item-name">Finalizer Bot</span>
             </div>
             <div className="isp-item-data">
-              <div className="isp-item-val">
-                {s.bot?.running ? "Running" : "Ready"}
-              </div>
+              <div className="isp-item-val">{s.bot?.running ? "Running" : "Ready"}</div>
               <div className="isp-item-sub">
-                Last: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)} | Next:{" "}
-                {fmtInSec(s.bot?.secondsToNextRun ?? null)}
+                Last: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)} | Next: {fmtInSec(s.bot?.secondsToNextRun ?? null)}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="isp-notch-foot">
-          {s.isLoading
-            ? "Checking..."
-            : `Updated ${new Date(s.tsMs).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}`}
-        </div>
+        <div className="isp-notch-foot">{s.isLoading ? "Checking..." : `Updated ${updatedLabel}`}</div>
 
         <div style={{ textAlign: "center", marginTop: 8 }}>
           <button

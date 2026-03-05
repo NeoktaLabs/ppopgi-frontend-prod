@@ -111,7 +111,12 @@ export type GlobalActivityItem = {
   txHash: string; // unique key for UI animations
 };
 
-type FetchOpts = { signal?: AbortSignal; forceFresh?: boolean };
+// ✅ Phase 3: allow extra headers + client-side request coalescing
+type FetchOpts = {
+  signal?: AbortSignal;
+  forceFresh?: boolean;
+  headers?: Record<string, string>;
+};
 
 function mustEnv(name: string): string {
   const v = (import.meta as any).env?.[name];
@@ -126,6 +131,34 @@ function normHex(v: unknown): string | null {
   return v.toLowerCase();
 }
 
+// -------------------- Client in-flight dedupe --------------------
+
+type InflightKey = string;
+const inflight = new Map<InflightKey, Promise<any>>();
+
+function stableStringify(value: any): string {
+  const seen = new WeakSet();
+
+  const helper = (v: any): any => {
+    if (v === null || typeof v !== "object") return v;
+    if (seen.has(v)) return null;
+    seen.add(v);
+
+    if (Array.isArray(v)) return v.map(helper);
+
+    const out: Record<string, any> = {};
+    for (const k of Object.keys(v).sort()) out[k] = helper(v[k]);
+    return out;
+  };
+
+  return JSON.stringify(helper(value));
+}
+
+function inflightKey(url: string, query: string, variables: Record<string, any>, opts: FetchOpts): string {
+  const hdr = opts.headers ? stableStringify(opts.headers) : "";
+  return `${url}::${opts.forceFresh ? "1" : "0"}::${hdr}::${query}::${stableStringify(variables)}`;
+}
+
 // -------------------- GraphQL fetch --------------------
 
 async function gqlFetch<T>(
@@ -134,37 +167,56 @@ async function gqlFetch<T>(
   variables: Record<string, any>,
   opts: FetchOpts = {}
 ): Promise<T> {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (opts.forceFresh) headers["x-force-fresh"] = "1";
+  const key = inflightKey(url, query, variables, opts);
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query, variables }),
-    signal: opts.signal,
+  const existing = inflight.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const p = (async () => {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+
+    // ✅ Your CF worker expects this to bypass edge cache
+    if (opts.forceFresh) headers["x-force-fresh"] = "1";
+
+    // ✅ Allow callers to add/override headers
+    if (opts.headers) {
+      for (const [k, v] of Object.entries(opts.headers)) headers[k] = v;
+    }
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query, variables }),
+      signal: opts.signal,
+    });
+
+    const text = await res.text();
+
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      if (!res.ok) throw new Error(`SUBGRAPH_HTTP_ERROR_${res.status}`);
+      throw new Error("SUBGRAPH_BAD_JSON");
+    }
+
+    if (!res.ok) {
+      console.error("Subgraph HTTP error", res.status, json);
+      throw new Error(`SUBGRAPH_HTTP_ERROR_${res.status}`);
+    }
+
+    if (json?.errors?.length) {
+      console.error("Subgraph GQL error", json.errors);
+      throw new Error("SUBGRAPH_GQL_ERROR");
+    }
+
+    return json.data as T;
+  })().finally(() => {
+    inflight.delete(key);
   });
 
-  const text = await res.text();
-
-  let json: any = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    if (!res.ok) throw new Error(`SUBGRAPH_HTTP_ERROR_${res.status}`);
-    throw new Error("SUBGRAPH_BAD_JSON");
-  }
-
-  if (!res.ok) {
-    console.error("Subgraph HTTP error", res.status, json);
-    throw new Error(`SUBGRAPH_HTTP_ERROR_${res.status}`);
-  }
-
-  if (json?.errors?.length) {
-    console.error("Subgraph GQL error", json.errors);
-    throw new Error("SUBGRAPH_GQL_ERROR");
-  }
-
-  return json.data as T;
+  inflight.set(key, p);
+  return p;
 }
 
 // -------------------- Status mapping --------------------
@@ -643,7 +695,6 @@ export async function fetchGlobalActivity(
     }
   `;
 
-  // ✅ Server-side "since" filter (timestamp_gt) — supported by your schema (timestamp: BigInt!)
   const queryWithSince = `
     query GlobalFeedSince($first: Int!, $since: BigInt!) {
       buys: ticketPurchaseEvents(

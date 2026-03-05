@@ -48,7 +48,6 @@ function fmtUSDC(v: bigint | number | string, opts?: { decimals?: number; maxFra
 }
 
 type Props = {
-  nowMs: number;
   onOpenLottery: (id: string) => void;
   onOpenSafety: (id: string) => void;
 };
@@ -108,9 +107,16 @@ function BannerSlider() {
   );
 }
 
-export function HomePage({ nowMs, onOpenLottery, onOpenSafety }: Props) {
+export function HomePage({ onOpenLottery, onOpenSafety }: Props) {
   useEffect(() => {
     document.title = "Ppopgi 뽑기 — Home";
+  }, []);
+
+  // Phase 1: local clock (only HomePage re-renders, not the whole app)
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(t);
   }, []);
 
   const infra = useInfraStatus();
