@@ -2,10 +2,12 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Phase 2:
- * - Make infra polling a true singleton (one poll loop app-wide)
- * - Add smart bot-only “poke” handling + focus/visibility revalidate
- * - Keep UI “alive” with locally computed countdowns (1s tick) without duplicating network calls
+ * Phase 2 (updated):
+ * - Keep infra polling a true singleton (one loop app-wide)
+ * - Split "core" infra (RPC + /meta) from bot polling
+ * - Core infra: only on page load + refresh + every 60s (with jitter)
+ * - Bot: keep your existing behavior (full poll cadence + bot-only + zero-mode)
+ * - Add jitter + focus/visibility cooldown to avoid spikes
  */
 
 type IndexerLevel = "healthy" | "degraded" | "late" | "down";
@@ -105,6 +107,13 @@ function isHidden() {
   } catch {
     return false;
   }
+}
+
+function jitterMs(baseMs: number, pct = 0.1, minMs = 2_000): number {
+  const p = Math.max(0, Math.min(0.5, pct));
+  const delta = baseMs * p;
+  const out = Math.floor(baseMs + (Math.random() * 2 - 1) * delta);
+  return Math.max(minMs, out);
 }
 
 /* -------------------- status mapping -------------------- */
@@ -238,25 +247,45 @@ const listeners = new Set<Listener>();
 let started = false;
 let subscriberCount = 0;
 
+// Core infra loop (RPC + /meta)
+let corePollTimer: number | null = null;
+
+// Bot/full loop (kept as-is, but jittered)
 let fullPollTimer: number | null = null;
+
+// 1s countdown loop
 let secondTickTimer: number | null = null;
 
+// Bot near-zero burst (kept as-is)
 let botZeroTimer: number | null = null;
 let botZeroTries = 0;
 let botZeroBackoffMs = 15_000;
 
+let fetchingCore = false; // NEW: core mutex
 let fetchingFull = false;
 let fetchingBot = false;
 
+// Separate timestamps so "stale" logic doesn't get confused
+let lastCoreAtMs = 0;
+let lastFullAtMs = 0;
+let lastBotAtMs = 0;
+
 let lastPokeAtMs = 0;
 const POKE_THROTTLE_MS = 15_000;
+
+// Focus/visibility cooldown to prevent double-fire spikes
+const FOCUS_BOT_COOLDOWN_MS = 10_000;
+const FOCUS_CORE_COOLDOWN_MS = 15_000;
+const FOCUS_FULL_COOLDOWN_MS = 30_000;
 
 const subgraphUrl = mustEnv("VITE_SUBGRAPH_URL");
 const rpcUrl = mustEnv("VITE_ETHERLINK_RPC_URL");
 const botUrl = env("VITE_FINALIZER_STATUS_URL")?.trim() || null;
 
-// Polling cadence:
-// - default 30s, min 15s (Phase 2). You can override via VITE_INFRA_POLL_MS.
+// Core infra cadence (fixed): 60s (as requested)
+const CORE_POLL_MS = 60_000;
+
+// Bot/full polling cadence (kept from env; jittered)
 const pollMs = (() => {
   const v = env("VITE_INFRA_POLL_MS");
   const n = v ? Number(v) : 30_000;
@@ -292,9 +321,9 @@ function mkInitial(): InfraStatus {
     },
     overall: { level: "down", label: "Issues" },
     isLoading: true,
-    pollMs,
-    nextPollMs: now + pollMs,
-    secondsToNextPoll: Math.floor(pollMs / 1000),
+    pollMs: CORE_POLL_MS, // UI now reflects core cadence
+    nextPollMs: now + CORE_POLL_MS,
+    secondsToNextPoll: Math.floor(CORE_POLL_MS / 1000),
   };
 }
 
@@ -322,6 +351,10 @@ async function runBotOnlyOnce() {
   if (isHidden()) return;
   if (fetchingBot) return;
 
+  // small throttle to prevent accidental double hits (focus+vis+interval)
+  const now0 = Date.now();
+  if (now0 - lastBotAtMs < 2_000) return;
+
   fetchingBot = true;
   try {
     const w = await fetchBotStatus(botUrl, 5000);
@@ -344,6 +377,8 @@ async function runBotOnlyOnce() {
     const now = Date.now();
     const liveSince = lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : sinceWire;
     const liveTo = nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : toWire;
+
+    lastBotAtMs = now;
 
     patchSnapshot((prev) => {
       const overall = worstOverall(prev.indexer.level, prev.rpc.level, botLevel);
@@ -369,6 +404,7 @@ async function runBotOnlyOnce() {
       };
     });
   } catch (e: any) {
+    lastBotAtMs = Date.now();
     patchSnapshot((prev) => {
       const overall = worstOverall(prev.indexer.level, prev.rpc.level, "unknown");
       return {
@@ -387,7 +423,86 @@ async function runBotOnlyOnce() {
   }
 }
 
-/* -------------------- full refresh (rpc + meta + bot) -------------------- */
+/* -------------------- core refresh (rpc + meta) -------------------- */
+
+async function runCoreOnce() {
+  if (fetchingCore) return;
+  if (isHidden()) return;
+
+  fetchingCore = true;
+
+  const fetchedAtMs = Date.now();
+  const nextPollAt = fetchedAtMs + CORE_POLL_MS;
+
+  try {
+    // ---- RPC ----
+    let rpcOk = false;
+    let rpcLatency: number | null = null;
+    let headBlock: number | null = null;
+    let rpcErr: string | undefined;
+
+    try {
+      const r = await rpcEthBlockNumber(rpcUrl, 4000);
+      rpcLatency = r.latencyMs;
+      headBlock = r.block;
+      rpcOk = true;
+    } catch (e: any) {
+      rpcOk = false;
+      rpcErr = String(e?.message || e || "rpc_error");
+    }
+
+    const rpcS = rpcStatus(rpcLatency, rpcOk);
+
+    // ---- Subgraph meta ----
+    let indexedBlock: number | null = null;
+    let behind: number | null = null;
+    let subErr: string | undefined;
+
+    try {
+      indexedBlock = await subgraphIndexedBlock(subgraphUrl, 5000);
+      if (headBlock !== null) behind = Math.max(0, headBlock - indexedBlock);
+    } catch (e: any) {
+      subErr = String(e?.message || e || "subgraph_error");
+    }
+
+    const idxS = indexerStatus(behind);
+
+    const now = Date.now();
+    lastCoreAtMs = now;
+
+    patchSnapshot((prev) => {
+      const overall = worstOverall(idxS.level, rpcS.level, prev.bot.level);
+      return {
+        ...prev,
+        tsMs: fetchedAtMs,
+        indexer: {
+          level: idxS.level,
+          label: idxS.label,
+          blocksBehind: behind,
+          headBlock,
+          indexedBlock,
+          error: subErr,
+        },
+        rpc: {
+          level: rpcS.level,
+          label: rpcS.label,
+          latencyMs: rpcLatency,
+          ok: rpcOk,
+          error: rpcErr,
+        },
+        overall,
+        isLoading: false,
+        pollMs: CORE_POLL_MS,
+        nextPollMs: nextPollAt,
+        secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - now) / 1000)),
+      };
+    });
+  } finally {
+    fetchingCore = false;
+  }
+}
+
+/* -------------------- full refresh (kept; used on "stale" only) -------------------- */
 
 async function runFullOnce() {
   if (fetchingFull) return;
@@ -471,6 +586,8 @@ async function runFullOnce() {
 
         if (lastRunMs !== null) nextRunMs = lastRunMs + finalizerEverySec * 1000;
         else nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
+
+        lastBotAtMs = Date.now();
       } catch (e: any) {
         botErr = String(e?.message || e || "bot_error");
         botLevel = "unknown";
@@ -483,6 +600,9 @@ async function runFullOnce() {
     const now = Date.now();
     const liveSince = lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : sinceWire;
     const liveTo = nextRunMs !== null ? Math.max(0, Math.floor((nextRunMs - now) / 1000)) : toWire;
+
+    lastFullAtMs = now;
+    lastCoreAtMs = now;
 
     setSnapshot({
       tsMs: fetchedAtMs,
@@ -517,7 +637,7 @@ async function runFullOnce() {
       },
       overall,
       isLoading: false,
-      pollMs,
+      pollMs: CORE_POLL_MS, // UI shows core cadence
       nextPollMs: nextPollAt,
       secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - now) / 1000)),
     });
@@ -545,8 +665,7 @@ function maybeStartBotZeroMode() {
   const now = Date.now();
 
   // If nextRunMs is very stale, don't hammer every 5s indefinitely.
-  const staleSchedule =
-    snapshot.bot.nextRunMs != null ? snapshot.bot.nextRunMs < now - 60_000 : false;
+  const staleSchedule = snapshot.bot.nextRunMs != null ? snapshot.bot.nextRunMs < now - 60_000 : false;
 
   const shouldZeroPoll = secToNext === 0 && !staleSchedule;
 
@@ -614,12 +733,18 @@ function tickEverySecond() {
 }
 
 function onFocusOrVisible() {
-  // On focus, do a cheap bot refresh immediately.
-  void runBotOnlyOnce();
+  const now = Date.now();
 
-  // If we've been away for a while, also do a full refresh.
-  const staleFull = Date.now() - snapshot.tsMs > Math.max(60_000, pollMs * 2);
-  if (staleFull) void runFullOnce();
+  // Bot: cheap refresh, but avoid double fire
+  if (botUrl && now - lastBotAtMs > FOCUS_BOT_COOLDOWN_MS) void runBotOnlyOnce();
+
+  // Core: refresh if stale, but avoid double fire
+  const staleCore = now - lastCoreAtMs > CORE_POLL_MS;
+  if (staleCore && now - lastCoreAtMs > FOCUS_CORE_COOLDOWN_MS) void runCoreOnce();
+
+  // Full: only if we've been away for a while (and cooldown)
+  const staleFull = now - snapshot.tsMs > Math.max(60_000, pollMs * 2);
+  if (staleFull && now - lastFullAtMs > FOCUS_FULL_COOLDOWN_MS) void runFullOnce();
 }
 
 function onPokeRevalidate() {
@@ -633,11 +758,24 @@ function startIfNeeded() {
   if (started) return;
   started = true;
 
-  // First full fetch ASAP
-  void runFullOnce();
+  // First checks ASAP on page load:
+  void runCoreOnce();
+  void runBotOnlyOnce();
 
-  // Full polling loop
-  fullPollTimer = window.setInterval(() => void runFullOnce(), pollMs);
+  // Core loop: setTimeout loop with jitter to avoid herd spikes
+  const coreLoop = () => {
+    void runCoreOnce();
+    corePollTimer = window.setTimeout(coreLoop, jitterMs(CORE_POLL_MS, 0.1, 5_000));
+  };
+  corePollTimer = window.setTimeout(coreLoop, jitterMs(2_000, 0.5, 500));
+
+  // Existing full polling loop (kept) but jittered (so it won't align across users)
+  // If you want to stop bot being polled via full loop later, we can remove this.
+  const fullLoop = () => {
+    void runFullOnce();
+    fullPollTimer = window.setTimeout(fullLoop, jitterMs(pollMs, 0.1, 5_000));
+  };
+  fullPollTimer = window.setTimeout(fullLoop, jitterMs(pollMs, 0.1, 5_000));
 
   // 1s tick for countdowns
   secondTickTimer = window.setInterval(tickEverySecond, 1000);
@@ -657,8 +795,12 @@ function stopIfPossible() {
 
   started = false;
 
+  if (corePollTimer != null) {
+    window.clearTimeout(corePollTimer);
+    corePollTimer = null;
+  }
   if (fullPollTimer != null) {
-    window.clearInterval(fullPollTimer);
+    window.clearTimeout(fullPollTimer);
     fullPollTimer = null;
   }
   if (secondTickTimer != null) {
@@ -670,8 +812,6 @@ function stopIfPossible() {
 
   window.removeEventListener("focus", onFocusOrVisible);
   window.removeEventListener("ppopgi:revalidate", onPokeRevalidate as EventListener);
-  // visibilitychange listener was anonymous; we keep it simple and leave it (low risk),
-  // but if you want strict cleanup, we can name+remove it.
 
   // reset poke throttle
   lastPokeAtMs = 0;

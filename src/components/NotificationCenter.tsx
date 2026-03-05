@@ -20,13 +20,13 @@ type ActivityItem = {
   pending?: boolean;
 };
 
-type ToastKind = "info" | "success" | "danger";
+type ToastKind = "info" | "success" | "danger" | "neutral";
 
 type Toast = {
   id: string;
   kind: ToastKind;
-  title: string;
-  body?: string;
+  title: string; 
+  body?: string; 
   showConfetti?: boolean;
 };
 
@@ -42,7 +42,7 @@ type SummaryModal = {
   lines: SummaryLine[];
 };
 
-// 5 seconds total duration
+// 6 seconds total duration
 const TOAST_MS = 6000;
 
 const LS_TOASTS_ENABLED_A = "ppopgi:toastEnabled";
@@ -329,24 +329,38 @@ export function NotificationCenter() {
       const amCreator = !!creator && creator === meLc;
       const amParticipant = isParticipant(lotId);
 
-      // --- TEXT FORMATTING FOR ONE-LINE ANNOUNCEMENT ---
-      // We put the key info in 'title' so it shows up bold/prominent
-
+      // BUY (blue)
       if (type === "BUY" && amCreator && subj !== meLc) {
-        showToast({ id: `t:${txHash}`, kind: "info", title: `🎟️ ${value} tickets sold on “${name}”` });
+        showToast({
+          id: `t:${txHash}`,
+          kind: "info",
+          title: `Nice! ${value} ticket${value === "1" ? "" : "s"} sold on “${name}”.`,
+        });
         continue;
       }
 
+      // CANCEL (red)
       if (type === "CANCEL" && amParticipant) {
-        showToast({ id: `t:${txHash}`, kind: "danger", title: `⛔ “${name}” canceled! Head to your dashboard to reclaim your ticket(s)!` });
+        showToast({
+          id: `t:${txHash}`,
+          kind: "danger",
+          title: `“${name}” was canceled (not enough tickets).`,
+          body: `Head to your dashboard to reclaim your ticket(s).`,
+        });
         continue;
       }
 
       if (type === "CANCEL" && amCreator) {
-        showToast({ id: `t:${txHash}`, kind: "danger", title: `⛔ Your lottery “${name}” was canceled. Minimum tickets not reached.` });
+        showToast({
+          id: `t:${txHash}`,
+          kind: "danger",
+          title: `Your lottery “${name}” was canceled.`,
+          body: `Not enough tickets sold. Head to your dashboard.`,
+        });
         continue;
       }
 
+      // WIN (gold / grey)
       if (type === "WIN") {
         const potUi = fmtUsdcFromU6(value);
 
@@ -354,19 +368,30 @@ export function NotificationCenter() {
           showToast({
             id: `t:${txHash}`,
             kind: "success",
-            title: `🏆 CONGRATULATIONS! YOU WON ${potUi} USDC on “${name}”!`,
+            title: `You won ${potUi} USDC on “${name}”!`,
+            body: `Head to your dashboard to claim your prize.`,
             showConfetti: true,
           });
           continue;
         }
 
         if (amParticipant) {
-          showToast({ id: `t:${txHash}`, kind: "info", title: `✅ “${name}” ended — Winner: ${shortAddr(subj)}` });
+          showToast({
+            id: `t:${txHash}`,
+            kind: "neutral",
+            title: `Unfortunately, you didn’t win “${name}”.`,
+            body: `Winner: ${shortAddr(subj)} — better luck next time!`,
+          });
           continue;
         }
 
         if (amCreator) {
-          showToast({ id: `t:${txHash}`, kind: "success", title: `🏁 “${name}” finished — Revenue ready` });
+          showToast({
+            id: `t:${txHash}`,
+            kind: "success",
+            title: `“${name}” finished successfully.`,
+            body: `Head to your dashboard to claim your ticket sales.`,
+          });
           continue;
         }
       }
@@ -401,26 +426,54 @@ export function NotificationCenter() {
         const amParticipant = participated.has(lotId);
 
         if (type === "BUY" && amCreator && subj !== meLc) {
-          lines.push({ icon: "🎟️", text: `${it.value} tickets sold on “${name}”`, time: when });
+          lines.push({ icon: "🎟️", text: `Nice! ${it.value} ticket(s) sold on “${name}”.`, time: when });
           continue;
         }
+
         if (type === "CANCEL") {
-          if (amParticipant) lines.push({ icon: "⛔", text: `“${name}” canceled (refund available)`, time: when });
-          else if (amCreator) lines.push({ icon: "⛔", text: `Your lottery “${name}” canceled`, time: when });
+          if (amParticipant) {
+            lines.push({
+              icon: "⛔",
+              text: `“${name}” was canceled. Head to the dashboard to reclaim your ticket(s).`,
+              time: when,
+            });
+          } else if (amCreator) {
+            lines.push({
+              icon: "⛔",
+              text: `Your lottery “${name}” was canceled. Head to the dashboard to handle refunds.`,
+              time: when,
+            });
+          }
           continue;
         }
+
         if (type === "WIN") {
           const potUi = fmtUsdcFromU6(it.value);
+
           if (subj === meLc) {
-            lines.push({ icon: "🏆", text: `YOU WON ${potUi} USDC on “${name}”!`, time: when });
+            lines.push({
+              icon: "🏆",
+              text: `You won ${potUi} USDC on “${name}”! Claim in dashboard.`,
+              time: when,
+            });
             continue;
           }
+
           if (amParticipant) {
-            lines.push({ icon: "✅", text: `“${name}” finalized and someone won! Better luck next time!`, time: when });
+            lines.push({
+              icon: "🩶",
+              text: `Didn’t win “${name}”. Winner: ${shortAddr(subj)}.`,
+              time: when,
+            });
             continue;
           }
+
           if (amCreator) {
-            lines.push({ icon: "🏁", text: `“${name}” finished successfully. Head to the dashboard to reclaim your tickets revenue!`, time: when });
+            lines.push({
+              icon: "💰",
+              text: `“${name}” finished successfully. Claim ticket sales in dashboard.`,
+              time: when,
+            });
             continue;
           }
         }
@@ -486,66 +539,89 @@ export function NotificationCenter() {
 
   if (!toast && !summary) return null;
 
-  // 1. SUMMARY MODAL
+  // 1) SUMMARY MODAL
   if (summary) {
     const collapsedCount = 8;
     const canExpand = summary.lines.length > collapsedCount;
     const visibleLines = summaryExpanded ? summary.lines : summary.lines.slice(0, collapsedCount);
 
     return (
-      <div className="pp-toast-wrap is-modal show" onMouseDown={clearSummary}>
-        <div className="pp-toast pp-modal" onMouseDown={(e) => e.stopPropagation()}>
-          <div className="pp-toast-header">
-            <div className="pp-toast-title">👋 {summary.title}</div>
-            <button className="pp-modal-close" onClick={clearSummary}>✕</button>
-          </div>
-          <div className="pp-toast-body">
-            <ul className="pp-summary-list">
-              {visibleLines.map((line, idx) => (
-                <li key={`${summary.id}:${idx}`}>
-                  <div className="pp-sl-left">
-                    <span className="pp-sl-icon">{line.icon}</span>
-                    <span className="pp-sl-text">{line.text}</span>
-                  </div>
-                  <div className="pp-sl-time">{line.time}</div>
-                </li>
-              ))}
-            </ul>
-            {canExpand && (
-              <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
-                <button
-                  type="button"
-                  className="pp-btn secondary"
-                  onClick={() => setSummaryExpanded((v) => !v)}
-                  style={{ maxWidth: 220 }}
-                >
-                  {summaryExpanded ? "Show less" : `Show more (${summary.lines.length - collapsedCount})`}
+      <>
+        {/* ✅ Share the same magical light blur backdrop as the toast */}
+        <div className="pp-toast-blur-backdrop show" onMouseDown={clearSummary} />
+        
+        <div className="pp-toast-wrap is-modal show" onMouseDown={clearSummary}>
+          <div className="pp-toast pp-modal" onMouseDown={(e) => e.stopPropagation()}>
+            
+            {/* Cute Header */}
+            <div className="pp-toast-header">
+              <div className="pp-th-left">
+                <div className="pp-th-icon">✨</div>
+                <h2 className="pp-toast-title">{summary.title}</h2>
+              </div>
+              <button className="pp-modal-close" onClick={clearSummary}>✕</button>
+            </div>
+
+            <div className="pp-toast-body">
+              <ul className="pp-summary-list">
+                {visibleLines.map((line, idx) => (
+                  <li key={`${summary.id}:${idx}`}>
+                    <div className="pp-sl-left">
+                      <span className="pp-sl-icon">{line.icon}</span>
+                      <span className="pp-sl-text">{line.text}</span>
+                    </div>
+                    <div className="pp-sl-time">{line.time}</div>
+                  </li>
+                ))}
+              </ul>
+
+              {canExpand && (
+                <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="pp-btn secondary"
+                    onClick={() => setSummaryExpanded((v) => !v)}
+                    style={{ maxWidth: 220 }}
+                  >
+                    {summaryExpanded ? "Show less" : `Show more (${summary.lines.length - collapsedCount})`}
+                  </button>
+                </div>
+              )}
+
+              <div className="pp-modal-actions">
+                <button onClick={openDashboard} className="pp-btn primary">
+                  Go to Dashboard
+                </button>
+                <button onClick={clearSummary} className="pp-btn secondary">
+                  Dismiss
                 </button>
               </div>
-            )}
-            <div className="pp-modal-actions">
-              <button onClick={openDashboard} className="pp-btn primary">Go to Dashboard</button>
-              <button onClick={clearSummary} className="pp-btn secondary">Dismiss</button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // 2) ANNOUNCEMENT TOAST (Centered, Big, Blurred Background)
+  return (
+    <>
+      <div className={`pp-toast-blur-backdrop ${toast ? "show" : ""}`} />
+      
+      <div className={`pp-toast-wrap is-toast ${toast ? "show" : ""}`}>
+        <div className={`pp-toast pp-${toast!.kind}`} onClick={clearToast}>
+          <div className="pp-toast-row">
+            <div className="pp-toast-icon-wrap">
+              {toast!.kind === "success" ? "🏆" : toast!.kind === "danger" ? "⛔" : toast!.kind === "neutral" ? "🩶" : "🎟️"}
+            </div>
+            
+            <div className="pp-toast-text">
+              <div className="pp-toast-title-inline">{toast!.title}</div>
+              {toast!.body && <div className="pp-toast-body-inline">{toast!.body}</div>}
             </div>
           </div>
         </div>
       </div>
-    );
-  }
-
-  // 2. WIDE BANNER TOAST (Left -> Right)
-  return (
-    <div className={`pp-toast-wrap is-toast ${toast ? "show" : ""}`}>
-      <div className={`pp-toast pp-${toast!.kind}`} onClick={clearToast}>
-        {/* Horizontal flex layout for single line */}
-        <div className="pp-toast-row">
-          <div className="pp-toast-icon">{toast!.kind === "success" ? "🎉" : toast!.kind === "danger" ? "⚠️" : "📢"}</div>
-          <div className="pp-toast-text">
-            <span className="pp-toast-title-inline">{toast!.title}</span>
-            {toast!.body && <span className="pp-toast-body-inline"> — {toast!.body}</span>}
-          </div>
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
