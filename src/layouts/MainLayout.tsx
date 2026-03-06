@@ -11,7 +11,7 @@ import bg3 from "../assets/backgrounds/bg3.webp";
 
 const BACKGROUNDS = [bg1, bg2, bg3];
 
-type Page = "home" | "explore" | "dashboard" | "about" | "faq";
+type Page = "home" | "explore" | "dashboard" | "about" | "faq" | "status";
 
 type Props = {
   children: ReactNode;
@@ -34,6 +34,7 @@ const preload = {
   dashboard: () => import("../pages/DashboardPage"),
   about: () => import("../pages/AboutPage"),
   faq: () => import("../pages/FaqPage"),
+  status: () => import("../pages/StatusPage"),
 
   // modals
   signin: () => import("../components/SignInModal"),
@@ -60,20 +61,18 @@ export function MainLayout({
   onSignOut,
   hideChrome = false,
 }: Props) {
-  // Pick a random background once on mount
   const chosenBg = useMemo(() => BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)], []);
 
-  // Warm commonly used chunks early (hover/focus/touch intent)
   const warmExplore = useCallback(() => safeWarm(preload.explore), []);
   const warmDashboard = useCallback(() => safeWarm(preload.dashboard), []);
   const warmAbout = useCallback(() => safeWarm(preload.about), []);
   const warmFaq = useCallback(() => safeWarm(preload.faq), []);
+  const warmStatus = useCallback(() => safeWarm(preload.status), []);
 
   const warmSignIn = useCallback(() => safeWarm(preload.signin), []);
   const warmCreate = useCallback(() => safeWarm(preload.create), []);
   const warmCashier = useCallback(() => safeWarm(preload.cashier), []);
 
-  // Wrap opens with a warm-up (still instant even if already loaded)
   const openSignIn = useCallback(() => {
     warmSignIn();
     onOpenSignIn();
@@ -89,19 +88,18 @@ export function MainLayout({
     onOpenCashier();
   }, [warmCashier, onOpenCashier]);
 
-  // Warm target page before navigation
   const nav = useCallback(
     (next: Page) => {
       if (next === "explore") warmExplore();
       if (next === "dashboard") warmDashboard();
       if (next === "about") warmAbout();
       if (next === "faq") warmFaq();
+      if (next === "status") warmStatus();
       onNavigate(next);
     },
-    [onNavigate, warmExplore, warmDashboard, warmAbout, warmFaq]
+    [onNavigate, warmExplore, warmDashboard, warmAbout, warmFaq, warmStatus]
   );
 
-  // Helper: attach to hover/focus/touch intent
   const intentProps = (warm: () => void) => ({
     onMouseEnter: warm,
     onFocus: warm,
@@ -110,11 +108,9 @@ export function MainLayout({
 
   return (
     <div className="layout-shell">
-      {/* 1. Global Background */}
       <div className="layout-bg" style={{ backgroundImage: `url(${chosenBg})` }} />
       <div className="layout-overlay" />
 
-      {/* 2. Navigation (hidden when modal open) */}
       {!hideChrome && (
         <TopNav
           page={page as any}
@@ -126,10 +122,7 @@ export function MainLayout({
           onOpenCashier={openCashier}
           onOpenSignIn={openSignIn}
           onSignOut={onSignOut}
-          // ✅ Phase 4: intent prefetch hooks (TopNav can ignore if it doesn't pass them through)
-          // If your TopNav doesn't accept these props yet, add them there (recommended).
           {...intentProps(() => {
-            // warm the most common "next" actions people do from nav
             warmExplore();
             warmDashboard();
             warmSignIn();
@@ -137,16 +130,14 @@ export function MainLayout({
         />
       )}
 
-      {/* 3. Page Content */}
       <main className="layout-content">{children}</main>
 
-      {/* 4. Footer (hidden when modal open) */}
       {!hideChrome && (
         <div
-          // ✅ Warm the “info pages” when users move toward the footer
           {...intentProps(() => {
             warmAbout();
             warmFaq();
+            warmStatus();
           })}
         >
           <Footer onNavigate={nav as any} />
