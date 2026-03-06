@@ -3,7 +3,7 @@ import "./Footer.css";
 import ppopgiLogo from "/ppopgi-logo.png";
 import { LINKS } from "../config/transparency";
 
-type Page = "home" | "explore" | "dashboard" | "about" | "faq";
+type Page = "home" | "explore" | "dashboard" | "about" | "faq" | "status";
 
 type Props = {
   onNavigate: (page: Page) => void;
@@ -19,6 +19,11 @@ export function Footer({ onNavigate }: Props) {
 
   const goFaq = () => {
     onNavigate("faq");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+    const goStatus = () => {
+    onNavigate("status");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -59,6 +64,14 @@ export function Footer({ onNavigate }: Props) {
               className="footer-link-btn"
             >
               FAQ
+            </button>
+
+            <button
+              type="button"
+              onClick={goStatus}
+              className="footer-link-btn"
+            >
+              Systems status
             </button>
           </div>
 
