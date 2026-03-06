@@ -3,12 +3,13 @@ import { useSyncExternalStore } from "react";
 
 /**
  * Core infra hook only:
- * - Removes all bot-status logic
- * - Tracks only RPC + /meta
- * - Singleton app-wide polling
+ * - RPC + /meta only
+ * - No bot-status logic
+ * - True singleton polling
  * - Poll on mount
  * - Poll every 60s with jitter
- * - Refresh on focus/visibility when stale
+ * - Refresh on focus / visibility when stale
+ * - No 1s countdown / no per-second rerenders
  */
 
 type IndexerLevel = "healthy" | "degraded" | "late" | "down";
@@ -40,9 +41,6 @@ type InfraStatus = {
   };
 
   pollMs: number;
-  nextPollMs: number;
-  secondsToNextPoll: number;
-
   isLoading: boolean;
 };
 
@@ -130,6 +128,7 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label = "timeout"): Pro
   const timeout = new Promise<T>((_, rej) => {
     t = setTimeout(() => rej(new Error(label)), ms);
   });
+
   try {
     return await Promise.race([p, timeout]);
   } finally {
@@ -139,6 +138,7 @@ async function withTimeout<T>(p: Promise<T>, ms: number, label = "timeout"): Pro
 
 async function rpcEthBlockNumber(rpcUrl: string, timeoutMs: number): Promise<{ block: number; latencyMs: number }> {
   const t0 = performance.now();
+
   const res = await withTimeout(
     fetch(rpcUrl, {
       method: "POST",
@@ -153,6 +153,7 @@ async function rpcEthBlockNumber(rpcUrl: string, timeoutMs: number): Promise<{ b
   const json = await res.json().catch(() => null);
   const hex = json?.result;
   if (!hex || typeof hex !== "string") throw new Error("rpc_bad_result");
+
   const block = parseInt(hex, 16);
   if (!Number.isFinite(block)) throw new Error("rpc_bad_block");
 
@@ -168,9 +169,11 @@ async function subgraphIndexedBlock(subgraphUrl: string, timeoutMs: number): Pro
   if (!res.ok) throw new Error(`subgraph_http_${res.status}`);
   const json = await res.json().catch(() => null);
   if (json?.errors?.length) throw new Error("subgraph_graphql_error");
+
   const n = json?.data?._meta?.block?.number;
   const out = clampInt(n);
   if (out === null) throw new Error("subgraph_no_meta");
+
   return out;
 }
 
@@ -184,16 +187,16 @@ let started = false;
 let subscriberCount = 0;
 
 let corePollTimer: number | null = null;
-let secondTickTimer: number | null = null;
-
 let fetchingCore = false;
 let lastCoreAtMs = 0;
 
-const FOCUS_CORE_COOLDOWN_MS = 15_000;
 const CORE_POLL_MS = 60_000;
+const FOCUS_CORE_COOLDOWN_MS = 15_000;
 
 const subgraphUrl = mustEnv("VITE_SUBGRAPH_URL");
 const rpcUrl = mustEnv("VITE_ETHERLINK_RPC_URL");
+
+/* -------------------- snapshot -------------------- */
 
 function mkInitial(): InfraStatus {
   const now = Date.now();
@@ -202,10 +205,8 @@ function mkInitial(): InfraStatus {
     indexer: { level: "down", label: "Down", blocksBehind: null, headBlock: null, indexedBlock: null },
     rpc: { level: "down", label: "Down", latencyMs: null, ok: false },
     overall: { level: "down", label: "Issues" },
-    isLoading: true,
     pollMs: CORE_POLL_MS,
-    nextPollMs: now + CORE_POLL_MS,
-    secondsToNextPoll: Math.floor(CORE_POLL_MS / 1000),
+    isLoading: true,
   };
 }
 
@@ -220,12 +221,6 @@ function setSnapshot(next: InfraStatus) {
   emit();
 }
 
-function patchSnapshot(patch: (prev: InfraStatus) => InfraStatus) {
-  const next = patch(snapshot);
-  if (next === snapshot) return;
-  setSnapshot(next);
-}
-
 /* -------------------- core refresh -------------------- */
 
 async function runCoreOnce() {
@@ -235,7 +230,6 @@ async function runCoreOnce() {
   fetchingCore = true;
 
   const fetchedAtMs = Date.now();
-  const nextPollAt = fetchedAtMs + CORE_POLL_MS;
 
   try {
     let rpcOk = false;
@@ -244,7 +238,7 @@ async function runCoreOnce() {
     let rpcErr: string | undefined;
 
     try {
-      const r = await rpcEthBlockNumber(rpcUrl, 4000);
+      const r = await rpcEthBlockNumber(rpcUrl, 4_000);
       rpcLatency = r.latencyMs;
       headBlock = r.block;
       rpcOk = true;
@@ -260,16 +254,16 @@ async function runCoreOnce() {
     let subErr: string | undefined;
 
     try {
-      indexedBlock = await subgraphIndexedBlock(subgraphUrl, 5000);
+      indexedBlock = await subgraphIndexedBlock(subgraphUrl, 5_000);
       if (headBlock !== null) behind = Math.max(0, headBlock - indexedBlock);
     } catch (e: any) {
       subErr = String(e?.message || e || "subgraph_error");
     }
 
     const idxS = indexerStatus(behind);
+    const overall = worstOverall(idxS.level, rpcS.level);
 
-    const now = Date.now();
-    lastCoreAtMs = now;
+    lastCoreAtMs = Date.now();
 
     setSnapshot({
       tsMs: fetchedAtMs,
@@ -288,11 +282,9 @@ async function runCoreOnce() {
         ok: rpcOk,
         error: rpcErr,
       },
-      overall: worstOverall(idxS.level, rpcS.level),
-      isLoading: false,
+      overall,
       pollMs: CORE_POLL_MS,
-      nextPollMs: nextPollAt,
-      secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - now) / 1000)),
+      isLoading: false,
     });
   } finally {
     fetchingCore = false;
@@ -301,20 +293,18 @@ async function runCoreOnce() {
 
 /* -------------------- timers / lifecycle -------------------- */
 
-function tickEverySecond() {
-  const now = Date.now();
+function scheduleCoreLoop() {
+  if (corePollTimer != null) {
+    window.clearTimeout(corePollTimer);
+    corePollTimer = null;
+  }
 
-  patchSnapshot((prev) => {
-    const nextPollMs = prev.nextPollMs || now + prev.pollMs;
-    const secondsToNextPoll = Math.max(0, Math.floor((nextPollMs - now) / 1000));
+  const loop = () => {
+    void runCoreOnce();
+    corePollTimer = window.setTimeout(loop, jitterMs(CORE_POLL_MS, 0.1, 5_000));
+  };
 
-    if (secondsToNextPoll === prev.secondsToNextPoll) return prev;
-
-    return {
-      ...prev,
-      secondsToNextPoll,
-    };
-  });
+  corePollTimer = window.setTimeout(loop, jitterMs(CORE_POLL_MS, 0.1, 5_000));
 }
 
 function onFocusOrVisible() {
@@ -327,23 +317,20 @@ function onFocusOrVisible() {
 }
 
 function onVisibilityChange() {
-  if (document.visibilityState === "visible") onFocusOrVisible();
+  if (document.visibilityState === "visible") {
+    onFocusOrVisible();
+  }
 }
 
 function startIfNeeded() {
   if (started) return;
   started = true;
 
-  // Initial poll on mount
+  // Poll immediately on mount
   void runCoreOnce();
 
-  const coreLoop = () => {
-    void runCoreOnce();
-    corePollTimer = window.setTimeout(coreLoop, jitterMs(CORE_POLL_MS, 0.1, 5_000));
-  };
-
-  corePollTimer = window.setTimeout(coreLoop, jitterMs(CORE_POLL_MS, 0.1, 5_000));
-  secondTickTimer = window.setInterval(tickEverySecond, 1000);
+  // Background 60s resync with jitter
+  scheduleCoreLoop();
 
   window.addEventListener("focus", onFocusOrVisible);
   document.addEventListener("visibilitychange", onVisibilityChange);
@@ -357,11 +344,6 @@ function stopIfPossible() {
   if (corePollTimer != null) {
     window.clearTimeout(corePollTimer);
     corePollTimer = null;
-  }
-
-  if (secondTickTimer != null) {
-    window.clearInterval(secondTickTimer);
-    secondTickTimer = null;
   }
 
   window.removeEventListener("focus", onFocusOrVisible);
