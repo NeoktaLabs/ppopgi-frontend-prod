@@ -3,30 +3,6 @@ import { useMemo, useState } from "react";
 import { useInfraStatus } from "../hooks/useInfraStatus";
 import "./InfraStatusPill.css";
 
-function fmtAgoSec(sec: number | null): string {
-  if (sec === null) return "—";
-  const s = Math.max(0, Math.floor(sec));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  if (m < 60) return `${m}m ${String(r).padStart(2, "0")}s ago`;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${h}h ${mm}m ago`;
-}
-
-function fmtInSec(sec: number | null): string {
-  if (sec === null) return "—";
-  const s = Math.max(0, Math.floor(sec));
-  if (s < 60) return `in ${s}s`;
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  if (m < 60) return `in ${m}m ${String(r).padStart(2, "0")}s`;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return `in ${h}h ${mm}m`;
-}
-
 function fmtBlocksBehind(n: number | null): string {
   if (n === null) return "—";
   return n === 0 ? "Synced" : `${n} blocks behind`;
@@ -40,11 +16,7 @@ function fmtLatency(ms: number | null): string {
 function dotLevel(level: string): string {
   const l = String(level || "").toLowerCase();
 
-  // ✅ Treat bot lifecycle states as healthy
-  if (l === "running") return "healthy";
-  if (l === "ready") return "healthy";
   if (l === "ok") return "healthy";
-
   if (l === "healthy") return "healthy";
   if (l === "late") return "late";
   if (l === "down") return "down";
@@ -60,14 +32,7 @@ export function InfraStatusPill() {
   const idxDot = useMemo(() => dotLevel(s.indexer.level), [s.indexer.level]);
   const rpcDot = useMemo(() => dotLevel(s.rpc.level), [s.rpc.level]);
 
-  // ✅ Bot dot: if bot is actively running, force it to "healthy" no matter what the hook returns.
-  const botDot = useMemo(() => {
-    if (s.bot?.running) return "healthy";
-    return dotLevel(s.bot?.level || "unknown");
-  }, [s.bot?.running, s.bot?.level]);
-
-  // ✅ Overall health: running bot should not count as degraded.
-  const overallHealthy = idxDot === "healthy" && rpcDot === "healthy" && botDot === "healthy";
+  const overallHealthy = idxDot === "healthy" && rpcDot === "healthy";
 
   const updatedLabel = useMemo(() => {
     try {
@@ -77,9 +42,6 @@ export function InfraStatusPill() {
     }
   }, [s.tsMs]);
 
-  // ---------------------------
-  // COLLAPSED VIEW (DEFAULT)
-  // ---------------------------
   if (!expanded) {
     return (
       <div className="isp-notch">
@@ -92,7 +54,6 @@ export function InfraStatusPill() {
           <span className="isp-summary-dots">
             <span className={`isp-dot ${idxDot}`} />
             <span className={`isp-dot ${rpcDot}`} />
-            <span className={`isp-dot ${botDot}`} />
           </span>
 
           <div className="isp-summary-text">
@@ -108,14 +69,10 @@ export function InfraStatusPill() {
     );
   }
 
-  // ---------------------------
-  // EXPANDED VIEW
-  // ---------------------------
   return (
     <div className="isp-notch">
       <div className="isp-notch-inner">
         <div className="isp-notch-grid">
-          {/* Indexer */}
           <div className="isp-item">
             <div className="isp-item-header">
               <span className={`isp-dot ${idxDot}`} />
@@ -127,7 +84,6 @@ export function InfraStatusPill() {
             </div>
           </div>
 
-          {/* RPC */}
           <div className="isp-item">
             <div className="isp-item-header">
               <span className={`isp-dot ${rpcDot}`} />
@@ -136,20 +92,6 @@ export function InfraStatusPill() {
             <div className="isp-item-data">
               <div className="isp-item-val">{fmtLatency(s.rpc.latencyMs)}</div>
               <div className="isp-item-sub">{s.rpc.label}</div>
-            </div>
-          </div>
-
-          {/* Bot */}
-          <div className="isp-item">
-            <div className="isp-item-header">
-              <span className={`isp-dot ${botDot}`} />
-              <span className="isp-item-name">Finalizer Bot</span>
-            </div>
-            <div className="isp-item-data">
-              <div className="isp-item-val">{s.bot?.running ? "Running" : "Ready"}</div>
-              <div className="isp-item-sub">
-                Last: {fmtAgoSec(s.bot?.secondsSinceLastRun ?? null)} | Next: {fmtInSec(s.bot?.secondsToNextRun ?? null)}
-              </div>
             </div>
           </div>
         </div>
