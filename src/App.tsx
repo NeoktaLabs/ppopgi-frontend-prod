@@ -32,6 +32,7 @@ import { useLotteryStore } from "./hooks/useLotteryStore";
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
 const AboutPage = lazy(() => import("./pages/AboutPage").then((m) => ({ default: m.AboutPage })));
 const FaqPage = lazy(() => import("./pages/FaqPage").then((m) => ({ default: m.FaqPage })));
+const StatusPage = lazy(() => import("./pages/StatusPage").then((m) => ({ default: m.StatusPage })));
 
 // ==============================
 // ✅ Lazy-loaded modals (heavy / not needed immediately)
@@ -50,16 +51,17 @@ const preload = {
   dashboard: () => import("./pages/DashboardPage"),
   about: () => import("./pages/AboutPage"),
   faq: () => import("./pages/FaqPage"),
+  status: () => import("./pages/StatusPage"),
   create: () => import("./components/CreateLotteryModal"),
   details: () => import("./components/LotteryDetailsModal"),
   cashier: () => import("./components/CashierModal"),
   safety: () => import("./components/SafetyProofModal"),
 };
 
-type Page = "home" | "explore" | "dashboard" | "about" | "faq";
+type Page = "home" | "explore" | "dashboard" | "about" | "faq" | "status";
 
 function isValidPage(p: any): p is Page {
-  return p === "home" || p === "explore" || p === "dashboard" || p === "about" || p === "faq";
+  return p === "home" || p === "explore" || p === "dashboard" || p === "about" || p === "faq" || p === "status";
 }
 
 function getPageFromUrl(): Page {
@@ -150,7 +152,6 @@ export default function App() {
   const [safetyId, setSafetyId] = useState<string | null>(null);
 
   const handleOpenSafety = (id: string) => {
-    // Preload the chunk so opening feels instant
     try {
       void preload.safety();
     } catch {}
@@ -181,11 +182,11 @@ export default function App() {
         return;
       }
 
-      // ✅ Preload page chunk on navigation (still lazy overall)
       try {
         if (next === "dashboard") void preload.dashboard();
         if (next === "about") void preload.about();
         if (next === "faq") void preload.faq();
+        if (next === "status") void preload.status();
       } catch {}
 
       setPage(next);
@@ -293,7 +294,6 @@ export default function App() {
         {page === "home" && <HomePage onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />}
         {page === "explore" && <ExplorePage onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />}
 
-        {/* ✅ Lazy pages */}
         {page === "dashboard" && (
           <Suspense fallback={null}>
             <DashboardPage account={account} onOpenLottery={openLottery} onOpenSafety={handleOpenSafety} />
@@ -309,6 +309,12 @@ export default function App() {
         {page === "faq" && (
           <Suspense fallback={null}>
             <FaqPage />
+          </Suspense>
+        )}
+
+        {page === "status" && (
+          <Suspense fallback={null}>
+            <StatusPage />
           </Suspense>
         )}
 
