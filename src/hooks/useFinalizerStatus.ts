@@ -14,7 +14,7 @@ export type FinalizerStatus = {
   nextRunMs: number | null;
   finalizerEverySec: number;
 
-  // raw wire values (debug / fallback)
+  // raw wire values
   secondsSinceLastRunWire: number | null;
   secondsToNextRunWire: number | null;
 
@@ -100,7 +100,7 @@ async function fetchBotStatus(statusUrl: string, timeoutMs: number) {
   return json;
 }
 
-/* -------------------- singleton store -------------------- */
+/* -------------------- config -------------------- */
 
 type Listener = () => void;
 
@@ -111,27 +111,29 @@ let subscriberCount = 0;
 
 let pollTimer: number | null = null;
 let secondTickTimer: number | null = null;
-let zeroTimer: number | null = null;
+let fastPollTimer: number | null = null;
 
 let fetching = false;
 let lastFetchAtMs = 0;
-
 let lastFocusRefreshAtMs = 0;
+
 const FOCUS_COOLDOWN_MS = 10_000;
+const MIN_FETCH_GAP_MS = 2_000;
 
-// Default bot-only cadence:
-// - normal: 30s
-// - near zero / running: burst via zero mode
-const DEFAULT_POLL_MS = 30_000;
+// ✅ requested behavior
+const BASE_POLL_MS = 60_000;
+const FAST_POLL_MS = 5_000;
 
-// Finalizer schedule (used for local fallback when wire nextRun is absent)
+// local fallback schedule only
 const finalizerEverySec = (() => {
   const v = env("VITE_FINALIZER_EVERY_SEC");
-  const n = v ? Number(v) : 180;
-  return Number.isFinite(n) ? Math.max(10, Math.floor(n)) : 180;
+  const n = v ? Number(v) : 120;
+  return Number.isFinite(n) ? Math.max(10, Math.floor(n)) : 120;
 })();
 
 const botUrl = env("VITE_FINALIZER_STATUS_URL")?.trim() || null;
+
+/* -------------------- snapshot -------------------- */
 
 function mkInitial(): FinalizerStatus {
   const now = Date.now();
@@ -157,9 +159,9 @@ function mkInitial(): FinalizerStatus {
 
     isLoading: true,
 
-    pollMs: DEFAULT_POLL_MS,
-    nextPollMs: now + DEFAULT_POLL_MS,
-    secondsToNextPoll: Math.floor(DEFAULT_POLL_MS / 1000),
+    pollMs: BASE_POLL_MS,
+    nextPollMs: now + BASE_POLL_MS,
+    secondsToNextPoll: Math.floor(BASE_POLL_MS / 1000),
   };
 }
 
@@ -180,6 +182,34 @@ function patchSnapshot(patch: (prev: FinalizerStatus) => FinalizerStatus) {
   setSnapshot(next);
 }
 
+/* -------------------- polling mode -------------------- */
+
+function shouldFastPoll(s: FinalizerStatus) {
+  return !!s.running || s.secondsToNextRun === 0;
+}
+
+function stopFastPolling() {
+  if (fastPollTimer != null) {
+    window.clearInterval(fastPollTimer);
+    fastPollTimer = null;
+  }
+}
+
+function ensureFastPolling() {
+  if (!botUrl) return;
+  if (isHidden()) return;
+  if (fastPollTimer != null) return;
+
+  fastPollTimer = window.setInterval(() => {
+    void runOnce();
+  }, FAST_POLL_MS);
+}
+
+function syncFastPolling() {
+  if (shouldFastPoll(snapshot)) ensureFastPolling();
+  else stopFastPolling();
+}
+
 /* -------------------- fetch -------------------- */
 
 async function runOnce() {
@@ -188,17 +218,17 @@ async function runOnce() {
   if (fetching) return;
 
   const now0 = Date.now();
-  if (now0 - lastFetchAtMs < 2_000) return;
+  if (now0 - lastFetchAtMs < MIN_FETCH_GAP_MS) return;
 
   fetching = true;
 
   const fetchedAtMs = Date.now();
-  const nextPollAt = fetchedAtMs + DEFAULT_POLL_MS;
+  const nextBasePollAt = fetchedAtMs + BASE_POLL_MS;
 
   try {
     const w = await fetchBotStatus(botUrl, 5_000);
 
-    const s = statusFromWire(w);
+    const mapped = statusFromWire(w);
     const running = !!w?.running;
     const lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
 
@@ -206,6 +236,8 @@ async function runOnce() {
     const toWire = clampSec(w?.secondsToNextRun);
     const lastError = w?.lastError ? String(w.lastError) : null;
 
+    // Prefer locally derived nextRun from lastRun + configured cadence.
+    // Fallback to backend nextRun if lastRun is missing.
     let nextRunMs: number | null = null;
     if (lastRunMs !== null) nextRunMs = lastRunMs + finalizerEverySec * 1000;
     else nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
@@ -216,12 +248,12 @@ async function runOnce() {
 
     lastFetchAtMs = now;
 
-    setSnapshot({
+    const nextSnapshot: FinalizerStatus = {
       tsMs: fetchedAtMs,
 
       running,
-      level: s.level,
-      label: s.label,
+      level: mapped.level,
+      label: mapped.label,
 
       lastRunMs,
       nextRunMs,
@@ -238,60 +270,40 @@ async function runOnce() {
 
       isLoading: false,
 
-      pollMs: DEFAULT_POLL_MS,
-      nextPollMs: nextPollAt,
-      secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - now) / 1000)),
-    });
+      // keep the displayed base cadence as 60s; aggressive mode is internal
+      pollMs: BASE_POLL_MS,
+      nextPollMs: nextBasePollAt,
+      secondsToNextPoll: Math.max(0, Math.floor((nextBasePollAt - now) / 1000)),
+    };
+
+    setSnapshot(nextSnapshot);
+
+    // ✅ Stop aggressive polling only when backend truth says:
+    // not running AND secondsToNextRun is positive
+    if (!running && (toWire ?? liveTo ?? null) !== null && (toWire ?? liveTo ?? 0) > 0) {
+      stopFastPolling();
+    } else {
+      syncFastPolling();
+    }
   } catch (e: any) {
     lastFetchAtMs = Date.now();
 
     patchSnapshot((prev) => ({
       ...prev,
       tsMs: fetchedAtMs,
-      level: "unknown",
-      label: "Unknown",
+      level: prev.running ? prev.level : "unknown",
+      label: prev.running ? prev.label : "Unknown",
       error: String(e?.message || e || "bot_error"),
       isLoading: false,
-      pollMs: DEFAULT_POLL_MS,
-      nextPollMs: nextPollAt,
-      secondsToNextPoll: Math.max(0, Math.floor((nextPollAt - Date.now()) / 1000)),
+      pollMs: BASE_POLL_MS,
+      nextPollMs: nextBasePollAt,
+      secondsToNextPoll: Math.max(0, Math.floor((nextBasePollAt - Date.now()) / 1000)),
     }));
+
+    // ✅ If near execution, keep aggressive polling even on transient errors
+    if (shouldFastPoll(snapshot)) ensureFastPolling();
   } finally {
     fetching = false;
-  }
-}
-
-/* -------------------- zero / running mode -------------------- */
-
-function stopZeroMode() {
-  if (zeroTimer != null) {
-    window.clearInterval(zeroTimer);
-    zeroTimer = null;
-  }
-}
-
-function maybeStartZeroMode() {
-  if (!botUrl) return;
-  if (isHidden()) return;
-
-  const secToNext = snapshot.secondsToNextRun;
-  const running = snapshot.running;
-  const now = Date.now();
-
-  const staleSchedule = snapshot.nextRunMs != null ? snapshot.nextRunMs < now - 60_000 : false;
-
-  const shouldFastPoll = running || (secToNext === 0 && !staleSchedule);
-
-  if (shouldFastPoll && zeroTimer == null) {
-    void runOnce();
-
-    zeroTimer = window.setInterval(() => {
-      void runOnce();
-    }, 5_000);
-  }
-
-  if (!shouldFastPoll && zeroTimer != null) {
-    stopZeroMode();
   }
 }
 
@@ -328,12 +340,13 @@ function tickEverySecond() {
     };
   });
 
-  maybeStartZeroMode();
+  // ✅ enter aggressive mode locally when countdown reaches 0
+  syncFastPolling();
 }
 
 /* -------------------- lifecycle -------------------- */
 
-function scheduleLoop() {
+function scheduleBaseLoop() {
   if (pollTimer != null) {
     window.clearTimeout(pollTimer);
     pollTimer = null;
@@ -341,10 +354,10 @@ function scheduleLoop() {
 
   const loop = () => {
     void runOnce();
-    pollTimer = window.setTimeout(loop, jitterMs(DEFAULT_POLL_MS, 0.1, 5_000));
+    pollTimer = window.setTimeout(loop, jitterMs(BASE_POLL_MS, 0.1, 5_000));
   };
 
-  pollTimer = window.setTimeout(loop, jitterMs(DEFAULT_POLL_MS, 0.1, 5_000));
+  pollTimer = window.setTimeout(loop, jitterMs(BASE_POLL_MS, 0.1, 5_000));
 }
 
 function onFocusOrVisible() {
@@ -354,13 +367,23 @@ function onFocusOrVisible() {
   void runOnce();
 }
 
+function onVisibilityChange() {
+  if (document.visibilityState === "visible") {
+    onFocusOrVisible();
+  }
+}
+
 function startIfNeeded() {
   if (started) return;
   started = true;
 
+  // ✅ requested: poll immediately on mount
   void runOnce();
-  scheduleLoop();
 
+  // ✅ keep a 60s background resync
+  scheduleBaseLoop();
+
+  // ✅ local 1s countdown
   secondTickTimer = window.setInterval(tickEverySecond, 1000);
 
   window.addEventListener("focus", onFocusOrVisible);
@@ -382,18 +405,12 @@ function stopIfPossible() {
     secondTickTimer = null;
   }
 
-  stopZeroMode();
+  stopFastPolling();
 
   window.removeEventListener("focus", onFocusOrVisible);
   document.removeEventListener("visibilitychange", onVisibilityChange);
 
   lastFocusRefreshAtMs = 0;
-}
-
-function onVisibilityChange() {
-  if (document.visibilityState === "visible") {
-    onFocusOrVisible();
-  }
 }
 
 /* -------------------- external store API -------------------- */
