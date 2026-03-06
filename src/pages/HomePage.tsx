@@ -1,7 +1,7 @@
 // src/pages/HomePage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useHomeLotteries } from "../hooks/useHomeLotteries";
-import { useInfraStatus } from "../hooks/useInfraStatus";
+import { useFinalizerStatus } from "../hooks/useFinalizerStatus";
 import { useGlobalStatsBillboard } from "../hooks/useGlobalStatsBillboard";
 import { LotteryCard } from "../components/LotteryCard";
 import { LotteryCardSkeleton } from "../components/LotteryCardSkeleton";
@@ -45,6 +45,18 @@ function fmtUSDC(v: bigint | number | string, opts?: { decimals?: number; maxFra
   } catch {
     return "$0";
   }
+}
+
+function fmtCountdown(totalSec: number | null | undefined) {
+  if (totalSec == null) return "—";
+  const s = Math.max(0, Math.floor(totalSec));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${r}s`;
+  return `${r}s`;
 }
 
 type Props = {
@@ -119,17 +131,17 @@ export function HomePage({ onOpenLottery, onOpenSafety }: Props) {
     return () => window.clearInterval(t);
   }, []);
 
-  const infra = useInfraStatus();
+  const finalizer = useFinalizerStatus();
   const { bigPrizes, endingSoon, recentlyFinalized, isLoading, refetch } = useHomeLotteries();
   const gs = useGlobalStatsBillboard();
 
   const finalizerForCards = useMemo(
     () => ({
-      running: !!infra.bot?.running,
-      secondsToNextRun: infra.bot?.secondsToNextRun ?? null,
-      tsMs: infra.tsMs,
+      running: !!finalizer.running,
+      secondsToNextRun: finalizer.secondsToNextRun ?? null,
+      tsMs: finalizer.tsMs,
     }),
-    [infra.bot?.running, infra.bot?.secondsToNextRun, infra.tsMs]
+    [finalizer.running, finalizer.secondsToNextRun, finalizer.tsMs]
   );
 
   useEffect(() => {
@@ -173,12 +185,45 @@ export function HomePage({ onOpenLottery, onOpenSafety }: Props) {
     return {
       tix: fmtInt(gs.data.totalTicketsSold),
       lots: fmtInt(gs.data.totalLotteriesCreated),
-
-      // ✅ NEW: dollars (USDC is 6 decimals)
       activeUsd: fmtUSDC(gs.data.activeVolumeUSDC, { maxFrac: 0 }),
       settledUsd: fmtUSDC(gs.data.totalPrizesSettledUSDC, { maxFrac: 0 }),
     };
   }, [gs.data]);
+
+  const finalizerStat = useMemo(() => {
+    if (finalizer.error) {
+      return {
+        value: "Unavailable",
+        label: "Finalization Status",
+      };
+    }
+
+    if (finalizer.running) {
+      return {
+        value: "Running now",
+        label: "Finalization Round",
+      };
+    }
+
+    if (finalizer.secondsToNextRun == null) {
+      return {
+        value: "—",
+        label: "Next Finalization Round",
+      };
+    }
+
+    if (finalizer.secondsToNextRun === 0) {
+      return {
+        value: "Expected soon",
+        label: "Next Finalization Round",
+      };
+    }
+
+    return {
+      value: fmtCountdown(finalizer.secondsToNextRun),
+      label: "Next Finalization Round",
+    };
+  }, [finalizer.error, finalizer.running, finalizer.secondsToNextRun]);
 
   return (
     <>
@@ -239,7 +284,6 @@ export function HomePage({ onOpenLottery, onOpenSafety }: Props) {
 
               <div className="hp-stat-sep" />
 
-              {/* ✅ NEW: $ volumes (replaces settled/canceled counters) */}
               <div className="hp-stat-item">
                 <div className="hp-stat-val hp-count-pop">{stats.activeUsd}</div>
                 <div className="hp-stat-lbl">Active Volume</div>
@@ -250,6 +294,13 @@ export function HomePage({ onOpenLottery, onOpenSafety }: Props) {
               <div className="hp-stat-item">
                 <div className="hp-stat-val hp-count-pop">{stats.settledUsd}</div>
                 <div className="hp-stat-lbl">Prizes Settled</div>
+              </div>
+
+              <div className="hp-stat-sep" />
+
+              <div className="hp-stat-item">
+                <div className="hp-stat-val hp-count-pop">{finalizerStat.value}</div>
+                <div className="hp-stat-lbl">{finalizerStat.label}</div>
               </div>
             </div>
           )}
