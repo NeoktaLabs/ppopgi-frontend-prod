@@ -1,10 +1,8 @@
-/* src/components/CreateLotteryModal.css */
-
 /* --- 1. Overlay --- */
 .crm-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(43, 43, 51, 0.45); /* Dark ink overlay */
+  background-color: rgba(43, 43, 51, 0.45);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 2000;
@@ -28,21 +26,17 @@
 /* --- 2. The Modal --- */
 .crm-modal {
   width: 100%;
-  max-width: 960px; 
+  max-width: 960px;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 32px; /* Pillowy corners */
-  
-  /* ✅ REMOVED overflow: hidden; so tooltips can escape the boundaries! */
-  
+  border-radius: 32px;
   box-shadow:
-    0 24px 50px -12px rgba(203, 183, 246, 0.4), /* Lavender shadow */
+    0 24px 50px -12px rgba(203, 183, 246, 0.4),
     0 4px 12px -2px rgba(246, 182, 200, 0.2);
-  
+
   display: flex;
   flex-direction: column;
-
   animation: crm-scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform-origin: top center;
 }
@@ -54,14 +48,16 @@
 
 /* --- Header --- */
 .crm-header {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 28px 36px;
-  border-bottom: 2px dashed rgba(246, 182, 200, 0.4); /* Sakura dash */
+  border-bottom: 2px dashed rgba(246, 182, 200, 0.4);
   background: rgba(255, 255, 255, 0.6);
   z-index: 10;
-  /* ✅ ADDED border-radius to preserve pillowy corners */
   border-top-left-radius: 31px;
   border-top-right-radius: 31px;
+  flex-shrink: 0;
 }
 
 .crm-header-text h3 {
@@ -79,7 +75,7 @@
 }
 
 .crm-close-btn {
-  background: rgba(169, 212, 255, 0.2); /* Soft sky */
+  background: rgba(169, 212, 255, 0.2);
   border: 1px solid transparent;
   width: 36px;
   height: 36px;
@@ -104,6 +100,7 @@
   flex-direction: row;
   background: transparent;
   min-height: 520px;
+  min-width: 0;
 }
 
 .crm-form-col {
@@ -118,7 +115,6 @@
 .crm-preview-col {
   width: 380px;
   padding: 40px;
-  /* Soft pastel column */
   background: linear-gradient(180deg, rgba(255, 246, 239, 0.5) 0%, rgba(246, 182, 200, 0.1) 100%);
   border-left: 2px dashed rgba(246, 182, 200, 0.3);
   display: flex;
@@ -126,11 +122,9 @@
   align-items: center;
   position: relative;
   overflow: hidden;
-  /* ✅ ADDED border-radius */
   border-bottom-right-radius: 31px;
 }
 
-/* Glow Orb behind the card */
 .crm-preview-col::before {
   content: "";
   position: absolute;
@@ -139,7 +133,7 @@
   transform: translate(-50%, -50%);
   width: 240px;
   height: 240px;
-  background: radial-gradient(circle, rgba(246, 182, 200, 0.4) 0%, transparent 70%); /* Sakura glow */
+  background: radial-gradient(circle, rgba(246, 182, 200, 0.4) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -153,7 +147,6 @@
   margin-bottom: 24px;
 }
 
-/* Levitating Card Wrapper */
 .crm-levitate-wrapper {
   transform: scale(0.9);
   animation: crm-levitate 6s ease-in-out infinite;
@@ -165,11 +158,10 @@
   50% { transform: scale(0.9) translateY(-12px); }
 }
 
-/* Floor Shadow */
 .crm-preview-shadow {
   width: 140px;
   height: 20px;
-  background: radial-gradient(ellipse at center, rgba(203, 183, 246, 0.4) 0%, transparent 70%); /* Lavender shadow */
+  background: radial-gradient(ellipse at center, rgba(203, 183, 246, 0.4) 0%, transparent 70%);
   margin-top: 10px;
   animation: crm-shadow-breathe 6s ease-in-out infinite;
 }
@@ -183,7 +175,7 @@
   margin-top: auto;
   font-size: 11px;
   font-weight: 800;
-  color: #10b981; /* Etherlink green, softened slightly */
+  color: #10b981;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   opacity: 0.8;
@@ -204,25 +196,20 @@
   margin-left: 4px;
 }
 
-/* Base Input Style - Fixed White on White */
 .crm-input, .crm-select, .crm-input-wrapper input {
   width: 100%;
   padding: 14px 16px;
   border-radius: 16px;
-  
-  border: 2px solid rgba(43, 43, 51, 0.15); 
-  background: #f8fafc; 
-  
+  border: 2px solid rgba(43, 43, 51, 0.15);
+  background: #f8fafc;
   font-size: 15px;
   font-weight: 700;
   color: var(--ink, #2B2B33);
-  
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
   transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   outline: none;
 }
 
-/* Focus State: Glow + White BG */
 .crm-input:focus, .crm-select:focus, .crm-input-wrapper input:focus {
   background: #ffffff;
   border-color: var(--sky-pastel, #A9D4FF);
@@ -230,8 +217,7 @@
   transform: translateY(-1px);
 }
 
-/* Validation Error State */
-.crm-input.crm-input-invalid, 
+.crm-input.crm-input-invalid,
 .crm-input-wrapper input.crm-input-invalid,
 .crm-select.crm-input-invalid {
   border-color: #ef4444 !important;
@@ -256,11 +242,13 @@
 
 /* --- Balance Row --- */
 .crm-bal-row {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 28px;
   padding: 12px 16px;
   background: rgba(255,255,255,0.7);
-  border: 2px dashed rgba(246, 182, 200, 0.5); /* Sakura dash */
+  border: 2px dashed rgba(246, 182, 200, 0.5);
   border-radius: 16px;
 }
 .crm-bal-label { font-size: 11px; font-weight: 900; color: var(--ink, #2B2B33); opacity: 0.6; text-transform: uppercase; }
@@ -275,9 +263,9 @@
   margin-top: -10px;
   margin-bottom: 20px;
   padding: 12px;
-  background: rgba(254, 242, 242, 0.8); /* Soft red background */
+  background: rgba(254, 242, 242, 0.8);
   border-radius: 12px;
-  color: #b91c1c; /* Deep red text */
+  color: #b91c1c;
   font-size: 13px;
   font-weight: 800;
   text-align: center;
@@ -288,9 +276,16 @@
 /* --- Advanced Toggle --- */
 .crm-advanced { margin-top: 10px; margin-bottom: 40px; }
 .crm-adv-toggle {
-  background: none; border: none; padding: 0;
-  font-size: 12.5px; font-weight: 800; color: var(--ink, #2B2B33);
-  cursor: pointer; text-decoration: none; border-bottom: 2px solid var(--sakura-pink, #F6B6C8); opacity: 0.7;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink, #2B2B33);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 2px solid var(--sakura-pink, #F6B6C8);
+  opacity: 0.7;
   transition: opacity 0.2s;
 }
 .crm-adv-toggle:hover { opacity: 1; }
@@ -305,7 +300,7 @@
 }
 
 /* =========================================================
-   ✅ COMMAND CENTER DOCK (Floating Action Bar)
+   COMMAND CENTER DOCK
    ========================================================= */
 .crm-command-center {
   margin-top: 20px;
@@ -321,17 +316,16 @@
   display: flex;
   align-items: stretch;
   gap: 8px;
-  box-shadow: 0 12px 30px -5px rgba(203, 183, 246, 0.3); /* Lavender mist shadow */
+  box-shadow: 0 12px 30px -5px rgba(203, 183, 246, 0.3);
 }
 
 .crm-dock-sep {
   width: 2px;
-  background: rgba(246, 182, 200, 0.3); /* Sakura pink separator */
+  background: rgba(246, 182, 200, 0.3);
   border-radius: 2px;
   margin: 4px 0;
 }
 
-/* 3D Dock Buttons */
 .crm-dock-btn {
   flex: 1;
   border: 2px solid transparent;
@@ -344,9 +338,7 @@
   font-size: 14px;
   cursor: not-allowed;
   position: relative;
-  
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -357,10 +349,9 @@
 .crm-dock-icon { font-size: 18px; line-height: 1; font-weight: 900; }
 .crm-dock-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 900; }
 
-/* Active (Pressable) State */
 .crm-dock-btn.active {
   cursor: pointer;
-  background: rgba(169, 212, 255, 0.2); /* Soft sky */
+  background: rgba(169, 212, 255, 0.2);
   color: var(--ink, #2B2B33);
   opacity: 1;
   border-color: rgba(255, 255, 255, 0.9);
@@ -377,7 +368,6 @@
   box-shadow: none;
 }
 
-/* Primary (Launch) Button Override */
 .crm-dock-btn.active.primary {
   background: linear-gradient(135deg, var(--peach-glow, #FAD1B8), var(--sakura-pink, #F6B6C8));
   border-color: #ffffff;
@@ -389,11 +379,10 @@
   color: var(--soft-cream, #FFF6EF);
 }
 
-/* Done State (Green Pill) */
 .crm-dock-btn.done {
-  background: rgba(34, 197, 94, 0.15); /* Softened success green */
+  background: rgba(34, 197, 94, 0.15);
   border-color: rgba(34, 197, 94, 0.3);
-  color: #166534; /* Darker green text */
+  color: #166534;
   opacity: 1;
   cursor: default;
 }
@@ -408,7 +397,7 @@
 }
 
 /* =========================================================
-   ✅ CSS TOOLTIP (Matches InfraStatusPill)
+   CSS TOOLTIP
    ========================================================= */
 .crm-q {
   display: inline-flex;
@@ -418,7 +407,7 @@
   height: 16px;
   margin-left: 6px;
   border-radius: 50%;
-  background: rgba(169, 212, 255, 0.3); /* Soft sky pastel */
+  background: rgba(169, 212, 255, 0.3);
   color: var(--ink, #2B2B33);
   font-size: 10px;
   font-weight: 900;
@@ -440,7 +429,6 @@
   transform: translateX(-50%) translateY(4px);
   opacity: 0;
   visibility: hidden;
-
   background: var(--ink, #2B2B33);
   color: var(--soft-cream, #FFF6EF);
   padding: 12px 16px;
@@ -448,16 +436,13 @@
   font-size: 12px;
   font-weight: 700;
   line-height: 1.4;
-  
-  /* ✅ FIXED: Allows text to wrap instead of shooting infinitely sideways */
   white-space: normal;
   width: max-content;
   max-width: 240px;
   text-align: center;
-
   box-shadow: 0 12px 30px rgba(43, 43, 51, 0.35);
   transition: all 0.2s ease;
-  z-index: 9999; /* Stays above everything */
+  z-index: 9999;
   pointer-events: none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   text-transform: none;
@@ -481,9 +466,8 @@
   transform: translateX(-50%) translateY(0);
 }
 
-
 /* =========================================================
-   ✅ TICKET STUB SUCCESS VIEW
+   SUCCESS VIEW
    ========================================================= */
 .crm-success-view {
   padding: 60px 40px;
@@ -491,37 +475,47 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: radial-gradient(circle at top, rgba(250, 209, 184, 0.3) 0%, rgba(255, 255, 255, 0) 70%); /* Peach glow burst */
-  /* ✅ ADDED border-radius */
+  background: radial-gradient(circle at top, rgba(250, 209, 184, 0.3) 0%, rgba(255, 255, 255, 0) 70%);
   border-bottom-left-radius: 31px;
   border-bottom-right-radius: 31px;
 }
 
 .crm-success-icon {
-  width: 80px; height: 80px;
+  width: 80px;
+  height: 80px;
   background: var(--sakura-pink, #F6B6C8);
   color: var(--soft-cream, #FFF6EF);
   border-radius: 50%;
   font-size: 36px;
-  display: grid; place-items: center;
+  display: grid;
+  place-items: center;
   margin-bottom: 24px;
   box-shadow: 0 12px 24px rgba(246, 182, 200, 0.4);
 }
 
 .crm-success-title {
-  font-size: 32px; font-weight: 900; color: var(--ink, #2B2B33); margin-bottom: 12px; letter-spacing: -0.5px;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--ink, #2B2B33);
+  margin-bottom: 12px;
+  letter-spacing: -0.5px;
 }
 .crm-success-sub {
-  font-size: 15px; color: var(--ink, #2B2B33); opacity: 0.7; font-weight: 600; margin-bottom: 40px; max-width: 440px; line-height: 1.5;
+  font-size: 15px;
+  color: var(--ink, #2B2B33);
+  opacity: 0.7;
+  font-weight: 600;
+  margin-bottom: 40px;
+  max-width: 440px;
+  line-height: 1.5;
 }
 
-/* Ticket Stub Container */
 .crm-share-ticket {
   display: flex;
   width: 100%;
   max-width: 480px;
   height: 88px;
-  background: rgba(250, 209, 184, 0.15); /* Soft peach paper */
+  background: rgba(250, 209, 184, 0.15);
   border: 2px dashed rgba(250, 209, 184, 0.8);
   border-radius: 16px;
   position: relative;
@@ -530,7 +524,6 @@
   overflow: hidden;
 }
 
-/* Left Part: Link */
 .crm-share-stub-left {
   flex: 1;
   display: flex;
@@ -541,35 +534,60 @@
   position: relative;
   background: rgba(255, 255, 255, 0.8);
 }
-/* Cutout circles for perforation illusion */
 .crm-share-stub-left::after {
-  content: ""; position: absolute; top: -12px; right: -12px;
-  width: 24px; height: 24px; background: white; border-radius: 50%;
-  border: 2px dashed rgba(250, 209, 184, 0.8); z-index: 2;
+  content: "";
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  background: white;
+  border-radius: 50%;
+  border: 2px dashed rgba(250, 209, 184, 0.8);
+  z-index: 2;
 }
 .crm-share-stub-left::before {
-  content: ""; position: absolute; bottom: -12px; right: -12px;
-  width: 24px; height: 24px; background: white; border-radius: 50%;
-  border: 2px dashed rgba(250, 209, 184, 0.8); z-index: 2;
+  content: "";
+  position: absolute;
+  bottom: -12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  background: white;
+  border-radius: 50%;
+  border: 2px dashed rgba(250, 209, 184, 0.8);
+  z-index: 2;
 }
 
 .crm-label-ticket {
-  font-size: 10px; font-weight: 900; color: var(--ink, #2B2B33); opacity: 0.5; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--ink, #2B2B33);
+  opacity: 0.5;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
 }
 .crm-ticket-code {
-  font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; color: var(--ink, #2B2B33);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #2B2B33);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Right Part: Stamp Button */
 .crm-share-stub-right {
   width: 110px;
-  display: grid; place-items: center;
+  display: grid;
+  place-items: center;
   background: rgba(250, 209, 184, 0.1);
 }
 
 .crm-stamp-btn {
-  width: 64px; height: 64px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   border: 3px solid var(--warm-lantern, #FFD89A);
   background: rgba(255, 255, 255, 0.5);
@@ -579,38 +597,121 @@
   cursor: pointer;
   transform: rotate(-12deg);
   transition: all 0.2s ease;
-  display: grid; place-items: center;
+  display: grid;
+  place-items: center;
 }
-.crm-stamp-btn:hover { background: #ffffff; transform: rotate(-12deg) scale(1.05); box-shadow: 0 4px 12px rgba(255, 216, 154, 0.4); }
+.crm-stamp-btn:hover {
+  background: #ffffff;
+  transform: rotate(-12deg) scale(1.05);
+  box-shadow: 0 4px 12px rgba(255, 216, 154, 0.4);
+}
 
 .crm-stamp-btn.stamped {
-  background: var(--warm-lantern, #FFD89A); color: var(--ink, #2B2B33); border-color: #ffffff;
+  background: var(--warm-lantern, #FFD89A);
+  color: var(--ink, #2B2B33);
+  border-color: #ffffff;
   transform: rotate(0deg) scale(1);
   box-shadow: 0 0 0 4px rgba(255, 216, 154, 0.3);
 }
 
 .crm-social-row { display: flex; gap: 16px; margin-top: 24px; }
 .crm-social-btn {
-  padding: 12px 24px; border-radius: 99px; text-decoration: none; font-weight: 900; font-size: 14px; transition: transform 0.2s; border: 2px solid transparent;
+  padding: 12px 24px;
+  border-radius: 99px;
+  text-decoration: none;
+  font-weight: 900;
+  font-size: 14px;
+  transition: transform 0.2s;
+  border: 2px solid transparent;
 }
-.crm-social-btn.twitter { background: var(--ink, #2B2B33); color: var(--soft-cream, #FFF6EF); box-shadow: 0 4px 12px rgba(43, 43, 51, 0.2); }
-.crm-social-btn.telegram { background: rgba(169, 212, 255, 0.4); color: var(--ink, #2B2B33); border-color: #ffffff; box-shadow: 0 4px 12px rgba(169, 212, 255, 0.2); }
+.crm-social-btn.twitter {
+  background: var(--ink, #2B2B33);
+  color: var(--soft-cream, #FFF6EF);
+  box-shadow: 0 4px 12px rgba(43, 43, 51, 0.2);
+}
+.crm-social-btn.telegram {
+  background: rgba(169, 212, 255, 0.4);
+  color: var(--ink, #2B2B33);
+  border-color: #ffffff;
+  box-shadow: 0 4px 12px rgba(169, 212, 255, 0.2);
+}
 .crm-social-btn:hover { transform: translateY(-2px); }
 
 .crm-done-btn {
-  margin-top: 12px; background: none; border: none; font-weight: 800; font-size: 14px; color: var(--ink, #2B2B33); opacity: 0.6; cursor: pointer; text-decoration: underline; transition: opacity 0.2s;
+  margin-top: 12px;
+  background: none;
+  border: none;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--ink, #2B2B33);
+  opacity: 0.6;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: opacity 0.2s;
 }
 .crm-done-btn:hover { opacity: 1; }
 
 /* --- Mobile --- */
 @media (max-width: 800px) {
-  .crm-overlay { padding-top: 80px; padding-left: 10px; padding-right: 10px; }
-  .crm-body { flex-direction: column; }
-  .crm-preview-col { display: none; }
-  .crm-form-col { border-right: none; padding: 24px; border-bottom-left-radius: 31px; border-bottom-right-radius: 31px; }
-  .crm-grid-2, .crm-grid-dur { grid-template-columns: 1fr; }
-  
+  .crm-overlay {
+    padding-top: 16px;
+    padding-bottom: 16px;
+    padding-left: 10px;
+    padding-right: 10px;
+    align-items: flex-start;
+  }
+
+  .crm-modal {
+    max-height: calc(100dvh - 32px);
+    overflow: hidden;
+  }
+
+  .crm-body {
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .crm-preview-col {
+    display: none;
+  }
+
+  .crm-form-col {
+    border-right: none;
+    border-bottom-left-radius: 31px;
+    border-bottom-right-radius: 31px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .crm-grid-2,
+  .crm-grid-dur {
+    grid-template-columns: 1fr;
+  }
+
   .crm-command-center {
-    position: sticky; bottom: 0; z-index: 50; margin-top: 40px;
+    position: sticky;
+    bottom: 0;
+    z-index: 50;
+    margin-top: auto;
+    padding-top: 12px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom));
+    background: linear-gradient(
+      to top,
+      rgba(255, 255, 255, 0.98) 72%,
+      rgba(255, 255, 255, 0)
+    );
+  }
+
+  .crm-dock-glass {
+    box-shadow:
+      0 12px 30px -5px rgba(203, 183, 246, 0.3),
+      0 0 0 1px rgba(255,255,255,0.7) inset;
   }
 }
