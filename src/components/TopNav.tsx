@@ -4,7 +4,6 @@ import { useWalletBalance } from "thirdweb/react";
 import { thirdwebClient } from "../thirdweb/client";
 import { ETHERLINK_CHAIN } from "../thirdweb/etherlink";
 import { ADDRESSES } from "../config/contracts";
-import { InfraStatusPill } from "./InfraStatusPill";
 import "./TopNav.css";
 
 type Page = "home" | "explore" | "dashboard" | "about" | "faq";
@@ -45,6 +44,7 @@ function isHidden() {
 
 // ✅ Toast preference (only controls pop-up announcements)
 const TOAST_PREF_KEY = "ppopgi:toastEnabled";
+
 function readToastPref(): boolean {
   try {
     const v = localStorage.getItem(TOAST_PREF_KEY);
@@ -276,7 +276,6 @@ export const TopNav = memo(function TopNav({
 
           <div className="topnav-right">
             <div className="desktop-actions">
-              {/* ✅ Single obvious dropdown entry-point */}
               <div className="wallet-dd">
                 <button
                   ref={walletBtnRef}
@@ -329,7 +328,6 @@ export const TopNav = memo(function TopNav({
                           🏦 Cashier
                         </button>
 
-                        {/* ✅ Alerts toggle only when signed in */}
                         <button
                           className="wallet-item"
                           onClick={() => toggleToasts()}
@@ -385,8 +383,6 @@ export const TopNav = memo(function TopNav({
                           🏦 Cashier
                         </button>
 
-                        {/* ✅ REMOVED: Alerts toggle when signed out */}
-
                         <div className="wallet-divider" />
 
                         <button
@@ -406,7 +402,6 @@ export const TopNav = memo(function TopNav({
               </div>
             </div>
 
-            {/* ✅ Mini Quick-Balance for Mobile (USDC + XTZ) */}
             {account && (
               <button className="mobile-quick-bal" onClick={() => handleNav(onOpenCashier)} aria-label="Open Cashier">
                 <div className="mobile-quick-bal-rows">
@@ -434,14 +429,8 @@ export const TopNav = memo(function TopNav({
             </button>
           </div>
         </div>
-
-        {/* Infra row (kept as-is) */}
-        <div className="topnav-infra">
-          <InfraStatusPill />
-        </div>
       </div>
 
-      {/* ✅ Mobile menu */}
       <div ref={menuRef} className={`mobile-menu ${menuOpen ? "visible" : ""}`}>
         <div className="mobile-menu-inner">
           {account && (
@@ -472,7 +461,6 @@ export const TopNav = memo(function TopNav({
 
           <button onClick={() => handleNav(onOpenCashier)}>🏦 Cashier</button>
 
-          {/* ✅ Alerts toggle only when signed in */}
           {account && (
             <button
               onClick={() => {
