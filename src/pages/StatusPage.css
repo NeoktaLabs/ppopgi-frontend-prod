@@ -1,0 +1,246 @@
+.sp-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 28px 20px 72px;
+  color: var(--ink);
+}
+
+.sp-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.sp-hero {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow:
+    0 20px 48px -16px rgba(203, 183, 246, 0.28),
+    0 6px 20px -8px rgba(0, 0, 0, 0.08);
+}
+
+.sp-kicker {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin-bottom: 8px;
+}
+
+.sp-title {
+  margin: 0;
+  font-size: 36px;
+  line-height: 1.05;
+  letter-spacing: -1px;
+}
+
+.sp-sub {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  opacity: 0.72;
+  max-width: 720px;
+}
+
+.sp-hero-row {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sp-overall {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.sp-overall-label {
+  opacity: 0.6;
+}
+
+.sp-refresh-btn {
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(43, 43, 51, 0.16);
+}
+
+.sp-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sp-updated {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.55;
+}
+
+.sp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.sp-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-radius: 24px;
+  padding: 22px;
+  border: 1px solid rgba(255,255,255,0.92);
+  box-shadow:
+    0 18px 40px -18px rgba(0,0,0,0.12),
+    0 6px 18px -10px rgba(0,0,0,0.06);
+}
+
+.sp-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sp-card-title {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+}
+
+.sp-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.06);
+  background: rgba(255,255,255,0.72);
+}
+
+.sp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+.sp-metric {
+  margin-top: 18px;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.sp-caption {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  opacity: 0.6;
+}
+
+.sp-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sp-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.03);
+}
+
+.sp-row span {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.68;
+}
+
+.sp-row strong {
+  font-size: 13px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.sp-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-word;
+}
+
+.is-healthy {
+  color: #15803d;
+  background: rgba(220, 252, 231, 0.75);
+}
+
+.is-degraded {
+  color: #b45309;
+  background: rgba(254, 243, 199, 0.82);
+}
+
+.is-late {
+  color: #c2410c;
+  background: rgba(255, 237, 213, 0.82);
+}
+
+.is-down {
+  color: #be123c;
+  background: rgba(255, 228, 230, 0.82);
+}
+
+.is-unknown {
+  color: #475569;
+  background: rgba(241, 245, 249, 0.82);
+}
+
+@media (max-width: 800px) {
+  .sp-wrap {
+    padding: 18px 14px 56px;
+  }
+
+  .sp-title {
+    font-size: 28px;
+  }
+
+  .sp-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-card {
+    padding: 18px;
+  }
+
+  .sp-metric {
+    font-size: 28px;
+  }
+}
