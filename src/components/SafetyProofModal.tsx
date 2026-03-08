@@ -6,7 +6,7 @@ import "./SafetyProofModal.css";
 type Props = {
   open: boolean;
   onClose: () => void;
-  lottery: LotteryDetails;
+  lottery?: LotteryDetails | null;
 };
 
 const ZERO = "0x0000000000000000000000000000000000000000";
@@ -52,23 +52,50 @@ function secondsToHuman(s: number) {
 }
 
 export function SafetyProofModal({ open, onClose, lottery }: Props) {
-  useSafetyBreakdown(lottery);
+  useSafetyBreakdown(lottery as any);
 
   if (!open) return null;
 
-  // These fields exist in your smart contracts:
-  // - SingleWinnerLottery has immutable: entropy, entropyProvider, feeRecipient, protocolFeePercent, creator, usdcToken
-  // If any of these are missing on LotteryDetails today, you’ll need to add them in useLotteryDetails.
-  const entropyAddr = (lottery as any).entropy as string | undefined; // NEW field (recommended)
-  const feeRecipient = (lottery as any).feeRecipient as string | undefined; // NEW field (recommended)
-  const protocolFeePercent = (lottery as any).protocolFeePercent as any; // NEW field (recommended)
+  if (!lottery) {
+    return (
+      <div className="sp-overlay" onMouseDown={onClose}>
+        <div className="sp-card" onMouseDown={(e) => e.stopPropagation()}>
+          <div className="sp-header">
+            <div className="sp-header-left">
+              <div className="sp-shield-icon">🛡️</div>
+              <div>
+                <h3 className="sp-title">Transparency & Safety</h3>
+                <div className="sp-subtitle">Loading contract safety proof…</div>
+              </div>
+            </div>
+            <button className="sp-close-btn" onClick={onClose}>
+              ✕
+            </button>
+          </div>
 
-  // Optional (if your LotteryDetails already includes them via getSummary()):
-  const drawingRequestedAt = Number((lottery as any).drawingRequestedAt || 0); // seconds
-  const isHatchOpen = Boolean((lottery as any).isHatchOpen); // from getSummary() if you wired it
+          <div className="sp-body">
+            <div className="sp-panel sp-tech-panel">
+              <div className="sp-panel-header">
+                <span>Fetching lottery safety data</span>
+              </div>
+              <div className="sp-footnote">
+                Please wait a moment while we load the contract details and randomness configuration.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const entropyAddr = (lottery as any).entropy as string | undefined;
+  const feeRecipient = (lottery as any).feeRecipient as string | undefined;
+  const protocolFeePercent = (lottery as any).protocolFeePercent as any;
+
+  const drawingRequestedAt = Number((lottery as any).drawingRequestedAt || 0);
+  const isHatchOpen = Boolean((lottery as any).isHatchOpen);
   const nowSec = Math.floor(Date.now() / 1000);
 
-  // Your contract: HATCH_DELAY = 2 hours
   const HATCH_DELAY_SEC = 2 * 60 * 60;
 
   const drawingAgeSec =
@@ -80,7 +107,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
   return (
     <div className="sp-overlay" onMouseDown={onClose}>
       <div className="sp-card" onMouseDown={(e) => e.stopPropagation()}>
-        {/* HEADER */}
         <div className="sp-header">
           <div className="sp-header-left">
             <div className="sp-shield-icon">🛡️</div>
@@ -95,7 +121,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
         </div>
 
         <div className="sp-body">
-          {/* KEY FACTS */}
           <div className="sp-section-grid">
             <div className="sp-data-box">
               <div className="sp-lbl">Contract status</div>
@@ -120,7 +145,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
             </div>
           </div>
 
-          {/* ✅ NEW: CONFIG (IMMUTABLES) */}
           <div className="sp-panel sp-tech-panel">
             <div className="sp-panel-header">
               <span>📌 Immutable config (set at deployment)</span>
@@ -166,7 +190,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
             </div>
           </div>
 
-          {/* HOW RANDOMNESS WORKS */}
           <div className="sp-panel sp-flow-panel">
             <div className="sp-panel-header">
               <span>🎲 How the winner is chosen</span>
@@ -211,7 +234,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
             </div>
           </div>
 
-          {/* ✅ NEW: HATCH STATUS */}
           <div className="sp-panel sp-tech-panel">
             <div className="sp-panel-header">
               <span>🚨 Safety fallback (if randomness is delayed)</span>
@@ -237,7 +259,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
             </div>
           </div>
 
-          {/* VERIFY YOURSELF */}
           <div className="sp-panel sp-tech-panel">
             <div className="sp-panel-header">
               <span>🔎 Verify randomness yourself</span>
@@ -286,7 +307,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
             </div>
           </div>
 
-          {/* ✅ NEW: SIMPLE “NO ADMIN DRAIN” STATEMENT */}
           <div className="sp-panel sp-tech-panel">
             <div className="sp-panel-header">
               <span>🔐 Fund custody model</span>
@@ -304,7 +324,6 @@ export function SafetyProofModal({ open, onClose, lottery }: Props) {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

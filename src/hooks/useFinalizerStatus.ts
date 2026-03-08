@@ -10,7 +10,13 @@ export type FinalizerStatus = {
   level: FinalizerLevel;
   label: string;
 
+  // raw backend status string: ok / error / skipped_* / running / ...
+  status: string | null;
+
   lastRunMs: number | null;
+  lastFinishedMs: number | null;
+  lastOkMs: number | null;
+
   nextRunMs: number | null;
   finalizerEverySec: number;
 
@@ -42,6 +48,12 @@ function env(name: string): string | null {
 /* -------------------- small utils -------------------- */
 
 function clampSec(n: any): number | null {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return null;
+  return Math.max(0, Math.floor(x));
+}
+
+function clampMs(n: any): number | null {
   const x = Number(n);
   if (!Number.isFinite(x)) return null;
   return Math.max(0, Math.floor(x));
@@ -120,7 +132,7 @@ let lastFocusRefreshAtMs = 0;
 const FOCUS_COOLDOWN_MS = 10_000;
 const MIN_FETCH_GAP_MS = 2_000;
 
-// ✅ requested behavior
+// requested behavior
 const BASE_POLL_MS = 60_000;
 const FAST_POLL_MS = 5_000;
 
@@ -143,8 +155,12 @@ function mkInitial(): FinalizerStatus {
     running: false,
     level: "unknown",
     label: "Unknown",
+    status: null,
 
     lastRunMs: null,
+    lastFinishedMs: null,
+    lastOkMs: null,
+
     nextRunMs: null,
     finalizerEverySec,
 
@@ -230,17 +246,19 @@ async function runOnce() {
 
     const mapped = statusFromWire(w);
     const running = !!w?.running;
-    const lastRunMs = typeof w?.lastRun === "number" ? w.lastRun : null;
+    const status = typeof w?.status === "string" ? w.status : null;
+
+    const lastRunMs = clampMs(w?.lastRun);
+    const lastFinishedMs = clampMs(w?.lastFinished);
+    const lastOkMs = clampMs(w?.lastOk);
 
     const sinceWire = clampSec(w?.secondsSinceLastRun);
     const toWire = clampSec(w?.secondsToNextRun);
     const lastError = w?.lastError ? String(w.lastError) : null;
 
-    // Prefer locally derived nextRun from lastRun + configured cadence.
-    // Fallback to backend nextRun if lastRun is missing.
     let nextRunMs: number | null = null;
     if (lastRunMs !== null) nextRunMs = lastRunMs + finalizerEverySec * 1000;
-    else nextRunMs = typeof w?.nextRun === "number" ? w.nextRun : null;
+    else nextRunMs = clampMs(w?.nextRun);
 
     const now = Date.now();
     const liveSince = lastRunMs !== null ? Math.max(0, Math.floor((now - lastRunMs) / 1000)) : sinceWire;
@@ -254,8 +272,12 @@ async function runOnce() {
       running,
       level: mapped.level,
       label: mapped.label,
+      status,
 
       lastRunMs,
+      lastFinishedMs,
+      lastOkMs,
+
       nextRunMs,
       finalizerEverySec,
 
@@ -270,7 +292,6 @@ async function runOnce() {
 
       isLoading: false,
 
-      // keep the displayed base cadence as 60s; aggressive mode is internal
       pollMs: BASE_POLL_MS,
       nextPollMs: nextBasePollAt,
       secondsToNextPoll: Math.max(0, Math.floor((nextBasePollAt - now) / 1000)),
@@ -278,8 +299,6 @@ async function runOnce() {
 
     setSnapshot(nextSnapshot);
 
-    // ✅ Stop aggressive polling only when backend truth says:
-    // not running AND secondsToNextRun is positive
     if (!running && (toWire ?? liveTo ?? null) !== null && (toWire ?? liveTo ?? 0) > 0) {
       stopFastPolling();
     } else {
@@ -300,7 +319,6 @@ async function runOnce() {
       secondsToNextPoll: Math.max(0, Math.floor((nextBasePollAt - Date.now()) / 1000)),
     }));
 
-    // ✅ If near execution, keep aggressive polling even on transient errors
     if (shouldFastPoll(snapshot)) ensureFastPolling();
   } finally {
     fetching = false;
@@ -340,7 +358,6 @@ function tickEverySecond() {
     };
   });
 
-  // ✅ enter aggressive mode locally when countdown reaches 0
   syncFastPolling();
 }
 
@@ -377,13 +394,8 @@ function startIfNeeded() {
   if (started) return;
   started = true;
 
-  // ✅ requested: poll immediately on mount
   void runOnce();
-
-  // ✅ keep a 60s background resync
   scheduleBaseLoop();
-
-  // ✅ local 1s countdown
   secondTickTimer = window.setInterval(tickEverySecond, 1000);
 
   window.addEventListener("focus", onFocusOrVisible);

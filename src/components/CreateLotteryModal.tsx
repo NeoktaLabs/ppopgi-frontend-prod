@@ -11,7 +11,7 @@ import "./CreateLotteryModal.css";
 type Props = {
   open: boolean;
   onClose: () => void;
-  onCreated?: (lotteryAddress?: string) => void; // keep prop name to avoid touching callers
+  onCreated?: (lotteryAddress?: string) => void; 
 };
 
 function toBigInt6(v: string): bigint {
@@ -56,7 +56,6 @@ function secondsToBestUnitValue(seconds: number, unit: DurUnit): { value: number
   return { value: v, unit };
 }
 
-/** ✅ UPDATED: Custom CSS Tooltip matching InfraStatusPill */
 function HelpTip({ text }: { text: string }) {
   return (
     <span className="crm-q" tabIndex={0} aria-label={text}>
@@ -111,7 +110,6 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
     [fireConfetti]
   );
 
-  // ✅ hook
   const { form, validation, derived, status, helpers } = useCreateLotteryForm(open, handleSuccess);
 
   useEffect(() => {
@@ -139,19 +137,14 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
     };
   }, [open, step, handleFinalClose]);
 
-  // ✅ Force Min Purchase to 1 (removes UI + enforces invariant)
   useEffect(() => {
     if (!open) return;
-    // if hook supports it, keep it pinned to "1"
     try {
       if (typeof (form as any).setMinPurchaseAmount === "function") {
         const cur = String((form as any).minPurchaseAmount ?? "");
         if (cur !== "1") (form as any).setMinPurchaseAmount("1");
       }
-    } catch {
-      // no-op
-    }
-    // Intentionally only depends on open + current value (if present)
+    } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, (form as any).minPurchaseAmount]);
 
@@ -213,7 +206,6 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
 
   const fieldClass = (invalid: boolean) => `crm-input ${showInvalid && invalid ? "crm-input-invalid" : ""}`;
 
-  // ✅ "wallet ready" is simply: allowance >= winningPot
   const isReady = validation.hasEnoughAllowance;
 
   const canCreate =
@@ -226,7 +218,6 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
 
   const createDisabled = !canCreate;
 
-  // Keep your router param as-is for now
   const shareLink = createdAddr ? `${window.location.origin}/?lottery=${createdAddr}` : "";
   const tweetText = `I just created a new lottery on Ppopgi (뽑기)! 🎟️\n\nPrize: ${form.winningPot} USDC\nCheck it out here:`;
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(shareLink)}`;
@@ -240,9 +231,7 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
     } catch {}
   };
 
-  // ✅ protocol fee (attempt to read from the hook; fallback safely)
   const protocolFeePercent = useMemo(() => {
-    // Common places a hook might expose it:
     const candidates = [
       (derived as any)?.protocolFeePercent,
       (validation as any)?.protocolFeePercent,
@@ -260,7 +249,6 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
     return Math.min(20, Math.max(0, n));
   }, [derived, validation, status]);
 
-  // ✅ preview object must match what LotteryCard expects (LotteryListItem-ish)
   const previewLottery = useMemo(
     () => ({
       id: PREVIEW_ADDR,
@@ -348,176 +336,180 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
         ) : (
           /* FORM VIEW */
           <div className="crm-body">
-            {/* LEFT: Form */}
+            
+            {/* LEFT: Form Container */}
             <div className="crm-form-col">
-              <div className="crm-bal-row">
-                <span className="crm-bal-label">My Balance</span>
-                <span className="crm-bal-val">{status.usdcBal !== null ? formatUnits(status.usdcBal, 6) : "..."} USDC</span>
-              </div>
-
-              {/* ✅ Fee callout (enforced on-chain) */}
-              <div
-                style={{
-                  marginTop: 10,
-                  marginBottom: 14,
-                  padding: "12px 12px",
-                  borderRadius: 12,
-                  background: "rgba(255, 238, 246, 0.70)",
-                  border: "1px solid rgba(190, 24, 93, 0.18)",
-                  color: "rgba(131, 24, 67, 0.95)",
-                  fontWeight: 800,
-                  fontSize: 12,
-                  lineHeight: 1.35,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                  <span style={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 1000, fontSize: 11 }}>
-                    Protocol fee (enforced on-chain)
-                  </span>
-                  <span style={{ fontWeight: 1000 }}>{protocolFeePercent}%</span>
+              
+              {/* ✅ NEW: Scrollable Form Area */}
+              <div className="crm-form-scroll">
+                <div className="crm-bal-row">
+                  <span className="crm-bal-label">My Balance</span>
+                  <span className="crm-bal-val">{status.usdcBal !== null ? formatUnits(status.usdcBal, 6) : "..."} USDC</span>
                 </div>
-                <div style={{ marginTop: 6, opacity: 0.9 }}>
-                  This fee is applied to both the <b>prize payout</b> and the <b>ticket revenue</b> when the lottery completes.<br /> No fee is applied if the lottery is canceled.
-                </div>
-              </div>
 
-              <div className="crm-input-group">
-                <label>
-                  Lottery Name
-                  <HelpTip text="Displayed on the lottery card. This does not affect fairness — it’s just for humans." />
-                </label>
-                <input
-                  className={fieldClass(invalidName)}
-                  value={form.name}
-                  onChange={(e) => form.setName(e.target.value)}
-                  placeholder="e.g. Bored Ape #8888"
-                  maxLength={32}
-                />
-              </div>
-
-              <div className="crm-grid-2">
-                <div className="crm-input-group">
-                  <label>
-                    Ticket Price
-                    <HelpTip text="Cost per ticket in USDC. Players pay this amount per ticket they buy." />
-                  </label>
-                  <div className="crm-input-wrapper">
-                    <input
-                      className={fieldClass(invalidTicketPrice)}
-                      inputMode="numeric"
-                      value={form.ticketPrice}
-                      onChange={(e) => form.setTicketPrice(helpers.sanitizeInt(e.target.value))}
-                    />
-                    <span className="crm-suffix">USDC</span>
+                <div
+                  style={{
+                    marginTop: 10,
+                    marginBottom: 14,
+                    padding: "12px 12px",
+                    borderRadius: 12,
+                    background: "rgba(255, 238, 246, 0.70)",
+                    border: "1px solid rgba(190, 24, 93, 0.18)",
+                    color: "rgba(131, 24, 67, 0.95)",
+                    fontWeight: 800,
+                    fontSize: 12,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <span style={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 1000, fontSize: 11 }}>
+                      Protocol fee (enforced on-chain)
+                    </span>
+                    <span style={{ fontWeight: 1000 }}>{protocolFeePercent}%</span>
+                  </div>
+                  <div style={{ marginTop: 6, opacity: 0.9 }}>
+                    This fee is applied to both the <b>prize payout</b> and the <b>ticket revenue</b> when the lottery completes.<br /> No fee is applied if the lottery is canceled.
                   </div>
                 </div>
 
                 <div className="crm-input-group">
                   <label>
-                    Total Prize
-                    <HelpTip text="How much USDC you deposit as the prize pot. This amount is locked in the lottery contract." />
-                  </label>
-                  <div className="crm-input-wrapper">
-                    <input
-                      className={fieldClass(invalidWinningPot)}
-                      inputMode="numeric"
-                      value={form.winningPot}
-                      onChange={(e) => form.setWinningPot(helpers.sanitizeInt(e.target.value))}
-                    />
-                    <span className="crm-suffix">USDC</span>
-                  </div>
-                </div>
-              </div>
-
-              {hasBalanceInfo && insufficientPrizeFunds && (
-                <div className="crm-warning-msg">⚠️ Your wallet balance isn’t enough to fund this prize.</div>
-              )}
-
-              <div className="crm-grid-dur">
-                <div className="crm-input-group">
-                  <label>
-                    Duration (Min: 10m / Max: 365d)
-                    <HelpTip text="How long ticket sales stay open. After this time (or sold-out), the lottery can settle." />
+                    Lottery Name
+                    <HelpTip text="Displayed on the lottery card. This does not affect fairness — it’s just for humans." />
                   </label>
                   <input
-                    className={fieldClass(invalidDuration)}
-                    inputMode="numeric"
-                    value={form.durationValue}
-                    onChange={(e) => form.setDurationValue(helpers.sanitizeInt(e.target.value))}
-                    onBlur={handleDurationBlur}
+                    className={fieldClass(invalidName)}
+                    value={form.name}
+                    onChange={(e) => form.setName(e.target.value)}
+                    placeholder="e.g. Bored Ape #8888"
+                    maxLength={32}
                   />
                 </div>
 
-                <div className="crm-input-group">
-                  <label>
-                    Unit
-                    <HelpTip text="Pick minutes/hours/days. We clamp duration between 10 minutes and 365 days." />
-                  </label>
-                  <select
-                    className="crm-select"
-                    value={form.durationUnit}
-                    onChange={(e) => handleDurationUnitChange(e.target.value as DurUnit)}
-                  >
-                    <option value="minutes">Minutes</option>
-                    <option value="hours">Hours</option>
-                    <option value="days">Days</option>
-                  </select>
-                </div>
-              </div>
-
-              {durationOutOfBounds && (
-                <div className="crm-warning-msg">
-                  Duration must be between <b>10m</b> and <b>365d</b>.
-                </div>
-              )}
-
-              {/* Advanced */}
-              <div className="crm-advanced">
-                <button type="button" className="crm-adv-toggle" onClick={() => setAdvancedOpen((v) => !v)}>
-                  {advancedOpen ? "− Less Options" : "+ Advanced Options (Limits)"}
-                </button>
-
-                {advancedOpen && (
-                  <div className="crm-adv-content">
-                    <div className="crm-grid-2">
-                      <div className="crm-input-group">
-                        <label>
-                          Min Tickets
-                          <HelpTip text="Minimum tickets required to draw a winner. If not reached by the deadline, it will cancel." />
-                        </label>
-                        <input
-                          className="crm-input"
-                          value={form.minTickets}
-                          onChange={(e) => handleMinTicketsChange(e.target.value)}
-                          onBlur={() => {
-                            if (!form.minTickets || toInt(form.minTickets) <= 0) form.setMinTickets("1");
-                          }}
-                        />
-                      </div>
-
-                      <div className="crm-input-group">
-                        <label>
-                          Max Tickets
-                          <HelpTip text="Optional cap on total tickets. Leave empty (or 0) for unlimited capacity. The draw will happen as soon as max tickets is reached" />
-                        </label>
-                        <input
-                          className="crm-input"
-                          value={form.maxTickets}
-                          onChange={(e) => handleMaxTicketsChange(e.target.value)}
-                          placeholder="∞"
-                        />
-                      </div>
-                    </div>
-
-                    {/* ✅ Min Purchase removed. Enforced as 1 in code. */}
-                    <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800, color: "rgba(100, 116, 139, 1)" }}>
-                      Min purchase is fixed to <b>1</b> ticket.
+                <div className="crm-grid-2">
+                  <div className="crm-input-group">
+                    <label>
+                      Ticket Price
+                      <HelpTip text="Cost per ticket in USDC. Players pay this amount per ticket they buy." />
+                    </label>
+                    <div className="crm-input-wrapper">
+                      <input
+                        className={fieldClass(invalidTicketPrice)}
+                        inputMode="numeric"
+                        value={form.ticketPrice}
+                        onChange={(e) => form.setTicketPrice(helpers.sanitizeInt(e.target.value))}
+                      />
+                      <span className="crm-suffix">USDC</span>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* COMMAND CENTER */}
+                  <div className="crm-input-group">
+                    <label>
+                      Total Prize
+                      <HelpTip text="How much USDC you deposit as the prize pot. This amount is locked in the lottery contract." />
+                    </label>
+                    <div className="crm-input-wrapper">
+                      <input
+                        className={fieldClass(invalidWinningPot)}
+                        inputMode="numeric"
+                        value={form.winningPot}
+                        onChange={(e) => form.setWinningPot(helpers.sanitizeInt(e.target.value))}
+                      />
+                      <span className="crm-suffix">USDC</span>
+                    </div>
+                  </div>
+                </div>
+
+                {hasBalanceInfo && insufficientPrizeFunds && (
+                  <div className="crm-warning-msg">⚠️ Your wallet balance isn’t enough to fund this prize.</div>
+                )}
+
+                <div className="crm-grid-dur">
+                  <div className="crm-input-group">
+                    <label>
+                      Duration (Min: 10m / Max: 365d)
+                      <HelpTip text="How long ticket sales stay open. After this time (or sold-out), the lottery can settle." />
+                    </label>
+                    <input
+                      className={fieldClass(invalidDuration)}
+                      inputMode="numeric"
+                      value={form.durationValue}
+                      onChange={(e) => form.setDurationValue(helpers.sanitizeInt(e.target.value))}
+                      onBlur={handleDurationBlur}
+                    />
+                  </div>
+
+                  <div className="crm-input-group">
+                    <label>
+                      Unit
+                      <HelpTip text="Pick minutes/hours/days. We clamp duration between 10 minutes and 365 days." />
+                    </label>
+                    <select
+                      className="crm-select"
+                      value={form.durationUnit}
+                      onChange={(e) => handleDurationUnitChange(e.target.value as DurUnit)}
+                    >
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                </div>
+
+                {durationOutOfBounds && (
+                  <div className="crm-warning-msg">
+                    Duration must be between <b>10m</b> and <b>365d</b>.
+                  </div>
+                )}
+
+                {/* Advanced */}
+                <div className="crm-advanced">
+                  <button type="button" className="crm-adv-toggle" onClick={() => setAdvancedOpen((v) => !v)}>
+                    {advancedOpen ? "− Less Options" : "+ Advanced Options (Limits)"}
+                  </button>
+
+                  {advancedOpen && (
+                    <div className="crm-adv-content">
+                      <div className="crm-grid-2">
+                        <div className="crm-input-group">
+                          <label>
+                            Min Tickets
+                            <HelpTip text="Minimum tickets required to draw a winner. If not reached by the deadline, it will cancel." />
+                          </label>
+                          <input
+                            className="crm-input"
+                            value={form.minTickets}
+                            onChange={(e) => handleMinTicketsChange(e.target.value)}
+                            onBlur={() => {
+                              if (!form.minTickets || toInt(form.minTickets) <= 0) form.setMinTickets("1");
+                            }}
+                          />
+                        </div>
+
+                        <div className="crm-input-group">
+                          <label>
+                            Max Tickets
+                            <HelpTip text="Optional cap on total tickets. Leave empty (or 0) for unlimited capacity. The draw will happen as soon as max tickets is reached" />
+                          </label>
+                          <input
+                            className="crm-input"
+                            value={form.maxTickets}
+                            onChange={(e) => handleMaxTicketsChange(e.target.value)}
+                            placeholder="∞"
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 10, fontSize: 12, fontWeight: 800, color: "rgba(100, 116, 139, 1)" }}>
+                        Min purchase is fixed to <b>1</b> ticket.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div> 
+              {/* End crm-form-scroll */}
+
+              {/* ✅ COMMAND CENTER (Permanently Fixed at Bottom) */}
               <div className="crm-command-center">
                 <div className="crm-dock-glass">
                   <button
