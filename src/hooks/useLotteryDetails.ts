@@ -40,6 +40,7 @@ function statusFromSubgraph(v: any): LotteryStatus {
 }
 
 const ZERO = "0x0000000000000000000000000000000000000000";
+const FORCE_FRESH_HEADER = "x-force-fresh";
 
 function normHex(v: unknown): string {
   return String(v || "").toLowerCase();
@@ -83,22 +84,17 @@ export type LotteryDetails = {
   maxTickets: string;
   deadline: string;
 
-  // legacy field kept for UI compatibility (contract has no paused())
   paused: boolean;
-
   minPurchaseAmount: string;
 
-  // entropy/draw state
   entropyRequestId: string;
   drawingRequestedAt: string;
   selectedProvider: string;
   winner: string;
 
-  // derived UX helpers from getSummary()
   isFinalizable: boolean;
   isHatchOpen: boolean;
 
-  // config (from subgraph; immutables on-chain but no need to hammer RPC)
   usdcToken: string;
   creator: string;
   feeRecipient: string;
@@ -107,7 +103,6 @@ export type LotteryDetails = {
   entropyProvider: string;
   callbackGasLimit: string;
 
-  // this is NOT a contract getter — we take it from WinnerPickedEvent in subgraph
   winningTicketIndex: string;
 
   history?: LotteryHistory;
@@ -157,19 +152,16 @@ type SubgraphBundle = {
   } | null;
 
   history: LotteryHistory | null;
-
   latestWinnerPicked: { winningTicketIndex: string | null } | null;
 };
 
-async function fetchSubgraphBundle(id: string, signal?: AbortSignal): Promise<SubgraphBundle> {
+async function fetchSubgraphBundle(
+  id: string,
+  opts?: { signal?: AbortSignal; forceFresh?: boolean }
+): Promise<SubgraphBundle> {
   const lotteryId = id.toLowerCase();
   const url = mustEnv("VITE_SUBGRAPH_URL");
 
-  /**
-   * ✅ IMPORTANT:
-   * Your schema has `Lottery.id: ID!` (string), NOT Bytes.
-   * So the query variable must be `$id: ID!` and you pass the lowercased address string.
-   */
   const query = `
     query LotteryDetailsBundle($id: ID!) {
       lottery(id: $id) {
@@ -223,11 +215,16 @@ async function fetchSubgraphBundle(id: string, signal?: AbortSignal): Promise<Su
     }
   `;
 
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  if (opts?.forceFresh) headers[FORCE_FRESH_HEADER] = "1";
+
   const res = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers,
     body: JSON.stringify({ query, variables: { id: lotteryId } }),
-    signal,
+    signal: opts?.signal,
   });
 
   if (!res.ok) throw new Error(`SUBGRAPH_HTTP_ERROR_${res.status}`);
@@ -298,13 +295,26 @@ type CacheEntry = { ts: number; data: LotteryDetails };
 const DETAILS_CACHE_TTL_MS = 7_500;
 const detailsCache = new Map<string, CacheEntry>();
 
+type RevalidateDetail = {
+  force?: boolean;
+  lotteryId?: string | null;
+};
+
+function matchesLottery(detail: RevalidateDetail | undefined, normalizedAddress: string | null) {
+  if (!normalizedAddress) return false;
+  const target = String(detail?.lotteryId ?? "").toLowerCase();
+  if (!target) return true;
+  return target === normalizedAddress.toLowerCase();
+}
+
 export function useLotteryDetails(lotteryAddress: string | null, open: boolean) {
   const [data, setData] = useState<LotteryDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  // used to ignore stale async results
   const runIdRef = useRef(0);
+  const refreshNonceRef = useRef(0);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const normalizedAddress = useMemo(() => {
     if (!lotteryAddress) return null;
@@ -326,12 +336,36 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
   }, [normalizedAddress]);
 
   useEffect(() => {
+    const onRevalidate = (ev?: Event) => {
+      if (!open || !normalizedAddress) return;
+
+      const detail =
+        ev && "detail" in ev ? (ev as CustomEvent<RevalidateDetail>).detail : undefined;
+
+      if (!matchesLottery(detail, normalizedAddress)) return;
+
+      if (detail?.force) {
+        detailsCache.delete(normalizedAddress.toLowerCase());
+      }
+
+      refreshNonceRef.current += 1;
+      setRefreshNonce(refreshNonceRef.current);
+    };
+
+    window.addEventListener("ppopgi:revalidate", onRevalidate as EventListener);
+    return () => window.removeEventListener("ppopgi:revalidate", onRevalidate as EventListener);
+  }, [open, normalizedAddress]);
+
+  useEffect(() => {
     if (!open || !contract || !normalizedAddress) return;
 
-    // Serve hot cache immediately (no RPC)
     const cacheKey = normalizedAddress.toLowerCase();
     const cached = detailsCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < DETAILS_CACHE_TTL_MS) {
+
+    // If this run was triggered only by open/address change, we can use hot cache.
+    // If triggered by refreshNonce change, prefer reloading.
+    const isExplicitRefresh = refreshNonce > 0;
+    if (!isExplicitRefresh && cached && Date.now() - cached.ts < DETAILS_CACHE_TTL_MS) {
       setData(cached.data);
       setLoading(false);
       setNote(null);
@@ -346,17 +380,17 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
       setLoading(true);
       setNote(null);
 
-      // Start subgraph in parallel (fast, cached by your worker)
-      const subgraphP = withTimeout(fetchSubgraphBundle(cacheKey, ac.signal).catch(() => null), 2500, null);
+      // Force the subgraph leg when this run was triggered by a refresh event.
+      const subgraphP = withTimeout(
+        fetchSubgraphBundle(cacheKey, {
+          signal: ac.signal,
+          forceFresh: isExplicitRefresh,
+        }).catch(() => null),
+        2500,
+        null
+      );
 
       try {
-        /**
-         * ✅ BEST on-chain trust with MIN calls:
-         * 1 RPC: getSummary()
-         *
-         * getSummary returns:
-         * (_status,_name,_createdAt,_deadline,_ticketPrice,_winningPot,_ticketRevenue,_minTickets,_maxTickets,_minPurchaseAmount,_sold,_winner,_entropyRequestId,_drawingRequestedAt,_selectedProvider,_isFinalizable,_isHatchOpen)
-         */
         const summary = await withTimeout(
           readContract({
             contract,
@@ -367,7 +401,6 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
           null
         );
 
-        // Parse summary defensively
         const s = Array.isArray(summary) ? summary : null;
 
         const onchainStatus = s ? statusFromUint8(Number(s[0])) : "UNKNOWN";
@@ -389,7 +422,6 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
 
         if (!alive || runId !== runIdRef.current) return;
 
-        // Build initial view using on-chain summary (truth) + placeholders for config
         const base: LotteryDetails = {
           address: normalizedAddress,
 
@@ -406,7 +438,7 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
           maxTickets: onchainMaxTickets,
           deadline: onchainDeadline,
 
-          paused: false, // contract has no paused()
+          paused: false,
 
           minPurchaseAmount: onchainMinPurchaseAmount,
 
@@ -418,7 +450,6 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
           isFinalizable: onchainIsFinalizable,
           isHatchOpen: onchainIsHatchOpen,
 
-          // config comes from subgraph (immutables on-chain, but not worth extra RPC here)
           usdcToken: ZERO,
           creator: ZERO,
           feeRecipient: ZERO,
@@ -427,16 +458,13 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
           entropyProvider: ZERO,
           callbackGasLimit: "0",
 
-          // NOT a contract getter; take from subgraph event
           winningTicketIndex: "0",
 
           history: undefined,
         };
 
-        // Set immediately so UI is responsive even if subgraph lags
         setData(base);
 
-        // Merge subgraph if/when available
         const bundle = await subgraphP;
         if (!alive || runId !== runIdRef.current) return;
 
@@ -450,10 +478,8 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
           const merged: LotteryDetails = {
             ...base,
 
-            // Prefer subgraph name if present (but keep on-chain if not)
             name: bundle.core.name ? String(bundle.core.name) : base.name,
 
-            // Prefer subgraph config (immutables)
             creator: bundle.core.creator ? normHex(bundle.core.creator) : base.creator,
             usdcToken: bundle.core.usdcToken ? normHex(bundle.core.usdcToken) : base.usdcToken,
             feeRecipient: bundle.core.feeRecipient ? normHex(bundle.core.feeRecipient) : base.feeRecipient,
@@ -464,7 +490,6 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
             callbackGasLimit:
               bundle.core.callbackGasLimit != null ? String(bundle.core.callbackGasLimit) : base.callbackGasLimit,
 
-            // Prefer subgraph for these if you want “what the indexer thinks”, but keep on-chain truth for actions:
             ticketPrice: bundle.core.ticketPrice != null ? String(bundle.core.ticketPrice) : base.ticketPrice,
             winningPot: bundle.core.winningPot != null ? String(bundle.core.winningPot) : base.winningPot,
             minTickets: bundle.core.minTickets != null ? String(bundle.core.minTickets) : base.minTickets,
@@ -472,12 +497,8 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
             deadline: bundle.core.deadline != null ? String(bundle.core.deadline) : base.deadline,
             ticketRevenue: bundle.core.ticketRevenue != null ? String(bundle.core.ticketRevenue) : base.ticketRevenue,
 
-            // Final status: allow subgraph to “win” only for terminal/drawing states
             status: finalStatus,
-
-            // event-derived
             winningTicketIndex: bundle.latestWinnerPicked?.winningTicketIndex ?? base.winningTicketIndex,
-
             history: bundle.history ?? undefined,
           };
 
@@ -487,7 +508,6 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
           return;
         }
 
-        // If subgraph unavailable, keep the on-chain view but warn
         detailsCache.set(cacheKey, { ts: Date.now(), data: base });
         setNote("Showing on-chain summary only. Indexer details are still syncing or unavailable.");
       } catch {
@@ -506,7 +526,17 @@ export function useLotteryDetails(lotteryAddress: string | null, open: boolean) 
         ac.abort();
       } catch {}
     };
-  }, [open, contract, normalizedAddress]);
+  }, [open, contract, normalizedAddress, refreshNonce]);
 
-  return { data, loading, note };
+  return {
+    data,
+    loading,
+    note,
+    refresh: () => {
+      if (!normalizedAddress) return;
+      detailsCache.delete(normalizedAddress.toLowerCase());
+      refreshNonceRef.current += 1;
+      setRefreshNonce(refreshNonceRef.current);
+    },
+  };
 }

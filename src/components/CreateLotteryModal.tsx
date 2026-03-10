@@ -11,7 +11,7 @@ import "./CreateLotteryModal.css";
 type Props = {
   open: boolean;
   onClose: () => void;
-  onCreated?: (lotteryAddress?: string) => void; 
+  onCreated?: (lotteryAddress?: string) => void;
 };
 
 function toBigInt6(v: string): bigint {
@@ -197,7 +197,11 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
   const hasBalanceInfo = usdcBalU6 !== null;
   const insufficientPrizeFunds = hasBalanceInfo ? winningPotU6 > usdcBalU6! : false;
 
-  const invalidName = !form.name.trim();
+  const trimmedName = validation.trimmedName ?? form.name.trim();
+  const minNameLen = validation.minNameLen ?? 5;
+  const maxNameLen = validation.maxNameLen ?? 20;
+  const invalidName = !validation.isNameValid;
+
   const invalidTicketPrice = Number(form.ticketPrice) <= 0;
   const invalidWinningPot = Number(form.winningPot) <= 0;
   const invalidDurationBase = Number(form.durationValue) <= 0;
@@ -279,7 +283,6 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
       }}
     >
       <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div className="crm-header">
           <div className="crm-header-text">
             <h3>{step === "success" ? "You're Live! 🎉" : "Creator Studio"}</h3>
@@ -290,7 +293,6 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
           </button>
         </div>
 
-        {/* SUCCESS VIEW */}
         {step === "success" ? (
           <div className="crm-success-view">
             <div className="crm-success-icon">✓</div>
@@ -334,13 +336,8 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
             </div>
           </div>
         ) : (
-          /* FORM VIEW */
           <div className="crm-body">
-            
-            {/* LEFT: Form Container */}
             <div className="crm-form-col">
-              
-              {/* ✅ NEW: Scrollable Form Area */}
               <div className="crm-form-scroll">
                 <div className="crm-bal-row">
                   <span className="crm-bal-label">My Balance</span>
@@ -368,7 +365,9 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                     <span style={{ fontWeight: 1000 }}>{protocolFeePercent}%</span>
                   </div>
                   <div style={{ marginTop: 6, opacity: 0.9 }}>
-                    This fee is applied to both the <b>prize payout</b> and the <b>ticket revenue</b> when the lottery completes.<br /> No fee is applied if the lottery is canceled.
+                    This fee is applied to both the <b>prize payout</b> and the <b>ticket revenue</b> when the lottery completes.
+                    <br />
+                    No fee is applied if the lottery is canceled.
                   </div>
                 </div>
 
@@ -382,8 +381,16 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                     value={form.name}
                     onChange={(e) => form.setName(e.target.value)}
                     placeholder="e.g. Bored Ape #8888"
-                    maxLength={32}
+                    maxLength={maxNameLen}
                   />
+                  <div className={`crm-field-help ${showInvalid && invalidName ? "invalid" : ""}`}>
+                    <span>
+                      {trimmedName.length}/{maxNameLen} characters
+                    </span>
+                    <span>
+                      Name must be between {minNameLen} and {maxNameLen} characters.
+                    </span>
+                  </div>
                 </div>
 
                 <div className="crm-grid-2">
@@ -462,7 +469,6 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                   </div>
                 )}
 
-                {/* Advanced */}
                 <div className="crm-advanced">
                   <button type="button" className="crm-adv-toggle" onClick={() => setAdvancedOpen((v) => !v)}>
                     {advancedOpen ? "− Less Options" : "+ Advanced Options (Limits)"}
@@ -506,10 +512,8 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                     </div>
                   )}
                 </div>
-              </div> 
-              {/* End crm-form-scroll */}
+              </div>
 
-              {/* ✅ COMMAND CENTER (Permanently Fixed at Bottom) */}
               <div className="crm-command-center">
                 <div className="crm-dock-glass">
                   <button
@@ -534,15 +538,18 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
                     title="Deploys your lottery contract with these parameters"
                   >
                     <span className="crm-dock-icon">{status.isPending ? "⏳" : "Step 2"}</span>
-                    <span className="crm-dock-label">{status.isPending ? "Creating..." : "Create your Lottery"}</span>
+                    <span className="crm-dock-label">{status.isPending ? "Preparing..." : "Create your Lottery"}</span>
                   </button>
+                </div>
+
+                <div className="crm-prep-note">
+                  Creating a new lottery deploys a fresh contract, so preparing the wallet transaction may take several seconds.
                 </div>
 
                 {status.msg && <div className="crm-status-msg">{status.msg}</div>}
               </div>
             </div>
 
-            {/* RIGHT: Preview */}
             <div className="crm-preview-col">
               <div className="crm-preview-label">Live Preview</div>
               <div className="crm-levitate-wrapper">

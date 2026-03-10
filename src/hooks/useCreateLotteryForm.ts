@@ -210,6 +210,9 @@ const SNAPSHOT_TTL_MS = 12_000;
 const U64_MAX = (1n << 64n) - 1n;
 const U32_MAX = (1n << 32n) - 1n;
 
+const MIN_NAME_LEN = 5;
+const MAX_NAME_LEN = 20;
+
 export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string) => void) {
   const account = useActiveAccount();
   const me = account?.address ?? null;
@@ -287,6 +290,9 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
   const maxT = BigInt(Math.max(0, toInt(maxTickets, 0)));
   const minPurchaseU32N = Math.max(1, toInt(minPurchaseAmount, 1));
 
+  const trimmedName = name.trim();
+  const isNameValid = trimmedName.length >= MIN_NAME_LEN && trimmedName.length <= MAX_NAME_LEN;
+
   const durOk = durationSecondsN >= 60;
   const hasEnoughAllowance = allowance !== null && allowance >= winningPotU;
   const hasEnoughBalance = usdcBal !== null && usdcBal >= winningPotU;
@@ -294,7 +300,7 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
   const canSubmit =
     !!me &&
     !isPending &&
-    name.trim().length > 0 &&
+    isNameValid &&
     durOk &&
     winningPotU > 0n &&
     ticketPriceU > 0n &&
@@ -426,6 +432,11 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
     setMsg(null);
     if (!canSubmit) return;
 
+    if (!isNameValid) {
+      setMsg(`Lottery name must be between ${MIN_NAME_LEN} and ${MAX_NAME_LEN} characters.`);
+      return;
+    }
+
     const minTicketsU64 = minT;
     const maxTicketsU64 = maxT;
     const durationU64 = BigInt(Math.max(0, Math.floor(durationSecondsN)));
@@ -445,12 +456,12 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
     perfMark(createStart);
 
     try {
-      setMsg("Confirm creation in wallet...");
+      setMsg("Preparing wallet transaction... This may take several seconds for new lottery deployments.");
 
       const tx = prepareContractCall({
         contract: deployerContract,
         method: "createSingleWinnerLottery",
-        params: [name.trim(), ticketPriceU, winningPotU, minTicketsU64, maxTicketsU64, durationU64, minPurchaseU32],
+        params: [trimmedName, ticketPriceU, winningPotU, minTicketsU64, maxTicketsU64, durationU64, minPurchaseU32],
       });
 
       const receipt = await sendAndConfirm(tx);
@@ -482,7 +493,7 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
         tsMs: Date.now(),
         lottery: {
           id: (newAddr || "0x").toLowerCase(),
-          name: name.trim(),
+          name: trimmedName,
           creator: me?.toLowerCase(),
           status: "OPEN",
           typeId: "1",
@@ -505,7 +516,7 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
       emitActivity({
         type: "CREATE",
         lotteryId: (newAddr || "0x").toLowerCase(),
-        lotteryName: name.trim(),
+        lotteryName: trimmedName,
         subject: me?.toLowerCase() ?? "",
         value: winningPotU.toString(),
         timestamp: String(nowSec),
@@ -580,6 +591,10 @@ export function useCreateLotteryForm(isOpen: boolean, onCreated?: (addr?: string
       hasEnoughAllowance,
       canSubmit,
       durationSecondsN,
+      isNameValid,
+      trimmedName,
+      minNameLen: MIN_NAME_LEN,
+      maxNameLen: MAX_NAME_LEN,
     },
     derived: {
       ticketPriceU,
