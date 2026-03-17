@@ -276,13 +276,8 @@ export function CreateLotteryModal({ open, onClose, onCreated }: Props) {
   if (!open) return null;
 
   return (
-    <div
-      className="crm-overlay"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleFinalClose();
-      }}
-    >
-      <div className="crm-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="crm-overlay">
+      <div className="crm-modal">
         <div className="crm-header">
           <div className="crm-header-text">
             <h3>{step === "success" ? "You're Live! 🎉" : "Creator Studio"}</h3>

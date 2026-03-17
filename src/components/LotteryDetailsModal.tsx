@@ -323,6 +323,8 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery, 
   }, [lotteryId, open, initialLottery]);
 
   const displayData = (state.data || initialLottery || metadata) as any;
+  const ticketCode = lotteryId?.slice(2, 8).toUpperCase() || "------";
+  const displayName = String(displayData?.name || "").trim() || "Lottery";
 
   const soldForPct = Number(displayData?.sold || 0);
   const { participants, isLoading: loadingPart } = useLotteryParticipants(lotteryId, soldForPct);
@@ -559,13 +561,17 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery, 
             <button className="rdm-icon-btn" onClick={actions.handleShare} title="Copy Link">
               🔗
             </button>
-            <div className="rdm-ticket-id">TICKET #{lotteryId?.slice(2, 8).toUpperCase()}</div>
+            <div className="rdm-ticket-id">TICKET #{ticketCode}</div>
             <button className="rdm-icon-btn" onClick={handleClose}>
               ✕
             </button>
           </div>
 
           <div className="rdm-hero">
+            <div className="rdm-lottery-title" title={displayName}>
+              {displayName}
+            </div>
+
             <div className="rdm-hero-lbl">Prize Pool</div>
             <div className="rdm-hero-val">
               {potUi} <span className="rdm-hero-unit">USDC</span>
@@ -678,7 +684,6 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery, 
                 ) : isCreator ? (
                   <div className="rdm-buy-disabled">Creator cannot participate.</div>
                 ) : (
-                  // ✅ WRAPPED everything here in a relative container so the overlay msg escapes the blur
                   <div className="rdm-buy-wrap">
                     <div className={`rdm-buy-inner ${blurBuy ? "blurred" : ""}`}>
                       <div className="rdm-balance-row">
@@ -739,7 +744,6 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery, 
                       )}
                     </div>
 
-                    {/* ✅ CLICKABLE overlay that opens your sign-in modal */}
                     {blurBuy && (
                       <button
                         type="button"
@@ -793,7 +797,6 @@ export function LotteryDetailsModal({ open, lotteryId, onClose, initialLottery, 
                 </div>
               </div>
 
-              {/* ✅ KEEP DECIMALS HERE (distribution/payout section) */}
               {distribution && (
                 <div className="rdm-dist-section">
                   <div className="rdm-dist-header">Payout Distribution</div>
